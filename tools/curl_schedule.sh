@@ -1,0 +1,17 @@
+curl 'https://swimgym.virtuagym.com/classes/day/2026-05-03?event_type=8&activity_id=&coach=' \
+  --compressed \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:150.0) Gecko/20100101 Firefox/150.0' \
+  -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' \
+  -H 'Accept-Language: nl,en-US;q=0.9,en;q=0.8' \
+  -H 'Accept-Encoding: gzip, deflate, br, zstd' \
+  -H 'DNT: 1' \
+  -H 'Sec-GPC: 1' \
+  -H 'Connection: keep-alive' \
+  -H 'Referer: https://swimgym.virtuagym.com/classes/week/2026-04-27?event_type=8' \
+  -H 'Cookie: AWSALB=ZDUZr9tuoADGafsyQen0NGNdjzD4wweJjx/pG4th5o5G54zYroHi/ZuhWqY4LqIAted7mJyLjxo6F/CsthrnKh7hORANL7GezleDuWnmq0sl6JYP2wKK+rohF/3k; AWSALBCORS=ZDUZr9tuoADGafsyQen0NGNdjzD4wweJjx/pG4th5o5G54zYroHi/ZuhWqY4LqIAted7mJyLjxo6F/CsthrnKh7hORANL7GezleDuWnmq0sl6JYP2wKK+rohF/3k; vg-user-refresh-token-v3=eyJhbGciOiJIUzUxMiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICIzYTA5MDVjMC1jNTQwLTRkMjUtYmFkOS02MTkyYjAzMDlkMDEifQ.eyJleHAiOjE3Nzg1Mjk4MDcsImlhdCI6MTc3NzIzMzgwNywianRpIjoiZjZlOTYxOWQtY2QzNS00MzAzLWI3YWUtYzBjNTUyYTA1NWJlIiwiaXNzIjoiaHR0cHM6Ly9pYW0uc2VydmljZXMudmlydHVhZ3ltLmNvbS9hdXRoL3JlYWxtcy92aXJ0dWFneW0iLCJhdWQiOiJodHRwczovL2lhbS5zZXJ2aWNlcy52aXJ0dWFneW0uY29tL2F1dGgvcmVhbG1zL3ZpcnR1YWd5bSIsInN1YiI6ImY6ZGM5OWVhZDQtNmZhYi00NzI4LWExMGItZmMyY2EyYTA5YWNiOnN3aW1neW1maW52IiwidHlwIjoiUmVmcmVzaCIsImF6cCI6Im1vbm9saXRoLXdlYiIsInNpZCI6ImU2NGRiYjg3LWM0YjMtNDZhMy1iYjEzLWExY2FhZWY2MDVjMCIsInNjb3BlIjoibGVhZHMgc2NoZWR1bGUgd2ViLW9yaWdpbnMgdHJhaW5pbmctc2Vzc2lvbnMgbWF4X3pvbmVfY291bnQtMjAgZW1haWwgYmFzaWMgcHJvZmlsZSJ9.KubgkOGw2U0PlM7KPkJpLMpG8qfClFvt8w6PkBoqYvD8nO7Uk2xTGq6osgHm1kxVIEOS5XT1aAvvE33eyoe5CA; pkce_code_verifier=; vg-user-access-token-v3=; virtuagym_u=30966006; virtuagym_k=3438fbd40ad412577e40dc41732581c91d17; virtuagym_sid=805b2254e9a1afa60824d3e6416401d8583e; LoginReferer=https%3A%2F%2Fswimgym.virtuagym.com%2F%3Flogged_out%3D1; vg-user-access-token=eyJhbGciOiJIUzUxMiJ9.eyJqdGkiOiI1MTE2ZDkxNi04MDg0LTQxZmUtYmNlOC1iN2I3Y2U3ZjI3YTYiLCJpZGVudGl0eSI6eyJ1c2VyX2lkIjozMDk2NjAwNiwiZ3JhbnRfdHlwZSI6ImFjY2Vzc190b2tlbiIsInNjb3BlcyI6W3siYXV0aG9yaXR5IjoiUk9MRV9VU0VSIn1dfSwiaXNzIjoidmlydHVhZ3ltLmNvbSIsImlhdCI6MTc3NzIzMzgwNywiZXhwIjoxNzc3MjM0NzA3fQ.w06hhEWoVJOCVrXdWoYDeyDvpuORZaZREsWYdWhKQnBtFy3JnoUbnDAih17M1GP9guJbsfzfWlKBwjIwAWcV7g; vg-user-refresh-token=eyJhbGciOiJIUzUxMiJ9.eyJqdGkiOiIyNjMyNjdlNi1kNTIxLTRhOTctYjI0Ni0wMzAyNWI2M2EwYzMiLCJpZGVudGl0eSI6eyJ1c2VyX2lkIjozMDk2NjAwNiwiZ3JhbnRfdHlwZSI6InJlZnJlc2hfdG9rZW4iLCJzY29wZXMiOlt7ImF1dGhvcml0eSI6IlJPTEVfVVNFUiJ9XX0sInN1YiI6IjMwOTY2MDA2IiwiaXNzIjoidmlydHVhZ3ltLmNvbSIsImlhdCI6MTc3NzIzMzgwNywiZXhwIjoxNzk4ODMzODA3fQ.Ycolm8YGdaN1vWXZ0wU7w2_gNlJxI1al441tjrIoJVgfu26WO2eXqWoS8KT7EObSytnhTvQuuV0YVfJSHrexFA' \
+  -H 'Upgrade-Insecure-Requests: 1' \
+  -H 'Sec-Fetch-Dest: document' \
+  -H 'Sec-Fetch-Mode: navigate' \
+  -H 'Sec-Fetch-Site: same-origin' \
+  -H 'Sec-Fetch-User: ?1' \
+  -H 'Priority: u=0, i'

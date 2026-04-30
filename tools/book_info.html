@@ -1,0 +1,514 @@
+<script>
+    jQuery(document).ready(function($) {
+        $('.send_mail_participants').bind('click', function(){
+                        $('.email-content').val('');
+            $('.event-members').hide();
+            $('.event-action').hide();
+            $('.display-title').html('<b><p>Deelnemers\u0020mailen</p></b>');
+            $('.email-members-view').hide();
+            $('.email-members').show();
+            $('.send-email-button').show();
+                    });
+
+        $('.event_history_mail').bind('click', function(){
+            var email_subject = $(this).attr('data-subject');
+            var email_message = $(this).attr('data-message');
+            var email_timestamp = $(this).attr('data-timestamp');
+
+            $('.event-members').hide();
+            $('.event-action').hide();
+            $('.email-members').hide();
+            $('.display-title').html('<b> Sent on ' + email_timestamp + '</b>');
+            $('.email-content').val(email_message);
+            $('.email-subject-view').val(email_subject);
+            $('.email-members-view').show();
+        });
+
+        var activity_id_filter = sessionStorage.getItem('activity_id_filter');
+        var club_coach_id_filter = sessionStorage.getItem('club_coach_id_filter');
+
+        if (activity_id_filter) {
+            $('#activity_id_filter').val(activity_id_filter);
+        }
+
+        if (club_coach_id_filter) {
+            $('#club_coach_id_filter').val(club_coach_id_filter);
+        }
+
+            });
+
+    
+    
+    selected_event_id = '1786236539-6516b6403d23b5-64943780';
+
+    
+    
+    function print_participant_receipt(event_participant_id){
+	    var win = window.open('http://unsec.virtuagym.com/' + 'connect/print_participant_receipt?participanteventid=' + event_participant_id + '&app_port=' + 8000 + '&action=' + "print_participant_receipt", "_blank", "width=500, height=500");
+	    setTimeout(function () { win.close();}, 3000);
+    }
+
+    function edit_participant_note(trigger, obj){
+        var row = obj.closest('tr');
+        switch(trigger){
+            case 'icon_edit':
+                row.find('.reason').hide();
+                row.find('.participant_notes_row').find('div.participant_notes').hide();
+
+                row.parent().find('.note_controls').hide();
+                row.find('.participant_notes_row').find('.note_controls').show();
+	            row.find('.participant_notes_row').find('.icon_remove').show();
+	            row.find('.participant_notes_row').find('.icon_edit').show();
+	            row.find('.participant_notes_row').find('.icon_print').show();
+                row.find('.note_input').val(row.find('div.participant_notes').text());
+                break;
+
+            case 'save_note':
+                var url = $('#class_form').attr('action');
+                var post_data = {
+                    action: 'edit_participant_notes',
+                    participant_id: obj.attr('data-id'),
+                    participant_notes: row.find('.note_input').val()
+                };
+                $.post(url, post_data, function(data){
+                    if(data == 'ok'){
+                        row.find('.participant_notes_row').find('div.participant_notes').text(row.find('.note_input').val());
+                        row.find('.participant_notes_row').find('div.participant_notes').show();
+                        row.find('.participant_notes_row').find('.note_controls').hide();
+                    }
+                });
+
+	            row.find('.participant_notes_row').find('.note_controls').show();
+	            row.find('.participant_notes_row').find('.icon_remove').show();
+	            row.find('.participant_notes_row').find('.icon_edit').show();
+                break;
+
+            case 'cancel_save_note':
+                row.find('.participant_notes_row').find('div.participant_notes').show();
+                row.find('.participant_notes_row').find('.note_controls').hide();
+                break;
+
+            case 'icon_remove':
+	            row.parent().find('.note_controls').hide();
+	            row.find('.participant_notes_row').find('.note_controls').hide();
+	            row.find('.participant_notes_row').find('div.participant_notes').hide();
+	            row.find('.participant_notes_row').find('.icon_remove').hide();
+	            row.find('.participant_notes_row').find('.icon_edit').hide();
+	            row.find('.participant_notes_row').find('.icon_print').hide();
+                row.find('.presence_dropdown').hide();
+	            row.find('.reason').show();
+	            row.find('.note_input').val(row.find('div.participant_notes').text());
+	            break;
+
+            case 'cancel_remove':
+	            row.find('.reason').hide();
+	            row.find('.participant_notes_row').find('div.participant_notes').show();
+	            row.find('.presence_dropdown').show();
+	            row.find('.participant_notes_row').find('.icon_remove').show();
+	            row.find('.participant_notes_row').find('.icon_edit').show();
+	            row.find('.participant_notes_row').find('.icon_print').show();
+	            break;
+
+
+        }
+    }
+
+    function deleteParticipantFromEvent(obj) {
+	    var row = obj.closest('tr');
+        var prompt_response = confirm('Weet\u0020je\u0020zeker\u0020dat\u0020je\u0020deze\u0020klant\u0020wilt\u0020verwijderen\u0020van\u0020deze\u0020activiteit\u003F');
+        if (prompt_response) {
+            $('#participant_id').val(obj.attr('data-id'));
+            $('#action_class_form').val('delete_participant');
+            $('#absent_reason_form').val(row.find('.absent_reason').val());
+            new FormSubmit('class_form', 'result');
+        }
+    }
+
+    function remove_from_waiting_list(obj) {
+        var prompt_response = confirm('Weet\u0020je\u0020zeker\u0020dat\u0020je\u0020deze\u0020klant\u0020wilt\u0020verwijderen\u0020van\u0020de\u0020wachtlijst\u003F');
+        if (prompt_response) {
+            $('#waiting_member_id').val(obj.attr('data-member-id'));
+            $('#action_class_form').val('remove_from_waiting_list');
+            new FormSubmit('class_form', 'result');
+        }
+    }
+
+    function handleDeleteClass(send_email_when_cancel) {
+        if (send_email_when_cancel == '1') {
+            var note = prompt('Verwijderen\u0020akkoord\u003F\nWil\u0020je\u0020een\u0020notitie\u0020aan\u0020de\u0020klantmail\u0020toevoegen\u003F');
+            if (note || note == '') {
+                $('#additional_note').val(note);
+                $('#action_class_form').val('delete_class');
+                new FormSubmit('class_form', 'result');
+            }
+        } else {
+            if (confirm('Verwijderen\u0020akkoord\u003F')) {
+                $('#action_class_form').val('delete_class');
+                new FormSubmit('class_form', 'result');
+            }
+        }
+    }
+
+    function handleSendEmailParticipants() {
+
+        if ($('.email-subject').val() == '' || $('.email-subject').val() == 'Onderwerp') {
+            alert('Je\u0020moet\u0020een\u0020titel\u0020opgeven\u0020bij\u0020het\u0020plaatsen\u0020van\u0020een\u0020nieuw\u0020bericht.');
+            exit;
+        }
+
+        if ($('.email-content').val() == '' || $('.email-content').val() == 'Type\u0020hier\u0020je\u0020bericht.') {
+            alert('Je\u0020moet\u0020een\u0020bericht\u0020ingevoerd\u0020hebben\u0020het\u0020te\u0020kunnen\u0020versturen.');
+            exit;
+        }
+
+        $('#email_participants_subject').val($('.email-subject').val());
+        $('#email_participants_content').val($('.email-content').val());
+            if (confirm('Weet\u0020je\u0020zeker\u0020dat\u0020je\u0020alle\u0020deelnemers\u0020aan\u0020deze\u0020activiteit\u0020wilt\u0020mailen\u003F')) {
+                $('#action_class_form').val('email_participants');
+                new FormSubmit('class_form', 'result');
+        }
+    }
+
+    function handleDeleteClassSeries(send_email_when_cancel){
+            if(confirm('Verwijderen\u0020akkoord\u003F')) {
+                $('#action_class_form').val('delete_class_series');
+                new FormSubmit('class_form', 'result');
+            }
+    }
+    /**
+     * @param participant_id
+     * @param participant_member_id
+     * @param send_email_when_cancel
+     * @param instance_of
+     * @param obj
+     * @param send_email
+     */
+    function handleCoachRemovesParticipant(participant_id, participant_member_id, instance_of, send_email) {
+        const confirm_button = $('#confirm_remove_participant');
+        hideAndShowLoading(confirm_button);
+
+        if (instance_of && participant_member_id) {
+            $.ajax({
+                url: $('#class_form').attr('action'),
+                type: 'POST',
+                data: {
+                    action: 'get_number_of_events_of_member_in_fs',
+                    instance_of: instance_of,
+                    member_id : participant_member_id,
+        }
+        }).done(function (d) {
+                var number_of_bookings = parseInt(d.content.success) ? parseInt(d.content.success) : 0;
+                setTimeout(() => {
+                    removeParticipant(participant_id, participant_member_id, instance_of, number_of_bookings, send_email)
+                }, 100);
+            });
+        } else {
+            setTimeout(() => {
+                removeParticipant(participant_id, participant_member_id, instance_of, 0, send_email);
+            }, 100);
+        }
+    }
+
+    /**
+     *
+     * @param participant_id
+     * @param participant_member_id
+     * @param instance_of
+     * @param number_of_bookings
+     * @param send_email If an e-mail is sent, ask if a note is needed
+     */
+    function removeParticipant(participant_id, participant_member_id, instance_of, number_of_bookings, send_email) {
+        // populate initial values
+        $('#absent_reason_form').val($('.absent_reason').find(':selected').val());
+        $('#participant_id').val(participant_id);
+        $('#participant_member_id').val(participant_member_id);
+        $('#action_class_form').val('delete_participant');
+        var delete_from_future_series = false;
+
+        // if the event is member of a future series with more than 1 booking, then show the offer to remove the participant from all future events
+        if (number_of_bookings > 1) {
+            delete_from_future_series = confirm('Do\u0020you\u0020want\u0020to\u0020delete\u0020the\u0020participant\u0020from\u0020future\u0020series\u0020as\u0020well\u0020\u003F');
+        }
+
+        // based on preferences, set the action (and the additional note) and do the form submit
+        if (delete_from_future_series) {
+            $('#instance_of').val(instance_of);
+            $('#cancel_recurring').val('1');
+            new FormSubmit('class_form', 'result');
+            return;
+        } else {
+            var prompt_response = prompt('Weet\u0020je\u0020zeker\u0020dat\u0020je\u0020deze\u0020klant\u0020wilt\u0020verwijderen\u0020van\u0020deze\u0020activiteit\u003F\nWil\u0020je\u0020een\u0020notitie\u0020aan\u0020de\u0020klantmail\u0020toevoegen\u003F');
+            if (prompt_response || prompt_response == '') { // user typed something or pressed ok
+                $('#additional_note').val(prompt_response);
+                new FormSubmit('class_form', 'result');
+            }
+        }
+
+        $('#loading_btn_replacement').hide();
+        $('#confirm_remove_participant').show();
+    }
+
+    function markAllPresence(elem){
+	if ($(elem).val()!=="") {
+		    $('.presence_dropdown').each(function (index) {
+			    $(this).val($(elem).val());
+			    $(this).change();
+		    });
+	    }
+    }
+
+    function confirmPresence() {
+	    $('#class_attendees').val($('#attendees').val());
+	    $('#action_class_form').val('save_presence');
+	    new FormSubmit('class_form', 'result');
+    }
+
+    function editOrUpdateAttendees() {
+	    var attendees = $('#attendees');
+
+	    if (attendees.prop('disabled')) {
+		    attendees.prop('disabled', false);
+		    $('#edit_attendees_button').find('.text').text('Bevestig\u0020aanwezigheid');
+	    } else {
+		    $('#class_attendees').val(attendees.val());
+		    $('#action_class_form').val('update_presence');
+		    new FormSubmit('class_form', 'result');
+	    }
+    }
+</script>
+
+<script>
+
+	function showConfirmPresenceConfirmation() {
+				if (confirm('Hiermee\u0020wordt\u0020de\u0020roosteractiviteit\u0020definitief\u0020afgesloten.\u0020Weet\u0020je\u0020het\u0020zeker\u003F')) {
+			confirmPresence();
+		}
+		return false;
+			}
+</script>
+
+
+<form id="class_form" style="display: none;" action="/classes/class/1786236539-6516b6403d23b5-64943780?event_type=8" method="POST" enctype="application/x-www-form-urlencoded">
+	<input name="action" id="action_class_form" type="hidden" value="" />
+    <input name="absent_reason" id="absent_reason_form" type="hidden" value="" />
+    	<input name="participant_name" id="participant_name" type="hidden" value="" />
+    <input name="participant_email" id="participant_email" type="hidden" value="" />
+	<input name="participant_notes" id="participant_notes" type="hidden" value="" />
+	<input name="participant_id" id="participant_id" type="hidden" value="" />
+    <input name="present" id="present" type="hidden" value="" />
+    <input name="participant_member_id" id="participant_member_id" type="hidden" value="" />
+    <input name="book_recurring" id="book_recurring" type="hidden" value="" />
+    <input name="additional_note" id="additional_note" type="hidden" value="" />
+    <input name="class_name" id="class_name" type="hidden" value="SWOD pro level" />
+    <input name="class_time" id="class_time" type="hidden"  value="19:00 - 20:00" />
+    <input name="class_date" id="class_date" type="hidden" value="dinsdag 05 mei" />
+    <input name="send_email" id="send_email" type="hidden"  value="1" />
+    <input name="instance_of" id="instance_of" type="hidden" value="" />
+    <input name="cancel_recurring" id="cancel_recurring" type="hidden" value="" />
+    <input name="email_participants_subject" id="email_participants_subject" type="hidden" value="" />
+    <input name="email_participants_content" id="email_participants_content" type="hidden" value="" />
+    <input name="waiting_member_id" id="waiting_member_id" type="hidden" value="" />
+    <input name="activity_id_filter" id="activity_id_filter" type="hidden" value="" />
+    <input name="club_coach_id_filter" id="club_coach_id_filter" type="hidden" value="" />
+    <input name="attendees" id="class_attendees" type="hidden" value="0" />
+</form>
+
+    <div class="modal-title-replacement hide">SWOD pro level</div>
+    <div class="ui-schedule-event-overview">
+        
+        <div id="lesson_information_tab" class="ui-schedule-event-panel lesson-detail">
+            <div class="class-info">
+                <div class="class-info-container">
+                    <div class="email-members">
+                        <input name="action" id="action_class_form" type="hidden" value="" />
+                        <div class="display-title"></div>
+                        <input type="text" class="email-subject full-width" value="Update van SWOD pro level" placeholder="Onderwerp" />
+                        <textarea class="email-content full-width" style="height: 100px;" placeholder="Type hier je bericht."></textarea>
+                        <div class="email_buttons row">
+                            <div class="col-6">
+                                <button onclick="$('.event-members').show(); $('.event-action').show(); $('.email-members').hide(); return false;" class="ui-button grey small  ">
+                <div class="content">
+                        <span class="text">Annuleren</span>        </div>
+    </button>
+                            </div>
+                            <div class="col-6 d-flex justify-content-end">
+                                <button onclick="handleSendEmailParticipants(); return false;" class="ui-button blue small send-email-button filled ">
+                <div class="content">
+                        <span class="text">stuur</span>        </div>
+    </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-8">
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="event-image-holder">
+                                <img src="https://static.virtuagym.com/v29522/thumb/activity/picture/schedule_event/afd315a416ecbea9d1d0072ec2081136a44e.jpg" />
+                            </div>
+                                                    </div>
+                        <div class="event-description-holder">
+                                                            <p>SWIM OF THE DAY: PRO LEVEL<br />
+You can swim at least 500 meters non-stop in freestyle.<br />
+<br />
+Use the WAITING LIST option when the activity is fully booked. Spots often become available.<br />
+<br />
+Please be present at pool deck  prior to the start of the SWOD.</p>
+                                                    </div>
+                    </div>
+
+                    <div class="event-details-icons">
+                        <div class="event-details-icon">
+                            <div class="ui-tooltip-icon size-24 calendar">
+    <div class="ui-tooltip-icon-holder">
+                                    <?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M9 2.5V4H14.5V6H9V8H7V2.5H9ZM4.5 4H6V6H4.5V19.5H19.5V6H17.5V8H15.5V6V4V2.5H17.5V4H19.5C20.6046 4 21.5 4.89543 21.5 6V19.5C21.5 20.6046 20.6046 21.5 19.5 21.5H4.5C3.39543 21.5 2.5 20.6046 2.5 19.5V6C2.5 4.89543 3.39543 4 4.5 4Z" fill="#757575"/>
+</svg>
+
+                            <div  class="ui-tooltip-icon-overlay"  data-toggle="tooltip" data-container="body" title="Datum" data-placement="top"></div>
+    </div>
+</div>
+                            <div class="icon-text">dinsdag 05 mei</div>
+                        </div>
+                        <div class="event-details-icon">
+                            <div class="ui-tooltip-icon size-24 clock">
+    <div class="ui-tooltip-icon-holder">
+                                    <?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.5 2 2 6.5 2 12C2 17.5 6.5 22 12 22C17.5 22 22 17.5 22 12C22 6.5 17.5 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20ZM11 7H12.5V12.2L17 14.9L16.2 16.2L11 13V7Z" fill="#757575"/>
+</svg>
+
+                            <div  class="ui-tooltip-icon-overlay"  data-toggle="tooltip" data-container="body" title="Tijd" data-placement="top"></div>
+    </div>
+</div>
+                            <div class="icon-text">19:00 - 20:00</div>
+                        </div>
+                                                                                    <div class="event-details-icon">
+                                    <div class="ui-tooltip-icon size-24 group">
+    <div class="ui-tooltip-icon-holder">
+                                    <?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M9 12C10.93 12 12.5 10.43 12.5 8.5C12.5 6.57 10.93 5 9 5C7.07 5 5.5 6.57 5.5 8.5C5.5 10.43 7.07 12 9 12ZM2 17.25C2 14.92 6.66 13.75 9 13.75C11.34 13.75 16 14.92 16 17.25V19H2V17.25ZM9 15.75C7.21 15.75 5.18 16.42 4.34 17H13.66C12.82 16.42 10.79 15.75 9 15.75ZM10.5 8.5C10.5 7.67 9.83 7 9 7C8.17 7 7.5 7.67 7.5 8.5C7.5 9.33 8.17 10 9 10C9.83 10 10.5 9.33 10.5 8.5ZM16.04 13.81C17.2 14.65 18 15.77 18 17.25V19H22V17.25C22 15.23 18.5 14.08 16.04 13.81ZM18.5 8.5C18.5 10.43 16.93 12 15 12C14.46 12 13.96 11.87 13.5 11.65C14.13 10.76 14.5 9.67 14.5 8.5C14.5 7.33 14.13 6.24 13.5 5.35C13.96 5.13 14.46 5 15 5C16.93 5 18.5 6.57 18.5 8.5Z" fill="#757575"/>
+</svg>
+
+                            <div  class="ui-tooltip-icon-overlay"  data-toggle="tooltip" data-container="body" title="Bezet" data-placement="top"></div>
+    </div>
+</div>
+                                    <div class="icon-text">11 / 12</div>
+                                </div>
+                                                                        </div>
+
+                    <div class="event-details-icons">
+                                                    <div class="event-details-icon">
+                                <div class="ui-tooltip-icon size-24 staff">
+    <div class="ui-tooltip-icon-holder">
+                                    <?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M9 5H3C1.89543 5 1 5.89543 1 7V20C1 21.1046 1.89543 22 3 22H21C22.1046 22 23 21.1046 23 20V7C23 5.89543 22.1046 5 21 5H15V7H21V20H3L3 7H9V5Z" fill="#757575"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M13 4H11L11 7H13V4ZM11 2C9.89543 2 9 2.89543 9 4V7C9 8.10457 9.89543 9 11 9H13C14.1046 9 15 8.10457 15 7V4C15 2.89543 14.1046 2 13 2H11Z" fill="#757575"/>
+<path d="M8.5 14C9.60457 14 10.5 13.1046 10.5 12C10.5 10.8954 9.60457 10 8.5 10C7.39543 10 6.5 10.8954 6.5 12C6.5 13.1046 7.39543 14 8.5 14Z" fill="#757575"/>
+<path d="M10.9267 15.5733C10.18 15.2 9.36333 15 8.5 15C7.63667 15 6.82 15.2 6.07333 15.5733C5.42 15.8933 5 16.6133 5 17.4267V18H12V17.4267C12 16.6133 11.58 15.8933 10.9267 15.5733Z" fill="#757575"/>
+<rect x="14" y="11" width="5" height="2" fill="#212121"/>
+<rect x="14" y="15" width="5" height="2" fill="#212121"/>
+</svg>
+
+                            <div  class="ui-tooltip-icon-overlay"  data-toggle="tooltip" data-container="body" title="Instructeur" data-placement="top"></div>
+    </div>
+</div>
+                                <div class="icon-text"><a href="/userid/18246773" target="_blank">Kaylee de Jong</a></div>
+                            </div>
+                                                
+                                                    <div class="event-details-icon">
+                                <div class="ui-tooltip-icon size-24 location">
+    <div class="ui-tooltip-icon-holder">
+                                    <?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2ZM7 9C7 6.24 9.24 4 12 4C14.76 4 17 6.24 17 9C17 11.88 14.12 16.19 12 18.88C9.92 16.21 7 11.85 7 9ZM12 11C13.1046 11 14 10.1046 14 9C14 7.89543 13.1046 7 12 7C10.8954 7 10 7.89543 10 9C10 10.1046 10.8954 11 12 11Z" fill="#757575"/>
+</svg>
+
+                            <div  class="ui-tooltip-icon-overlay"  data-toggle="tooltip" data-container="body" title="Locatie" data-placement="top"></div>
+    </div>
+</div>
+                                <div class="icon-text">Voorzijde</div>
+                            </div>
+                                                                            <div class="event-details-icon">
+                                <div class="ui-tooltip-icon size-24 ticket-star">
+    <div class="ui-tooltip-icon-holder">
+                                    <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24" version="1.1">
+    <title>local_activity</title>
+    <g id="Design_system" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Building_blocks" transform="translate(-913.000000, -3001.000000)">
+            <g id="local_activity" transform="translate(913.000000, 3001.000000)">
+                <polygon id="Path" points="0 0 24 0 24 24 0 24"/>
+                <path d="M22,10 L22,6 C22,4.9 21.1,4 20,4 L4,4 C2.9,4 2.01,4.9 2.01,6 L2.01,10 C3.11,10 4,10.9 4,12 C4,13.1 3.11,14 2,14 L2,18 C2,19.1 2.9,20 4,20 L20,20 C21.1,20 22,19.1 22,18 L22,14 C20.9,14 20,13.1 20,12 C20,10.9 20.9,10 22,10 Z M20,8.54 C18.81,9.23 18,10.53 18,12 C18,13.47 18.81,14.77 20,15.46 L20,18 L4,18 L4,15.46 C5.19,14.77 6,13.47 6,12 C6,10.52 5.2,9.23 4.01,8.54 L4,6 L20,6 L20,8.54 Z M12,14.5 C13.3807119,14.5 14.5,13.3807119 14.5,12 C14.5,10.6192881 13.3807119,9.5 12,9.5 C10.6192881,9.5 9.5,10.6192881 9.5,12 C9.5,13.3807119 10.6192881,14.5 12,14.5 Z" id="Shape" fill="#757575" fill-rule="nonzero"/>
+            </g>
+        </g>
+    </g>
+</svg>
+
+                            <div  class="ui-tooltip-icon-overlay"  data-toggle="tooltip" data-container="body" title="Kosten" data-placement="top"></div>
+    </div>
+</div>
+                                <div class="icon-text">1 SwimGym Credits</div>
+                            </div>
+                        
+                                            </div>
+
+                                    </div>
+                <div class="col-4">
+                    <div class="ui-action-menu">
+                        <ul>
+                            
+                            
+                                                    </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="event-actions">
+                                                                                                                                    <div class="booking-text green">Je hebt dit gereserveerd</div>
+                                                            <div>Je kan deze boeking kosteloos annuleren tot 12 uur voor de activiteit</div>                                <button onclick="if($('#absent_reason').val() == '') {alert('Kies een reden'); $('#absent_reason').focus();} else {$('#absent_reason_form').val($('#absent_reason').val()); $('#action_class_form').val('cancel_reserve_class');  new FormSubmit('class_form', 'result'); hideAndShowLoading(this);} return false;" class="ui-button red filled medium has-icon ">
+                <div class="content">
+                            <?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24" version="1.1">
+    <title>Icons/logout</title>
+    <g id="Icons/logout" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g>
+            <polygon id="Frame" points="0 0 24 0 24 24 0 24"/>
+            <path d="M10.09,15.59 L11.5,17 L16.5,12 L11.5,7 L10.09,8.41 L12.67,11 L3,11 L3,13 L12.67,13 L10.09,15.59 Z M19,3 L5,3 C3.89,3 3,3.9 3,5 L3,9 L5,9 L5,5 L19,5 L19,19 L5,19 L5,15 L3,15 L3,19 C3,20.1 3.89,21 5,21 L19,21 C20.1,21 21,20.1 21,19 L21,5 C21,3.9 20.1,3 19,3 Z" id="Shape" fill="#FFFFFF" fill-rule="nonzero"/>
+        </g>
+    </g>
+</svg>
+
+                        <span class="text">Annuleer reservering</span>        </div>
+    </button>
+
+                                <select id="absent_reason">
+                                    <option value="">Kies een reden</option>
+                                                                            <option value="didnt_feel_like">Geen zin</option>
+                                                                            <option value="holiday">Vakantie</option>
+                                                                            <option value="ill">Ziek</option>
+                                                                            <option value="injury">Blessure</option>
+                                                                            <option value="rescheduled">Opnieuw ingeroosterd</option>
+                                                                            <option value="unknown">Onbekend</option>
+                                                                            <option value="work">Werk</option>
+                                                                    </select>
+                                                                                                            
+                            </div>
+
+            <div id="youtube" style="position: absolute; z-index:999; display: none;">
+                <div class="notification_popup" style="height: 292px; width: 486px; padding: 39px 40px 0px 0px; left:0px;">
+                    <div class="notification_close" onclick="$('#youtube').hide(); $('#class_details').css('position', 'inherit');; window.players.stopVideo();"></div>
+                    <iframe id="player" type="text/html" width="486" height="292" src="https://www.youtube.com/embed/?enablejsapi=1" frameborder="0"></iframe>
+                </div>
+            </div>
+        </div>
+
+        
+        <div id="result"></div>
+    </div>
