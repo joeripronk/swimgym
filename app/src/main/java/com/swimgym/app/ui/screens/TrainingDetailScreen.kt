@@ -90,6 +90,23 @@ fun TrainingDetailScreen(
                     style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier.weight(1f)
                 )
+                val uriHandler = LocalUriHandler.current
+                val instructorText = if (training.instructorLink.isNotEmpty()) {
+                    "${training.instructor} ↗"
+                } else {
+                    "${training.instructor}"
+                }
+
+                Text(
+                    text = instructorText,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (training.instructorLink.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    modifier = if (training.instructorLink.isNotEmpty()) {
+                        Modifier.clickable { uriHandler.openUri("https://swimgym.virtuagym.com${training.instructorLink}") }
+                    } else {
+                        Modifier
+                    }
+                )
                 if (training.isJoined) {
                     Icon(
                         imageVector = Icons.Filled.CheckCircle,
@@ -99,30 +116,11 @@ fun TrainingDetailScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            val uriHandler = LocalUriHandler.current
-            val instructorText = if (training.instructorLink.isNotEmpty()) {
-                "Instructor: ${training.instructor} ↗"
-            } else {
-                "Instructor: ${training.instructor}"
-            }
-
-            Text(
-                text = instructorText,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (training.instructorLink.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                modifier = if (training.instructorLink.isNotEmpty()) {
-                    Modifier.clickable { uriHandler.openUri("https://swimgym.virtuagym.com${training.instructorLink}") }
-                } else {
-                    Modifier
-                }
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
 
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Row(                verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text(
                         text = dateFormat.format(Date(training.startTime)),
                         style = MaterialTheme.typography.bodyLarge
