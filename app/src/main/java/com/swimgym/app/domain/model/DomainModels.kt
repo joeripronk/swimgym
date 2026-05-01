@@ -35,5 +35,18 @@ data class Booking(
 enum class BookingStatus {
     CONFIRMED,
     CANCELLED,
-    PENDING
+    PENDING,
+    IN_PROGRESS,
+    BOOKED,
+    FAILED
 }
+
+data class ReminderConfig(
+    val reminderMinutesBefore: Int = 15,
+    val reminderEnabled: Boolean = true
+)
+
+data class CalendarIntegrationConfig(
+    val reminderConfig: ReminderConfig = ReminderConfig(),
+    val calendarName: String = "Default Calendar"
+)

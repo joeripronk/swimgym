@@ -19,8 +19,10 @@ import com.swimgym.app.ui.screens.LoginScreen
 import com.swimgym.app.ui.screens.MyBookingsScreen
 import com.swimgym.app.ui.screens.ScheduleScreen
 import com.swimgym.app.ui.screens.TrainingDetailScreen
+import com.swimgym.app.ui.screens.SettingsScreen
 import com.swimgym.app.ui.viewmodel.LoginViewModel
 import com.swimgym.app.ui.viewmodel.ScheduleViewModel
+import com.swimgym.app.ui.viewmodel.SettingsViewModel
 
 @Composable
 fun SwimGymNavigation(
@@ -29,6 +31,7 @@ fun SwimGymNavigation(
     val navController = rememberNavController()
     val scheduleViewModel: ScheduleViewModel = hiltViewModel()
     val loginViewModel: LoginViewModel = hiltViewModel()
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
     val scheduleState by scheduleViewModel.uiState.collectAsState()
 
     NavHost(
@@ -55,6 +58,9 @@ fun SwimGymNavigation(
                 },
                 onMyBookingsClick = {
                     navController.navigate(Screen.MyBookings.route)
+                },
+                onSettingsClick = {
+                    navController.navigate(Screen.Settings.route)
                 },
                 onLogout = {
                     loginViewModel.logout()
@@ -109,7 +115,6 @@ fun SwimGymNavigation(
             val scheduledBookingsFlow = scheduleViewModel.getScheduledBookings()
             val scheduledBookings by scheduledBookingsFlow.collectAsState(initial = emptyList())
 
-
             MyBookingsScreen(
                 bookings = scheduleState.bookings,
                 scheduledBookings = scheduledBookings,
@@ -130,11 +135,13 @@ fun SwimGymNavigation(
                     navController.navigate(Screen.TrainingDetail.createRoute(trainingId))
                 }
             )
+        }
 
-
-
-
-
+        composable(Screen.Settings.route) {
+            SettingsScreen(
+                viewModel = settingsViewModel,
+                onBack = { navController.popBackStack() }
+            )
         }
     }
 }

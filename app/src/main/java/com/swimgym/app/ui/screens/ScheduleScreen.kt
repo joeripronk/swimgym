@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,6 +34,7 @@ fun ScheduleScreen(
     onTrainingClick: (Training) -> Unit,
     onMyBookingsClick: () -> Unit,
     onLogout: () -> Unit,
+    onSettingsClick: () -> Unit,
     viewModel: ScheduleViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -93,6 +95,9 @@ fun ScheduleScreen(
                     }
                     IconButton(onClick = onMyBookingsClick) {
                         Icon(Icons.Default.List, contentDescription = "My Bookings")
+                    }
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                     IconButton(onClick = onLogout) {
                         Text("Log out")

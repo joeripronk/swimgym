@@ -20,6 +20,17 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.Calendar
 
+private fun getFeedbackStatus(status: BookingStatus): String {
+    return when (status) {
+        BookingStatus.IN_PROGRESS -> "In Progress"
+        BookingStatus.BOOKED -> "Booked"
+        BookingStatus.FAILED -> "Failed"
+        BookingStatus.PENDING -> "Pending"
+        BookingStatus.CANCELLED -> "Cancelled"
+        BookingStatus.CONFIRMED -> "Confirmed"
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyBookingsScreen(
@@ -125,7 +136,16 @@ private fun BookingCard(
                     BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.primary
                     BookingStatus.CANCELLED -> MaterialTheme.colorScheme.error
                     BookingStatus.PENDING -> MaterialTheme.colorScheme.onSurfaceVariant
+                    BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.tertiary
+                    BookingStatus.BOOKED -> MaterialTheme.colorScheme.primary
+                    BookingStatus.FAILED -> MaterialTheme.colorScheme.error
                 }
+            )
+
+            Text(
+                text = "Feedback: ${getFeedbackStatus(booking.status)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             if (booking.status == BookingStatus.CONFIRMED) {

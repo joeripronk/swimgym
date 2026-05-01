@@ -24,6 +24,9 @@ class SessionRepository @Inject constructor(
         private val USER_NAME = stringPreferencesKey("user_name")
         private val USER_EMAIL = stringPreferencesKey("user_email")
         private val SELECTED_LEVEL = stringPreferencesKey("selected_level")
+        private val SELECTED_CALENDAR = stringPreferencesKey("selected_calendar")
+        private val REMINDER_MINUTES = stringPreferencesKey("reminder_minutes")
+        private val REMINDER_ENABLED = stringPreferencesKey("reminder_enabled")
     }
 
     val authToken: Flow<String?> = context.dataStore.data.map { it[AUTH_TOKEN] }
@@ -35,6 +38,8 @@ class SessionRepository @Inject constructor(
     val userEmail: Flow<String?> = context.dataStore.data.map { it[USER_EMAIL] }
 
     val selectedLevel: Flow<String?> = context.dataStore.data.map { it[SELECTED_LEVEL] }
+
+    val selectedCalendar: Flow<String?> = context.dataStore.data.map { it[SELECTED_CALENDAR] }
 
     suspend fun saveSession(token: String, userId: Int, name: String, email: String) {
         context.dataStore.edit { prefs ->
@@ -48,6 +53,19 @@ class SessionRepository @Inject constructor(
     suspend fun saveSelectedLevel(level: String) {
         context.dataStore.edit { prefs ->
             prefs[SELECTED_LEVEL] = level
+        }
+    }
+
+    suspend fun saveSelectedCalendar(calendar: String) {
+        context.dataStore.edit { prefs ->
+            prefs[SELECTED_CALENDAR] = calendar
+        }
+    }
+
+    suspend fun saveReminderConfig(minutes: Int, enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[REMINDER_MINUTES] = minutes.toString()
+            prefs[REMINDER_ENABLED] = enabled.toString()
         }
     }
 

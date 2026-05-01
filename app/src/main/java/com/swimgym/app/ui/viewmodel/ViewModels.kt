@@ -231,32 +231,7 @@ class ScheduleViewModel @Inject constructor(
                 maxRepeatCount = maxRepeatCount
             )
             scheduledBookingRepo.saveBooking(scheduledBooking)
-
-            // Schedule the first work
-            val delay = calculateInitialDelay()
-
-            val workRequest = androidx.work.OneTimeWorkRequestBuilder<com.swimgym.app.worker.RecurringBookingWorker>()
-                .setInputData(
-                    androidx.work.Data.Builder()
-                        .putString(com.swimgym.app.worker.RecurringBookingWorker.KEY_BOOKING_ID, bookingId)
-                        .putString(com.swimgym.app.worker.RecurringBookingWorker.KEY_TRAINING_ID, trainingId)
-                        .putString(com.swimgym.app.worker.RecurringBookingWorker.KEY_CLASS_NAME, className)
-                        .putString(com.swimgym.app.worker.RecurringBookingWorker.KEY_CLASS_TIME, classTime)
-                        .putString(com.swimgym.app.worker.RecurringBookingWorker.KEY_CLASS_DATE, classDate)
-                        .putLong(com.swimgym.app.worker.RecurringBookingWorker.KEY_START_TIME, startTime)
-                        .putString(com.swimgym.app.worker.RecurringBookingWorker.KEY_INSTRUCTOR, instructor)
-                        .putInt(com.swimgym.app.worker.RecurringBookingWorker.KEY_MAX_REPEAT, maxRepeatCount ?: -1)
-                        .putInt(com.swimgym.app.worker.RecurringBookingWorker.KEY_CURRENT_COUNT, 0)
-                        .build()
-                )
-                .setInitialDelay(delay, java.util.concurrent.TimeUnit.MILLISECONDS)
-                .build()
-
-            androidx.work.WorkManager.getInstance(applicationContext).enqueueUniqueWork(
-                "recurring_booking_$bookingId",
-                androidx.work.ExistingWorkPolicy.REPLACE,
-                workRequest
-            )
+            // Periodic worker will pick up and process this booking
         }
     }
 
@@ -321,14 +296,4 @@ class ScheduleViewModel @Inject constructor(
         return remoteImageUrl
     }
 
-    private fun calculateInitialDelay(): Long {
-        // Schedule to run 7 days from now (when booking opens)
-        val cal = java.util.Calendar.getInstance()
-        cal.time = java.util.Date()
-        cal.add(java.util.Calendar.DAY_OF_YEAR, 7)
-        cal.set(java.util.Calendar.HOUR_OF_DAY, 8)
-        cal.set(java.util.Calendar.MINUTE, 0)
-        cal.set(java.util.Calendar.SECOND, 0)
-        return maxOf(cal.timeInMillis - System.currentTimeMillis(), 0L)
-    }
 }
