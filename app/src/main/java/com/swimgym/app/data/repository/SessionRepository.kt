@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,6 +28,7 @@ class SessionRepository @Inject constructor(
         private val SELECTED_CALENDAR = stringPreferencesKey("selected_calendar")
         private val REMINDER_MINUTES = stringPreferencesKey("reminder_minutes")
         private val REMINDER_ENABLED = stringPreferencesKey("reminder_enabled")
+        private val COOKIES = stringPreferencesKey("cookies")
     }
 
     val authToken: Flow<String?> = context.dataStore.data.map { it[AUTH_TOKEN] }
@@ -71,5 +73,27 @@ class SessionRepository @Inject constructor(
 
     suspend fun clearSession() {
         context.dataStore.edit { it.clear() }
+    }
+
+    suspend fun saveCookies(cookies: Map<String, String>) {
+        val cookieString = cookies.map { "${it.key}=${it.value}" }.joinToString("; ")
+        context.dataStore.edit { prefs ->
+            prefs[COOKIES] = cookieString
+        }
+    }
+
+    suspend fun loadCookies(): Map<String, String> {
+        val cookieString = context.dataStore.data
+            .map { it[COOKIES] }
+            .first() ?: return emptyMap()
+
+        return cookieString.split("; ")
+            .filter { it.contains("=") }
+            .map { pair ->
+                val parts = pair.split("=", limit = 2)
+                if (parts.size == 2) parts[0] to parts[1] else "" to ""
+            }
+            .filter { it.first.isNotBlank() }
+            .toMap()
     }
 }

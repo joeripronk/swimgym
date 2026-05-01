@@ -16,6 +16,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,8 +37,16 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var hasNavigated by remember { mutableStateOf(false) }
+    var cookiesToSave by remember { mutableStateOf<Map<String, String>?>(null) }
 
     val cookieManager = CookieManager.getInstance()
+
+    // Save cookies to cache when they change
+    LaunchedEffect(cookiesToSave) {
+        cookiesToSave?.let { cookies ->
+            webScraper.setCookiesAndSave(cookies)
+        }
+    }
 
     AndroidView(
         factory = { ctx ->
@@ -59,7 +68,7 @@ fun LoginScreen(
                         val cookies = cookieManager.getCookie(url) ?: ""
                         if (cookies.contains(regex = Regex("virtuagym_u=[0-9][0-9]+")) && !hasNavigated) {
                             val cookieMap = parseCookiesFromString(cookies)
-                            webScraper.setCookies(cookieMap)
+                            cookiesToSave = cookieMap
                             hasNavigated = true
                             onLoginSuccess()
                         }

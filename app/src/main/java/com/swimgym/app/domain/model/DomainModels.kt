@@ -16,6 +16,7 @@ data class Training(
     val location: String,
     val spotsAvailable: Int,
     val isJoined: Boolean = false,
+    val isFull: Boolean = false,
     val classTime: String = "",
     val classDate: String = "",
     val imageUrl: String = "",

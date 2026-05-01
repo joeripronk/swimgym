@@ -10,6 +10,7 @@ import com.swimgym.app.data.local.entity.BookingEntity
 import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.data.local.entity.UserEntity
 import com.swimgym.app.data.local.entity.InstructorEntity
+import com.swimgym.app.data.local.entity.CacheControlEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -17,6 +18,9 @@ interface SwimGymDao {
 
     @Query("SELECT * FROM trainings ORDER BY startTime ASC")
     fun getAllTrainings(): Flow<List<TrainingEntity>>
+
+    @Query("SELECT * FROM trainings ORDER BY startTime ASC")
+    suspend fun getAllTrainingsList(): List<TrainingEntity>
 
     @Query("SELECT * FROM trainings WHERE id = :trainingId")
     suspend fun getTrainingById(trainingId: String): TrainingEntity?
@@ -54,6 +58,9 @@ interface SwimGymDao {
     @Query("DELETE FROM bookings WHERE trainingId = :trainingId")
     suspend fun deleteBookingByTrainingId(trainingId: String)
 
+    @Query("DELETE FROM trainings WHERE startTime < :beforeTime")
+    suspend fun deleteOldTrainings(beforeTime: Long)
+
     @Query("SELECT * FROM users WHERE id = :userId")
     suspend fun getUserById(userId: Int): UserEntity?
 
@@ -74,4 +81,13 @@ interface SwimGymDao {
 
     @Query("SELECT * FROM instructors")
     suspend fun getAllInstructors(): List<InstructorEntity>
+
+    @Query("SELECT * FROM cache_control WHERE id = 1")
+    suspend fun getCacheControl(): CacheControlEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCacheControl(cacheControl: CacheControlEntity)
+
+    @Query("DELETE FROM cache_control")
+    suspend fun clearCacheControl()
 }

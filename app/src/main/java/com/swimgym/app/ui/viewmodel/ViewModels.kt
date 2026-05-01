@@ -9,6 +9,7 @@ import com.swimgym.app.data.repository.TrainerImageCache
 import com.swimgym.app.domain.model.Booking
 import com.swimgym.app.domain.model.Training
 import com.swimgym.app.domain.repository.SwodLevel
+import com.swimgym.app.domain.repository.SyncStatus
 import com.swimgym.app.domain.usecase.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -72,7 +73,8 @@ data class ScheduleUiState(
     val selectedLevel: SwodLevel = SwodLevel.ALL,
     val hideFullyBooked: Boolean = true,
     val currentStartDate: String? = null,
-    val weeksLoaded: Int = 0
+    val weeksLoaded: Int = 0,
+    val syncStatus: SyncStatus = SyncStatus()
 )
 
 @HiltViewModel
@@ -82,6 +84,8 @@ class ScheduleViewModel @Inject constructor(
     private val getMyBookingsUseCase: GetMyBookingsUseCase,
     private val bookTrainingUseCase: BookTrainingUseCase,
     private val cancelBookingUseCase: CancelBookingUseCase,
+    private val refreshScheduleUseCase: RefreshScheduleUseCase,
+    private val getSyncStatusUseCase: GetSyncStatusUseCase,
     private val sessionRepository: com.swimgym.app.data.repository.SessionRepository,
     private val scheduledBookingRepo: ScheduledBookingRepository,
     private val trainerImageCache: TrainerImageCache,
@@ -108,6 +112,15 @@ class ScheduleViewModel @Inject constructor(
             }
         }
         observeBookings()
+        observeSyncStatus()
+    }
+
+    private fun observeSyncStatus() {
+        viewModelScope.launch {
+            getSyncStatusUseCase().collect { syncStatus: SyncStatus ->
+                _uiState.update { it.copy(syncStatus = syncStatus) }
+            }
+        }
     }
 
     private fun observeBookings() {
@@ -296,4 +309,16 @@ class ScheduleViewModel @Inject constructor(
         return remoteImageUrl
     }
 
+    fun refreshSchedule() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            refreshScheduleUseCase()
+                .onSuccess {
+                    loadSchedule(_uiState.value.selectedLevel, _uiState.value.hideFullyBooked)
+                }
+                .onFailure { e ->
+                    _uiState.update { it.copy(isLoading = false, error = e.message) }
+                }
+        }
+    }
 }

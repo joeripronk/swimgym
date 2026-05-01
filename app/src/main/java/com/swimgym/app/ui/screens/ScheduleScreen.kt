@@ -102,7 +102,7 @@ fun ScheduleScreen(
                     IconButton(onClick = onLogout) {
                         Text("Log out")
                     }
-                    IconButton(onClick = { viewModel.loadSchedule() }) {
+                    IconButton(onClick = { viewModel.refreshSchedule() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
                 }
@@ -264,7 +264,7 @@ private fun TrainingCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )
-                    } else if (training.spotsAvailable > 0) {
+                    } else if (!training.isFull) {
                         Text(
                             text = "spot available",
                             style = MaterialTheme.typography.bodySmall,

@@ -4,10 +4,10 @@
     <selectionStates>
       <SelectionState runConfigName="swimgym">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-04-30T20:13:11.448475700Z">
+        <DropdownSelection timestamp="2026-05-01T19:22:32.115516800Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="PhysicalDevice" identifier="serial=R5CW113A61F" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\Joeri\.android\avd\Pixel_6_API_35.avd" />
             </handle>
           </Target>
         </DropdownSelection>

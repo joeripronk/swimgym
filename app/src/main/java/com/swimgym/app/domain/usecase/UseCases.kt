@@ -3,6 +3,7 @@ package com.swimgym.app.domain.usecase
 import com.swimgym.app.domain.model.*
 import com.swimgym.app.domain.repository.AuthRepository
 import com.swimgym.app.domain.repository.SwodLevel
+import com.swimgym.app.domain.repository.SyncStatus
 import com.swimgym.app.domain.repository.TrainingRepository
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
@@ -63,4 +64,16 @@ class IsLoggedInUseCase @Inject constructor(
     private val authRepository: AuthRepository
 ) {
     operator fun invoke(): Flow<Boolean> = authRepository.isLoggedIn()
+}
+
+class RefreshScheduleUseCase @Inject constructor(
+    private val trainingRepository: TrainingRepository
+) {
+    suspend operator fun invoke(): Result<Unit> = trainingRepository.refreshSchedule()
+}
+
+class GetSyncStatusUseCase @Inject constructor(
+    private val trainingRepository: TrainingRepository
+) {
+    operator fun invoke(): Flow<SyncStatus> = trainingRepository.getSyncStatus()
 }

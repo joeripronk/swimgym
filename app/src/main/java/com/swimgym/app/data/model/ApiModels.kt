@@ -14,15 +14,16 @@ data class TrainingDto(
     @SerializedName("instructor") val instructor: String,
     @SerializedName("start_time") val startTime: Long,
     @SerializedName("end_time") val endTime: Long,
-    @SerializedName("location") val location: String,
-    @SerializedName("spots_available") val spotsAvailable: Int,
     var isJoined: Boolean = false,
+    var isFull: Boolean = false,
+    var location: String = "",
     var classTime: String = "",
     var classDate: String = "",
     var imageUrl: String = "",
     var description: String = "",
     var cost: String = "",
     var totalSpots: Int = 0,
+    var spotsAvailable: Int = 0,
     var cancelPolicy: String = ""
 )
 

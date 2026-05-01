@@ -1,8 +1,12 @@
 package com.swimgym.app.data.api
 
+import com.swimgym.app.data.local.SwimGymDao
+import com.swimgym.app.data.local.entity.InstructorEntity
 import com.swimgym.app.data.model.BookingResponse
+import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.data.model.TrainingDto
 import com.swimgym.app.data.model.UserDto
+import com.swimgym.app.data.repository.SessionRepository
 import com.swimgym.app.domain.model.Training
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,7 +21,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class WebScraper @Inject constructor() {
+class WebScraper @Inject constructor(
+    private val sessionRepository: SessionRepository,
+    private val dao: SwimGymDao
+) {
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -29,6 +36,19 @@ class WebScraper @Inject constructor() {
 
     fun setCookies(cookieMap: Map<String, String>) {
         cookies = cookieMap
+    }
+
+    suspend fun setCookiesAndSave(cookieMap: Map<String, String>) {
+        cookies = cookieMap
+        saveCookiesToCache()
+    }
+
+    suspend fun loadCookiesFromCache() {
+        cookies = sessionRepository.loadCookies()
+    }
+
+    suspend fun saveCookiesToCache() {
+        sessionRepository.saveCookies(cookies)
     }
 
     private fun buildRequest(url: String): Request.Builder {
@@ -69,6 +89,8 @@ class WebScraper @Inject constructor() {
                 .toMap()
 
             if (cookies.containsKey("virtuagym_u") || cookies.values.any { it.contains("virtuagym_u") }) {
+                saveCookiesToCache()
+
                 val userDoc = Jsoup.connect(baseUrl)
                     .cookies(cookies)
                     .get()
@@ -91,75 +113,71 @@ class WebScraper @Inject constructor() {
     }
 
     suspend fun getSchedule(
-        startDate: String? = null,
-        level: SwodLevel = SwodLevel.ALL,
-        hideFullyBooked: Boolean = true
+        weeks: Int = 4
     ): Result<List<TrainingDto>> = withContext(Dispatchers.IO) {
+
         try {
-            val activityId = when (level) {
-                SwodLevel.STARTERS -> "activity_id=59161"
-                SwodLevel.MID -> "activity_id=62501"
-                SwodLevel.PRO -> "activity_id=68621"
-                SwodLevel.ALL -> ""
-            }
-            
-            val base = if (startDate != null) {
-                "$baseUrl/classes/week/$startDate?event_type=8"
-            } else {
-                "$baseUrl/classes?event_type=8"
-            }
-            val url = if (activityId.isNotEmpty()) "$base&$activityId" else base
-
-            val doc = Jsoup.connect(url)
-                .cookies(cookies)
-                .userAgent("Mozilla/5.0")
-                .get()
-
             val trainings = mutableListOf<TrainingDto>()
             
-            doc.select("#schedule_content .cal_column").forEach dayColumn@{ dayColumn ->
-                val dayHeader = dayColumn.selectFirst(".day_head")
-                val dayName = dayHeader?.selectFirst(".day_name_long")?.text()
-                    ?: dayHeader?.selectFirst(".day_name_short")?.text()
-                    ?: ""
+            repeat(weeks) { weekOffset ->
+                val date = java.util.Calendar.getInstance().apply {
+                    add(java.util.Calendar.DATE, 7 * weekOffset)
+                }
+                val now=date.timeInMillis/1000
+                val formattedDate =
+                    SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date.time)
 
-                dayColumn.select(".class").forEach classElement@{ classElement ->
-                    val className = classElement.selectFirst(".classname")?.text() ?: return@classElement
-                    if (className.isBlank()) return@classElement
+                val url = "$baseUrl/classes/week/$formattedDate?event_type=8"
+                //val url = if (activityId.isNotEmpty()) "$base&$activityId" else base
 
-                    val classId = classElement.id()
-                    val timeText = classElement.selectFirst(".time")?.text() ?: ""
-                    val instructor = classElement.selectFirst(".instructor i")?.text() ?: "TBA"
-                    val isFull = classElement.selectFirst(".full") != null
-                    val isJoined = classElement.selectFirst("div.joined") != null
+                val doc = Jsoup.connect(url)
+                    .cookies(cookies)
+                    .userAgent("Mozilla/5.0")
+                    .get()
 
-                    if (hideFullyBooked && isFull && !isJoined) return@classElement
+                doc.select("#schedule_content .cal_column").forEach dayColumn@{ dayColumn ->
+                    val dayHeader = dayColumn.selectFirst(".day_head")
+                    val dayName = dayHeader?.selectFirst(".day_name_long")?.text()
+                        ?: dayHeader?.selectFirst(".day_name_short")?.text()
+                        ?: ""
 
-                    val eventDate = extractDateFromClass(classElement) ?: dayName
-                    val (startTime, endTime) = parseTimes(timeText, eventDate)
-                    val spotsAvailable = if (isFull && !isJoined) 0 else 10
+                    dayColumn.select(".class").forEach classElement@{ classElement ->
+                        val className =
+                            classElement.selectFirst(".classname")?.text() ?: return@classElement
+                        if (className.isBlank()) return@classElement
 
-                    if (classId.isNotBlank()) {
-                        trainings.add(
-                            TrainingDto(
-                                id = classId,
-                                title = className,
-                                instructor = instructor,
-                                startTime = startTime,
-                                endTime = endTime,
-                                location = "SwimGym",
-                                spotsAvailable = spotsAvailable,
-                                isJoined = isJoined,
-                                classTime = timeText,
-                                classDate = eventDate
+                        val classId = classElement.id()
+                        val timeText = classElement.selectFirst(".time")?.text() ?: ""
+                        val instructor = classElement.selectFirst(".instructor i")?.text() ?: "TBA"
+                        //val isFull2 = classElement.selectFirst(".instructor i div")?.text() == "VOL"
+                        val isFull = classElement.selectFirst(".full")?.text() == "VOL"
+                        val isJoined = classElement.selectFirst("div.joined") != null
+                        val eventDate = extractDateFromClass(classElement) ?: dayName
+                        val (startTime, endTime) = parseTimes(timeText, eventDate)
+                        //val spotsAvailable = if (isFull && !isJoined) 0 else 1
+                        if (classId.isNotBlank() && startTime>now) {
+                            trainings.add(
+                                TrainingDto(
+                                    id = classId,
+                                    title = className,
+                                    instructor = instructor,
+                                    startTime = startTime,
+                                    endTime = endTime,
+                                    isFull = isFull,
+                                    isJoined = isJoined,
+                                    classTime = timeText,
+                                    classDate = eventDate
+                                )
                             )
-                        )
+                        }
                     }
                 }
-            }
 
+            }
+            dao.insertTrainings(trainings.map { it.toEntity() })
             Result.success(trainings)
-        } catch (e: Exception) {
+
+            } catch (e: Exception) {
             Result.failure(e)
         }
     }
@@ -315,14 +333,13 @@ class WebScraper @Inject constructor() {
         val id: String,
         val title: String,
         val instructor: String,
-        val instructorLink: String,
         val location: String,
         val spotsAvailable: Int,
         val totalSpots: Int,
-        val imageUrl: String,
         val description: String,
         val cost: String,
         val isJoined: Boolean,
+        val isFull: Boolean,
         val cancelPolicy: String
     )
 
@@ -336,8 +353,6 @@ class WebScraper @Inject constructor() {
             val instructorLink = doc.selectFirst(".event-details-icon a[href^=/userid]")?.attr("href") ?: ""
             val instructor = doc.selectFirst(".event-details-icon a[href^=/userid]")?.text() ?: "TBA"
             val location = doc.selectFirst("div.event-details-icons:nth-child(3) > div.event-details-icon:nth-child(2) > div.icon-text:nth-child(2)")?.text() ?: "SwimGym"
-            //val timeText = doc.selectFirst(".event-details-icon.clock .icon-text")?.text() ?: ""
-            //val dateText = doc.selectFirst(".event-details-icon.calendar .icon-text")?.text() ?: ""
             val spotsText = doc.selectFirst("div.event-details-icons:nth-child(2) > div.event-details-icon:nth-child(3) > div.icon-text:nth-child(2)")?.text() ?: "invalid"
             val imageUrl = doc.selectFirst(".event-image-holder img")?.attr("src") ?: ""
             val description = doc.selectFirst(".event-description-holder")?.text() ?: ""
@@ -348,10 +363,18 @@ class WebScraper @Inject constructor() {
             val spotsParts = spotsText.split("/").map { it.trim() }
             val spotsTaken = spotsParts.getOrNull(0)?.toIntOrNull() ?: 0
             var totalSpots = spotsParts.getOrNull(1)?.toIntOrNull() ?: 0
-            if (totalSpots==0) {
-                totalSpots=10;
-            }
+
             val spotsAvailable = totalSpots - spotsTaken
+            val isFull = spotsAvailable == 0
+            if (imageUrl.isNotEmpty()) {
+                dao.insertInstructor(
+                    InstructorEntity(
+                        instructorName = instructor,
+                        instructorLink = instructorLink,
+                        instructorImage = imageUrl
+                    )
+                )
+            }
 
             //val (startTime, endTime) = parseTimes(timeText, dateText.ifBlank { "01-01-2024" })
 
@@ -360,16 +383,11 @@ class WebScraper @Inject constructor() {
                     id = trainingId,
                     title = title,
                     instructor = instructor,
-                    instructorLink = instructorLink,
                     location = location,
-              //      startTime = startTime,
-              //      endTime = endTime,
-             //       classDate = dateText,
-              //      classTime = timeText,
                     spotsAvailable = spotsAvailable,
                     totalSpots = totalSpots,
-                    imageUrl = imageUrl,
                     description = description,
+                    isFull = isFull,
                     cost = cost,
                     isJoined = isJoined,
                     cancelPolicy = cancelPolicy
@@ -412,7 +430,7 @@ class WebScraper @Inject constructor() {
                     if (isFull && !isJoined) return@classElement
 
                     val eventDate = extractDateFromClass(classElement) ?: dayName
-                    val (startTimeMillis, endTimeMillis) = parseTimes(timeText, eventDate)
+                    val (startTime, endTime) = parseTimes(timeText, eventDate)
                     val spotsAvailable = if (isFull && !isJoined) 0 else 10
 
                     if (classId.isNotBlank()) {
@@ -421,8 +439,8 @@ class WebScraper @Inject constructor() {
                                 id = classId,
                                 title = className,
                                 instructor = instructor,
-                                startTime = startTimeMillis,
-                                endTime = endTimeMillis,
+                                startTime = startTime,
+                                endTime = endTime,
                                 location = "SwimGym",
                                 spotsAvailable = spotsAvailable,
                                 isJoined = isJoined,
@@ -470,9 +488,11 @@ class WebScraper @Inject constructor() {
                 buildRequest("$baseUrl/logout").build()
             ).execute()
             cookies = emptyMap()
+            saveCookiesToCache()
             Result.success(Unit)
         } catch (e: Exception) {
             cookies = emptyMap()
+            saveCookiesToCache()
             Result.success(Unit)
         }
     }
@@ -505,19 +525,19 @@ class WebScraper @Inject constructor() {
 
                     calendar.set(java.util.Calendar.HOUR_OF_DAY, startTimeHours(startTime))
                     calendar.set(java.util.Calendar.MINUTE, startTimeMinutes(startTime))
-                    val startMillis = calendar.timeInMillis
+                    val start = calendar.timeInMillis/1000
 
                     calendar.set(java.util.Calendar.HOUR_OF_DAY, startTimeHours(endTime))
                     calendar.set(java.util.Calendar.MINUTE, startTimeMinutes(endTime))
-                    val endMillis = calendar.timeInMillis
+                    val end = calendar.timeInMillis/1000
 
-                    return Pair(startMillis, endMillis)
+                    return Pair(start, end)
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        return Pair(System.currentTimeMillis(), System.currentTimeMillis() + 3600000)
+        return Pair(0, 3600)
     }
     
     private fun startTimeHours(time: java.util.Date): Int {
