@@ -97,7 +97,10 @@ object Mappers {
                 "confirmed" -> BookingStatus.CONFIRMED
                 "cancelled" -> BookingStatus.CANCELLED
                 else -> BookingStatus.PENDING
-            }
+            },
+            className = className,
+            classTime = classTime,
+            classDate = classDate
         )
     }
 

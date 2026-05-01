@@ -7,6 +7,7 @@ import androidx.work.WorkerParameters
 import com.swimgym.app.data.api.WebScraper
 import com.swimgym.app.data.repository.ScheduledBookingRepository
 import com.swimgym.app.data.repository.ScheduledBookingStatus
+import com.swimgym.app.util.BookingNotificationManager
 
 
 import dagger.assisted.Assisted
@@ -21,6 +22,7 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
     @Assisted private val params: WorkerParameters,
     private val webScraper: WebScraper,
     private val scheduledBookingRepo: ScheduledBookingRepository,
+    private val notificationManager: BookingNotificationManager,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -57,7 +59,33 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
                     val maxRepeat = booking.maxRepeatCount
                     if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
                         scheduledBookingRepo.completeBooking(booking.id)
+                        return
                     }
+
+                    val nextTraining = webScraper.findNextTrainingByTitle(
+                        title = booking.className,
+                        weekday = booking.classDate,
+                        startTime = booking.classTime
+                    )
+
+                    nextTraining.fold(
+                        onSuccess = { training ->
+                            if (training != null) {
+                                scheduledBookingRepo.updateTrainingId(booking.id, training.id)
+                            }
+                        },
+                        onFailure = {
+                            // No next training found, keep current training ID
+                        }
+                    )
+
+                    // Show notification for successful scheduled booking
+                    notificationManager.showBookingConfirmation(
+                        trainingName = booking.className,
+                        classTime = booking.classTime,
+                        classDate = booking.classDate,
+                        isScheduledBooking = true
+                    )
                 },
                 onFailure = {
                     // Don't retry here, will be checked again in 30 minutes
@@ -72,8 +100,8 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
         val calendar = Calendar.getInstance()
         val currentDate = calendar.time
 
-        calendar.timeInMillis = booking.createdAt
-        calendar.add(Calendar.DAY_OF_YEAR, 7 * (booking.bookedCount + 1))
+        calendar.timeInMillis = booking.startTime * 1000
+        calendar.add(Calendar.DAY_OF_YEAR, -7 )
         val nextBookingDate = calendar.time
 
         return !nextBookingDate.after(currentDate)

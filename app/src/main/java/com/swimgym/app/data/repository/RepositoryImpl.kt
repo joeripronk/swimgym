@@ -1,5 +1,6 @@
 package com.swimgym.app.data.repository
 
+import android.content.Context
 import com.swimgym.app.data.api.WebScraper
 import com.swimgym.app.data.local.SwimGymDao
 import com.swimgym.app.data.local.entity.BookingEntity
@@ -12,6 +13,8 @@ import com.swimgym.app.domain.model.*
 import com.swimgym.app.domain.repository.AuthRepository
 import com.swimgym.app.domain.repository.SwodLevel
 import com.swimgym.app.domain.repository.TrainingRepository
+import com.swimgym.app.util.BookingNotificationManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -68,9 +71,11 @@ class AuthRepositoryImpl @Inject constructor(
 
 @Singleton
 class TrainingRepositoryImpl @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val webScraper: WebScraper,
     private val userFlow: MutableStateFlow<User?>,
-    private val dao: SwimGymDao
+    private val dao: SwimGymDao,
+    private val notificationManager: BookingNotificationManager,
 ) : TrainingRepository {
     private val bookingsFlow = MutableStateFlow<List<Booking>>(emptyList())
 
@@ -150,6 +155,12 @@ class TrainingRepositoryImpl @Inject constructor(
                 val current = bookingsFlow.value.toMutableList()
                 current.add(booking)
                 bookingsFlow.value = current
+                notificationManager.showBookingConfirmation(
+                    trainingName = booking.className,
+                    classTime = booking.classTime,
+                    classDate = booking.classDate,
+                    isScheduledBooking = false
+                )
                 booking
             }
         } catch (e: Exception) {

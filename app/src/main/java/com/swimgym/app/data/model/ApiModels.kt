@@ -30,5 +30,8 @@ data class BookingResponse(
     @SerializedName("id") val id: Int,
     @SerializedName("training_id") val trainingId: String,
     @SerializedName("user_id") val userId: Int,
-    @SerializedName("status") val status: String
+    @SerializedName("status") val status: String,
+    val className: String = "",
+    val classTime: String = "",
+    val classDate: String = ""
 )

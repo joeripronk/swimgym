@@ -29,7 +29,10 @@ data class Booking(
     val id: Int,
     val trainingId: String,
     val userId: Int,
-    val status: BookingStatus
+    val status: BookingStatus,
+    val className: String = "",
+    val classTime: String = "",
+    val classDate: String = ""
 )
 
 enum class BookingStatus {

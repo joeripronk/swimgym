@@ -88,6 +88,11 @@ class ScheduledBookingRepository @Inject constructor(
         saveBooking(booking.copy(maxRepeatCount = newMax))
     }
 
+    suspend fun updateTrainingId(bookingId: String, newTrainingId: String) {
+        val booking = getBooking(bookingId) ?: return
+        saveBooking(booking.copy(trainingId = newTrainingId))
+    }
+
     private suspend fun saveAllBookings(bookings: List<ScheduledBooking>) {
         // Simple JSON serialization
         val json = bookings.joinToString(",", "[", "]") { booking ->

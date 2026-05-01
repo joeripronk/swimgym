@@ -208,7 +208,10 @@ class WebScraper @Inject constructor() {
                         id = trainingId.hashCode(),
                         trainingId = trainingId,
                         userId = 1,
-                        status = "confirmed"
+                        status = "confirmed",
+                        className = className,
+                        classTime = classTime,
+                        classDate = classDate
                     )
                 )
             } else {
@@ -374,6 +377,90 @@ class WebScraper @Inject constructor() {
             )
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    suspend fun findNextTrainingByTitle(
+        title: String,
+        weekday: String,
+        startTime: String
+    ): Result<TrainingDto?> = withContext(Dispatchers.IO) {
+        try {
+            val doc = Jsoup.connect("$baseUrl/classes?event_type=8")
+                .cookies(cookies)
+                .userAgent("Mozilla/5.0")
+                .get()
+
+            val trainings = mutableListOf<TrainingDto>()
+            
+            doc.select("#schedule_content .cal_column").forEach dayColumn@{ dayColumn ->
+                val dayHeader = dayColumn.selectFirst(".day_head")
+                val dayName = dayHeader?.selectFirst(".day_name_long")?.text()
+                    ?: dayHeader?.selectFirst(".day_name_short")?.text()
+                    ?: ""
+
+                dayColumn.select(".class").forEach classElement@{ classElement ->
+                    val className = classElement.selectFirst(".classname")?.text() ?: return@classElement
+                    if (className.isBlank()) return@classElement
+
+                    val classId = classElement.id()
+                    val timeText = classElement.selectFirst(".time")?.text() ?: ""
+                    val instructor = classElement.selectFirst(".instructor i")?.text() ?: "TBA"
+                    val isFull = classElement.selectFirst(".full") != null
+                    val isJoined = classElement.selectFirst("div.joined") != null
+
+                    if (isFull && !isJoined) return@classElement
+
+                    val eventDate = extractDateFromClass(classElement) ?: dayName
+                    val (startTimeMillis, endTimeMillis) = parseTimes(timeText, eventDate)
+                    val spotsAvailable = if (isFull && !isJoined) 0 else 10
+
+                    if (classId.isNotBlank()) {
+                        trainings.add(
+                            TrainingDto(
+                                id = classId,
+                                title = className,
+                                instructor = instructor,
+                                startTime = startTimeMillis,
+                                endTime = endTimeMillis,
+                                location = "SwimGym",
+                                spotsAvailable = spotsAvailable,
+                                isJoined = isJoined,
+                                classTime = timeText,
+                                classDate = eventDate
+                            )
+                        )
+                    }
+                }
+            }
+
+            val weekdayIndex = getWeekdayIndex(weekday)
+            val trainingsOnSameDay = trainings.filter { 
+                val calendar = java.util.Calendar.getInstance()
+                calendar.timeInMillis = it.startTime
+                calendar.get(java.util.Calendar.DAY_OF_WEEK) == weekdayIndex
+            }
+
+            val nextTraining = trainingsOnSameDay.minByOrNull { 
+                if (it.startTime > System.currentTimeMillis()) it.startTime else Long.MAX_VALUE 
+            }
+
+            Result.success(nextTraining)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun getWeekdayIndex(weekday: String): Int {
+        return when (weekday.lowercase().trim()) {
+            "monday", "mon" -> java.util.Calendar.MONDAY
+            "tuesday", "tue" -> java.util.Calendar.TUESDAY
+            "wednesday", "wed" -> java.util.Calendar.WEDNESDAY
+            "thursday", "thu" -> java.util.Calendar.THURSDAY
+            "friday", "fri" -> java.util.Calendar.FRIDAY
+            "saturday", "sat" -> java.util.Calendar.SATURDAY
+            "sunday", "sun" -> java.util.Calendar.SUNDAY
+            else -> java.util.Calendar.SUNDAY
         }
     }
 
