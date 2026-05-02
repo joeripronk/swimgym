@@ -122,11 +122,11 @@ fun TrainingDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = dateFormat.format(Date(training.startTime)),
+                        text = dateFormat.format(Date(training.startTime*1000)),
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Text(
-                        text = "${timeFormat.format(Date(training.startTime))} - ${timeFormat.format(Date(training.endTime))}",
+                        text = "${timeFormat.format(Date(training.startTime*1000))} - ${timeFormat.format(Date(training.endTime*1000))}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -163,7 +163,7 @@ fun TrainingDetailScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = training.description,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

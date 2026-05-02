@@ -178,6 +178,7 @@ class WebScraper @Inject constructor(
             Result.success(trainings)
 
             } catch (e: Exception) {
+                e.printStackTrace()
             Result.failure(e)
         }
     }

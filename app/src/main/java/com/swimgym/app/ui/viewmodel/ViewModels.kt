@@ -139,7 +139,7 @@ class ScheduleViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true, error = null, currentStartDate = null, weeksLoaded = 1) }
             getScheduleUseCase(level, hideFullyBooked, null)
                 .onSuccess { trainings ->
-                    val filteredTrainings = trainings.filter { it.startTime > System.currentTimeMillis() }
+                    val filteredTrainings = trainings.filter { it.startTime > System.currentTimeMillis()/1000 }
                     _uiState.update { it.copy(isLoading = false, trainings = filteredTrainings, selectedLevel = level, hideFullyBooked = hideFullyBooked, currentStartDate = null, weeksLoaded = 1) }
                 }
                 .onFailure { e ->

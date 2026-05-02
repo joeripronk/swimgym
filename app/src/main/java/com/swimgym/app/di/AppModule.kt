@@ -53,7 +53,9 @@ object DataModule {
             context,
             SwimGymDatabase::class.java,
             "swimgym.db"
-        ).fallbackToDestructiveMigration().build()
+        ).fallbackToDestructiveMigration()
+         .allowMainThreadQueries()
+         .build()
     }
 
     @Provides

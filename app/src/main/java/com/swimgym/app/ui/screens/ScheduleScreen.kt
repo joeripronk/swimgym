@@ -44,21 +44,7 @@ fun ScheduleScreen(
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
-    // Infinite scroll - load more when reaching bottom
-    val shouldLoadMore by remember {
-        derivedStateOf {
-            val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.maxByOrNull { it.index }?.index ?: 0
-            val totalItems = listState.layoutInfo.totalItemsCount
 
-            totalItems > 0 && lastVisibleItem >= totalItems - 3 && !uiState.isLoadingMore && uiState.weeksLoaded <= 4
-        }
-    }
-
-    LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore) {
-            viewModel.loadNextWeek()
-        }
-    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -168,32 +154,6 @@ fun ScheduleScreen(
                             }
                         )
                     }
-
-                    if (uiState.isLoadingMore) {
-                        item {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(32.dp))
-                            }
-                        }
-                    }
-
-                    if (uiState.weeksLoaded >= 4 && !uiState.isLoadingMore) {
-                        item {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "No more trainings available",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -236,7 +196,7 @@ private fun TrainingCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${dateFormat.format(Date(training.startTime))} ${timeFormat.format(Date(training.startTime))}-${timeFormat.format(Date(training.endTime))}",
+                    text = "${dateFormat.format(Date(training.startTime*1000))} ${timeFormat.format(Date(training.startTime*1000))}-${timeFormat.format(Date(training.endTime*1000))}",
                     style = MaterialTheme.typography.bodySmall
                 )
             }

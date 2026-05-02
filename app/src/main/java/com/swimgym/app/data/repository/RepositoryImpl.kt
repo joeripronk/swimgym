@@ -101,7 +101,7 @@ class TrainingRepositoryImpl @Inject constructor(
                 updateSyncStatus()
                 cachedTrainings = dao.getAllTrainingsList()
             }
-            val filteredTrainings = cachedTrainings
+            val filteredtrainings = cachedTrainings
                     .map { it.toDomain() }
                     .filter { 
                         when (level) {
@@ -112,8 +112,7 @@ class TrainingRepositoryImpl @Inject constructor(
                         }
                     }
                     .filter { if (hideFullyBooked) !it.isFull || it.isJoined else true }
-            return Result.success(filteredTrainings)
-
+            Result.success(filteredtrainings)
 
         } catch (e: Exception) {
           return Result.failure(e)
