@@ -26,6 +26,7 @@ class SessionRepository @Inject constructor(
         private val USER_EMAIL = stringPreferencesKey("user_email")
         private val SELECTED_LEVEL = stringPreferencesKey("selected_level")
         private val SELECTED_CALENDAR = stringPreferencesKey("selected_calendar")
+        private val SELECTED_CALENDAR_ID = stringPreferencesKey("selected_calendar_id")
         private val REMINDER_MINUTES = stringPreferencesKey("reminder_minutes")
         private val REMINDER_ENABLED = stringPreferencesKey("reminder_enabled")
         private val COOKIES = stringPreferencesKey("cookies")
@@ -42,6 +43,8 @@ class SessionRepository @Inject constructor(
     val selectedLevel: Flow<String?> = context.dataStore.data.map { it[SELECTED_LEVEL] }
 
     val selectedCalendar: Flow<String?> = context.dataStore.data.map { it[SELECTED_CALENDAR] }
+
+    val selectedCalendarId: Flow<Long?> = context.dataStore.data.map { it[SELECTED_CALENDAR_ID]?.toLongOrNull() }
 
     suspend fun saveSession(token: String, userId: Int, name: String, email: String) {
         context.dataStore.edit { prefs ->
@@ -61,6 +64,12 @@ class SessionRepository @Inject constructor(
     suspend fun saveSelectedCalendar(calendar: String) {
         context.dataStore.edit { prefs ->
             prefs[SELECTED_CALENDAR] = calendar
+        }
+    }
+
+    suspend fun saveSelectedCalendarId(calendarId: Long) {
+        context.dataStore.edit { prefs ->
+            prefs[SELECTED_CALENDAR_ID] = calendarId.toString()
         }
     }
 

@@ -54,3 +54,11 @@ data class CalendarIntegrationConfig(
     val reminderConfig: ReminderConfig = ReminderConfig(),
     val calendarName: String = "Default Calendar"
 )
+
+data class CalendarInfo(
+    val id: Long,
+    val displayName: String,
+    val accountName: String,
+    val ownerAccount: String,
+    val isPrimary: Boolean
+)

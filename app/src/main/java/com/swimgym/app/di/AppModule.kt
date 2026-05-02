@@ -5,10 +5,12 @@ import androidx.room.Room
 import com.swimgym.app.data.api.WebScraper
 import com.swimgym.app.data.local.SwimGymDatabase
 import com.swimgym.app.data.repository.AuthRepositoryImpl
+import com.swimgym.app.data.repository.CalendarRepositoryImpl
 import com.swimgym.app.data.repository.SessionRepository
 import com.swimgym.app.data.repository.TrainingRepositoryImpl
 import com.swimgym.app.domain.model.User
 import com.swimgym.app.domain.repository.AuthRepository
+import com.swimgym.app.domain.repository.CalendarRepository
 import com.swimgym.app.domain.repository.TrainingRepository
 import dagger.Binds
 import dagger.Module
@@ -29,6 +31,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindTrainingRepository(impl: TrainingRepositoryImpl): TrainingRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindCalendarRepository(impl: CalendarRepositoryImpl): CalendarRepository
 }
 
 @Module
