@@ -2,13 +2,12 @@ package com.swimgym.app.data.model
 
 import com.swimgym.app.data.local.entity.BookingEntity
 import com.swimgym.app.data.local.entity.TrainingEntity
-import com.swimgym.app.data.local.entity.UserEntity
 import com.swimgym.app.domain.model.*
 
 object Mappers {
-    fun UserDto.toDomain() = User(id, name, email)
-    fun User.toEntity() = UserEntity(id, name, email)
-    fun UserEntity.toDomain() = User(id, name, email)
+    //fun UserDto.toDomain() = User(id, name, email)
+   // fun User.toEntity() = UserEntity(id, name, email)
+    //fun UserEntity.toDomain() = User(id, name, email)
 
     fun TrainingDto.toDomain(): Training {
         return Training(
@@ -96,13 +95,12 @@ object Mappers {
         return Booking(
             id = id,
             trainingId = trainingId.toString(),
-            userId = userId,
             status = when (status.lowercase()) {
                 "confirmed" -> BookingStatus.CONFIRMED
                 "cancelled" -> BookingStatus.CANCELLED
                 else -> BookingStatus.PENDING
             },
-            className = className,
+            title = className,
             classTime = classTime,
             classDate = classDate
         )
@@ -111,14 +109,16 @@ object Mappers {
     fun Booking.toEntity() = BookingEntity(
         id = id,
         trainingId = trainingId,
-        userId = userId,
+        title = title,
+        instructor = instructor,
         status = status.name
     )
 
     fun BookingEntity.toDomain() = Booking(
         id = id,
         trainingId = trainingId,
-        userId = userId,
+        title = title,
+        instructor = instructor,
         status = when (status) {
             "CONFIRMED" -> BookingStatus.CONFIRMED
             "CANCELLED" -> BookingStatus.CANCELLED

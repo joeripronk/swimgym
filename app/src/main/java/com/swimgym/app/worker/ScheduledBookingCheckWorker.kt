@@ -7,6 +7,7 @@ import androidx.work.WorkerParameters
 import com.swimgym.app.data.api.WebScraper
 import com.swimgym.app.data.repository.ScheduledBookingRepository
 import com.swimgym.app.data.repository.ScheduledBookingStatus
+import com.swimgym.app.domain.model.Training
 import com.swimgym.app.util.BookingNotificationManager
 
 
@@ -28,10 +29,12 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         return try {
             val bookings = scheduledBookingRepo.getAllBookings()
+            val trainings = webScraper.getSchedule()
+
             val activeBookings = bookings.filter { it.status == ScheduledBookingStatus.ACTIVE }
 
             activeBookings.forEach { booking ->
-                processBooking(booking)
+                processBooking(booking,trainings)
             }
 
             Result.success()
@@ -39,22 +42,35 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
             Result.retry()
         }
     }
+    private suspend fun getNextTraining(
+        startTime: Long,
+        title: String,
+        trainings: List<Training>
+    ): Training {
+        for(training in trainings ) {
+            val titleMatches = training.title.equals(title, ignoreCase = true)
+            if (training.startTime == startTime + 7 * 86400 && titleMatches)
+                return training
+         }
+    }
 
-    private suspend fun processBooking(booking: com.swimgym.app.data.repository.ScheduledBooking) {
+
+
+
+    private suspend fun processBooking(booking: com.swimgym.app.data.repository.ScheduledBooking,trainings: List<Training>) {
         try {
             val shouldBook = shouldBookNow(booking)
             if (!shouldBook) return
-
+            var training = getNextTraining(booking.startTime,booking.title,trainings)
             val result = webScraper.bookTraining(
-                trainingId = booking.trainingId,
-                className = booking.className,
-                classTime = booking.classTime,
-                classDate = calculateNextDate(booking)
+                trainingId = training.id,
+                className = training.classDate,
+                classTime = training.classTime,
             )
 
             result.fold(
                 onSuccess = {
-                    scheduledBookingRepo.incrementBookingCount(booking.id)
+                    scheduledBookingRepo.incrementBookingCount(booking.id,training)
 
                     val maxRepeat = booking.maxRepeatCount
                     if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
@@ -62,28 +78,12 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
                         return
                     }
 
-                    val nextTraining = webScraper.findNextTrainingByTitle(
-                        title = booking.className,
-                        weekday = booking.classDate,
-                        startTime = booking.classTime
-                    )
-
-                    nextTraining.fold(
-                        onSuccess = { training ->
-                            if (training != null) {
-                                scheduledBookingRepo.updateTrainingId(booking.id, training.id)
-                            }
-                        },
-                        onFailure = {
-                            // No next training found, keep current training ID
-                        }
-                    )
 
                     // Show notification for successful scheduled booking
                     notificationManager.showBookingConfirmation(
-                        trainingName = booking.className,
-                        classTime = booking.classTime,
-                        classDate = booking.classDate,
+                        trainingName = training.title,
+                        classTime = training.classTime,
+                        classDate = training.classDate,
                         isScheduledBooking = true
                     )
                 },
@@ -98,25 +98,12 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
 
     private fun shouldBookNow(booking: com.swimgym.app.data.repository.ScheduledBooking): Boolean {
         val calendar = Calendar.getInstance()
-        val currentDate = calendar.time
-
-        calendar.timeInMillis = booking.startTime * 1000
-        calendar.add(Calendar.DAY_OF_YEAR, -7 )
-        val nextBookingDate = calendar.time
-
-        return !nextBookingDate.after(currentDate)
+        //val currentDate = calendar.time
+        return booking.startTime > calendar.time
     }
 
-    private fun calculateNextDate(booking: com.swimgym.app.data.repository.ScheduledBooking): String {
-        val calendar = Calendar.getInstance()
-        calendar.timeInMillis = booking.createdAt
-        calendar.add(Calendar.DAY_OF_YEAR, 7 * (booking.bookedCount + 1))
 
-        val dateFormat = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
-        return dateFormat.format(calendar.time)
-    }
-
-    companion object {
+    companion object worker {
         const val WORK_NAME = "scheduled_booking_check"
     }
 }

@@ -8,7 +8,6 @@ import androidx.room.Query
 import androidx.room.Update
 import com.swimgym.app.data.local.entity.BookingEntity
 import com.swimgym.app.data.local.entity.TrainingEntity
-import com.swimgym.app.data.local.entity.UserEntity
 import com.swimgym.app.data.local.entity.InstructorEntity
 import com.swimgym.app.data.local.entity.CacheControlEntity
 import kotlinx.coroutines.flow.Flow
@@ -60,18 +59,6 @@ interface SwimGymDao {
 
     @Query("DELETE FROM trainings WHERE startTime < :beforeTime")
     suspend fun deleteOldTrainings(beforeTime: Long)
-
-    @Query("SELECT * FROM users WHERE id = :userId")
-    suspend fun getUserById(userId: Int): UserEntity?
-
-    @Query("SELECT * FROM users LIMIT 1")
-    suspend fun getCurrentUser(): UserEntity?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertUser(user: UserEntity)
-
-    @Query("DELETE FROM users")
-    suspend fun clearUsers()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertInstructor(instructor: InstructorEntity)

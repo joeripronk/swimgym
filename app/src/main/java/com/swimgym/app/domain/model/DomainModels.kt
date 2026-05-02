@@ -1,11 +1,11 @@
 package com.swimgym.app.domain.model
-
+/*
 data class User(
     val id: Int,
     val name: String,
     val email: String
 )
-
+*/
 data class Training(
     val id: String,
     val title: String,
@@ -29,9 +29,8 @@ data class Training(
 data class Booking(
     val id: Int,
     val trainingId: String,
-    val userId: Int,
     val status: BookingStatus,
-    val className: String = "",
+    val title: String = "",
     val classTime: String = "",
     val classDate: String = ""
 )

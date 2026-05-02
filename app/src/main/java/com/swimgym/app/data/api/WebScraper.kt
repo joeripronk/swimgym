@@ -184,10 +184,7 @@ class WebScraper @Inject constructor(
     }
 
     suspend fun bookTraining(
-        trainingId: String,
-        className: String = "",
-        classTime: String = "",
-        classDate: String = ""
+        training: Training
     ): Result<BookingResponse> = withContext(Dispatchers.IO) {
         try {
             val formBody = FormBody.Builder()
@@ -201,9 +198,9 @@ class WebScraper @Inject constructor(
                 .add("participant_member_id", "")
                 .add("book_recurring", "")
                 .add("additional_note", "")
-                .add("class_name", className)
-                .add("class_time", classTime)
-                .add("class_date", classDate)
+                .add("class_name", training.title)
+                .add("class_time", training.classTime)
+                .add("class_date", training.classDate)
                 .add("send_email", "1")
                 .add("instance_of", "")
                 .add("cancel_recurring", "")
@@ -216,7 +213,7 @@ class WebScraper @Inject constructor(
                 .build()
 
             val response = client.newCall(
-                buildRequest("$baseUrl/classes/class/$trainingId?event_type=8")
+                buildRequest("$baseUrl/classes/class/${training.id}?event_type=8")
                     .post(formBody)
                     .build()
             ).execute()
@@ -224,13 +221,9 @@ class WebScraper @Inject constructor(
             if (response.isSuccessful || response.code == 302) {
                 Result.success(
                     BookingResponse(
-                        id = trainingId.hashCode(),
-                        trainingId = trainingId,
-                        userId = 1,
+                        id = training.id.hashCode(),
+                        trainingId = training.id,
                         status = "confirmed",
-                        className = className,
-                        classTime = classTime,
-                        classDate = classDate
                     )
                 )
             } else {
@@ -242,10 +235,7 @@ class WebScraper @Inject constructor(
     }
 
     suspend fun cancelBooking(
-        trainingId: String,
-        className: String = "",
-        classTime: String = "",
-        classDate: String = ""
+        training: Training
     ): Result<BookingResponse> = withContext(Dispatchers.IO) {
         try {
             val formBody = FormBody.Builder()
@@ -259,9 +249,9 @@ class WebScraper @Inject constructor(
                 .add("participant_member_id", "")
                 .add("book_recurring", "")
                 .add("additional_note", "")
-                .add("class_name", className)
-                .add("class_time", classTime)
-                .add("class_date", classDate)
+                .add("class_name", training.title)
+                .add("class_time", training.classTime)
+                .add("class_date", training.classDate)
                 .add("send_email", "1")
                 .add("instance_of", "")
                 .add("cancel_recurring", "")
@@ -274,7 +264,7 @@ class WebScraper @Inject constructor(
                 .build()
 
             val response = client.newCall(
-                buildRequest("$baseUrl/classes/class/$trainingId?event_type=8")
+                buildRequest("$baseUrl/classes/class/${training.id}?event_type=8")
                     .post(formBody)
                     .build()
             ).execute()

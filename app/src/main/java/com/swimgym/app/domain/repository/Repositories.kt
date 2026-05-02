@@ -17,8 +17,8 @@ enum class SwodLevel {
 interface TrainingRepository {
     suspend fun getSchedule(level: SwodLevel = SwodLevel.ALL, hideFullyBooked: Boolean = false, startDate: String? = null): Result<List<Training>>
     suspend fun getTrainingDetails(trainingId: String): Result<Training>
-    suspend fun bookTraining(trainingId: String, className: String = "", classTime: String = "", classDate: String = ""): Result<Booking>
-    suspend fun cancelBooking(trainingId: String, className: String = "", classTime: String = "", classDate: String = ""): Result<Booking>
+    suspend fun bookTraining(training: Training): Result<Booking>
+    suspend fun cancelBooking(training: Training): Result<Booking>
     fun getMyBookings(): Flow<List<Booking>>
     suspend fun refreshSchedule(): Result<Unit>
     fun getSyncStatus(): Flow<SyncStatus>

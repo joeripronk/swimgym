@@ -10,6 +10,8 @@ data class BookingEntity(
     @PrimaryKey
     val trainingId: String,
     val userId: Int,
+    val startTime: Long,
+    val title: String,
     val status: String,
     val lastUpdated: Long = System.currentTimeMillis()
 )

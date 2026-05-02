@@ -179,12 +179,8 @@ private fun ScheduledBookingCard(
         scheduled.classTime
     }
 
-    val nextBookingTime = remember(scheduled.startTime, scheduled.bookedCount) {
-        if (scheduled.startTime > 0) {
-            calculateNextBookingTime(scheduled.startTime, scheduled.bookedCount)
-        } else {
-            null
-        }
+    val nextBookingTime = remember(scheduled.startTime) {
+        scheduled.startTime-(7*86400)
     }
 
     val timeUntilNext = remember(nextBookingTime) {
@@ -274,32 +270,6 @@ private fun ScheduledBookingCard(
     }
 }
 
-private fun calculateNextBookingTime(startTime: Long, bookedCount: Int): Long {
-    val calendar = Calendar.getInstance()
-    val originalDayOfWeek = calendar.apply { timeInMillis = startTime }.get(Calendar.DAY_OF_WEEK)
-    val originalHour = calendar.get(Calendar.HOUR_OF_DAY)
-    val originalMinute = calendar.get(Calendar.MINUTE)
-
-    val now = System.currentTimeMillis()
-    calendar.timeInMillis = now
-
-    // Set to the target day and time
-    calendar.set(Calendar.DAY_OF_WEEK, originalDayOfWeek)
-    calendar.set(Calendar.HOUR_OF_DAY, originalHour)
-    calendar.set(Calendar.MINUTE, originalMinute)
-    calendar.set(Calendar.SECOND, 0)
-    calendar.set(Calendar.MILLISECOND, 0)
-
-    // If this week's occurrence has passed, move to next week
-    if (calendar.timeInMillis <= now) {
-        calendar.add(Calendar.WEEK_OF_YEAR, 1)
-    }
-
-    // Add weeks based on booked count (each booking is ~1 week apart)
-    // The actual next run should be after the last successful booking
-    // For simplicity, we calculate based on weekly recurrence
-    return calendar.timeInMillis
-}
 
 private fun formatTimeUntilNext(nextTime: Long): String {
     val now = System.currentTimeMillis()

@@ -7,7 +7,6 @@ import com.swimgym.app.data.local.entity.CacheControlEntity
 import com.swimgym.app.data.local.entity.BookingEntity
 import com.swimgym.app.data.local.entity.InstructorEntity
 import com.swimgym.app.data.local.entity.TrainingEntity
-import com.swimgym.app.data.local.entity.UserEntity
 import com.swimgym.app.data.model.Mappers.toDomain
 import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.domain.model.*
@@ -190,9 +189,9 @@ class TrainingRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun bookTraining(trainingId: String, className: String, classTime: String, classDate: String): Result<Booking> {
+    override suspend fun bookTraining(training: Training): Result<Booking> {
         return try {
-            val result = webScraper.bookTraining(trainingId, className, classTime, classDate)
+            val result = webScraper.bookTraining(training)
             result.map { bookingDto ->
                 val booking = bookingDto.toDomain()
                 dao.insertBooking(booking.toEntity())

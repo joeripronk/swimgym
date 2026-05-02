@@ -41,16 +41,16 @@ class GetTrainingDetailsUseCase @Inject constructor(
 class BookTrainingUseCase @Inject constructor(
     private val trainingRepository: TrainingRepository
 ) {
-    suspend operator fun invoke(trainingId: String, className: String = "", classTime: String = "", classDate: String = ""): Result<Booking> {
-        return trainingRepository.bookTraining(trainingId, className, classTime, classDate)
+    suspend operator fun invoke(training: Training): Result<Booking> {
+        return trainingRepository.bookTraining(training)
     }
 }
 
 class CancelBookingUseCase @Inject constructor(
     private val trainingRepository: TrainingRepository
 ) {
-    suspend operator fun invoke(trainingId: String, className: String = "", classTime: String = "", classDate: String = ""): Result<Booking> {
-        return trainingRepository.cancelBooking(trainingId, className, classTime, classDate)
+    suspend operator fun invoke(training: Training): Result<Booking> {
+        return trainingRepository.cancelBooking(training)
     }
 }
 
