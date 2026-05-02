@@ -6,6 +6,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -24,6 +25,7 @@ import com.swimgym.app.ui.viewmodel.LoginViewModel
 import com.swimgym.app.ui.viewmodel.ScheduleViewModel
 import com.swimgym.app.ui.viewmodel.SettingsViewModel
 
+@ExperimentalComposeUiApi
 @Composable
 fun SwimGymNavigation(
     webScraper: WebScraper

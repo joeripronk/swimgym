@@ -14,7 +14,19 @@ import com.swimgym.app.ui.viewmodel.SettingsViewModel
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.ui.ExperimentalComposeUiApi
 
+@ExperimentalComposeUiApi
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -22,6 +34,8 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     val calendarPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -104,46 +118,63 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(uiState.availableCalendars) { calendar ->
-                                Card(
-                                    onClick = { viewModel.selectCalendar(calendar.id, calendar.displayName) },
-                                    modifier = Modifier.fillMaxWidth()
+                        var expanded by remember { mutableStateOf(false) }
+                        var selectedCalendar by remember { mutableStateOf(uiState.selectedCalendar) }
+                        val focusRequester = FocusRequester()
+
+                        var dropdownExpanded by remember { mutableStateOf(false) }
+                        
+                        OutlinedTextField(
+                            value = selectedCalendar.ifEmpty { "Select calendar" },
+                            onValueChange = {},
+                            readOnly = true,
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = null
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { dropdownExpanded = true }
+                                .focusRequester(focusRequester)
+                        )
+                        
+                        if (dropdownExpanded) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 300.dp)
                                 ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .padding(12.dp)
-                                            .fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = calendar.displayName,
-                                                style = MaterialTheme.typography.bodyMedium
-                                            )
-                                            Text(
-                                                text = calendar.accountName,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            if (calendar.isPrimary) {
+                                    uiState.availableCalendars.forEach { calendar ->
+                                        item {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(16.dp)
+                                                    .clickable {
+                                                        selectedCalendar = calendar.displayName
+                                                        viewModel.selectCalendar(calendar.id, calendar.displayName)
+                                                        dropdownExpanded = false
+                                                    },
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
                                                 Text(
-                                                    text = "Primary",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.primary
+                                                    text = calendar.displayName,
+                                                    style = MaterialTheme.typography.bodyMedium
                                                 )
+                                                if (uiState.selectedCalendarId == calendar.id) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.CheckCircle,
+                                                        contentDescription = "Selected",
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
                                             }
-                                        }
-                                        if (uiState.selectedCalendarId == calendar.id) {
-                                            Icon(
-                                                imageVector = Icons.Default.CheckCircle,
-                                                contentDescription = "Selected",
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
                                         }
                                     }
                                 }
