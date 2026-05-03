@@ -246,14 +246,14 @@ private fun TrainingCard(
     }
 }
 
-private fun addTrainingToCalendar(context: android.content.Context, training: Training) {
+    fun addTrainingToCalendar(context: android.content.Context, training: Training) {
     try {
         val values = ContentValues().apply {
             put(CalendarContract.Events.DTSTART, training.startTime)
             put(CalendarContract.Events.DTEND, training.endTime)
             put(CalendarContract.Events.TITLE, training.title)
-            put(CalendarContract.Events.DESCRIPTION, "Instructor: ${training.instructor}")
-            put(CalendarContract.Events.EVENT_LOCATION, training.location)
+            put(CalendarContract.Events.DESCRIPTION, "Trainer: ${training.instructor} \nLocatie: ${training.location}")
+            put(CalendarContract.Events.EVENT_LOCATION, "Swimgym, Wibautstraat 131b, 1091 GL Amsterdam")
             put(CalendarContract.Events.CALENDAR_ID, 1)
             put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
         }

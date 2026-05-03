@@ -1,14 +1,22 @@
 package com.swimgym.app.data.api
 
+import android.content.ContentResolver
+import android.content.ContentValues
+import android.provider.CalendarContract
+import com.swimgym.app.SwimGymApp
 import com.swimgym.app.data.local.SwimGymDao
 import com.swimgym.app.data.local.entity.InstructorEntity
 import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.data.model.BookingResponse
+import com.swimgym.app.data.model.Mappers.toDomain
 import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.data.model.TrainingDto
 import com.swimgym.app.data.model.UserDto
+import com.swimgym.app.data.repository.ScheduledBookingRepository
+import com.swimgym.app.data.repository.ScheduledBookingStatus
 import com.swimgym.app.data.repository.SessionRepository
 import com.swimgym.app.domain.model.Training
+import com.swimgym.app.util.BookingNotificationManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
@@ -20,16 +28,21 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
+import java.util.Calendar
 import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.Result
+
 
 @Singleton
 class WebScraper @Inject constructor(
     private val sessionRepository: SessionRepository,
-    private val dao: SwimGymDao
+    private val dao: SwimGymDao,
+    private val scheduledBookingRepo: ScheduledBookingRepository,
+    private val notificationManager: BookingNotificationManager
+
 ) {
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -227,6 +240,8 @@ class WebScraper @Inject constructor(
             ).execute()
 
             if (response.isSuccessful || response.code == 302) {
+
+      // TODO:          addTrainingToCalendar(training.toDomain())
                 Result.success(
                     BookingResponse(
                         id = training.id.hashCode(),
@@ -346,6 +361,7 @@ class WebScraper @Inject constructor(
 
     suspend fun getTrainingDetails(trainingId: String): Result<TrainingDetails> = withContext(Dispatchers.IO) {
         try {
+            checkBookings()
             val doc = Jsoup.connect("$baseUrl/classes/class/$trainingId?embedded=0")
                 .cookies(cookies)
                 .userAgent("Mozilla/5.0")
@@ -477,6 +493,105 @@ class WebScraper @Inject constructor(
             Pair(parts[0], parts[1])
         } else {
             Pair("", "")
+        }
+    }
+
+
+    suspend fun checkBookings() {
+        val bookings = scheduledBookingRepo.getAllBookings()
+        val trainings = dao.getAllTrainingsList();
+
+        //webScraper.getSchedule()
+
+
+        val activeBookings = bookings.filter { it.status == ScheduledBookingStatus.ACTIVE }
+
+        activeBookings.forEach { booking ->
+            processBooking(booking, trainings)
+        }
+
+    //    ListenableWorker.Result.success()
+    }
+
+
+private suspend fun getNextTraining(
+    startTime: Long,
+    title: String,
+    trainings: List<TrainingEntity>
+): TrainingEntity? {
+    val nexttime=startTime + (7 * 86400)
+
+    for (training in trainings) {
+        val titleMatches = training.title.equals(title, ignoreCase = true)
+        if (training.startTime == nexttime && titleMatches)
+            return training
+    }
+    return null
+}
+
+
+private suspend fun processBooking(booking: com.swimgym.app.data.repository.ScheduledBooking, trainings: List<TrainingEntity>) {
+    try {
+        val shouldBook = shouldBookNow(booking)
+        if (!shouldBook) return
+        val training = getNextTraining(booking.startTime, booking.className, trainings) ?: return
+        val result = bookTraining(training)
+
+        result.fold(
+            onSuccess = {
+                scheduledBookingRepo.incrementBookingCount(booking.id, training)
+
+                val maxRepeat = booking.maxRepeatCount
+                if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
+                    scheduledBookingRepo.completeBooking(booking.id)
+                    return
+                }
+          //      addTrainingToCalendar(SwimGymApp.getApplicationContext(),training.toDomain())
+                notificationManager.showBookingConfirmation(
+                    trainingName = training.title,
+                    classTime = training.classTime,
+                    classDate = training.classDate,
+                    isScheduledBooking = true
+                )
+            },
+            onFailure = {
+                // Don't retry here, will be checked again in 30 minutes
+            }
+        )
+    } catch (e: Exception) {
+        // Error handled silently, will retry on next periodic run
+    }
+}
+
+private fun shouldBookNow(booking: com.swimgym.app.data.repository.ScheduledBooking): Boolean {
+    val calendar = Calendar.getInstance()
+    val now=calendar.time.time/1000
+    val next=booking.startTime //-(7 * 86400)
+   // val diff=(next-now)/86400
+    return now > next-7*86400
+}
+    fun addTrainingToCalendar( training: Training) {
+        try {
+            val values = ContentValues().apply {
+                put(CalendarContract.Events.DTSTART, training.startTime)
+                put(CalendarContract.Events.DTEND, training.endTime)
+                put(CalendarContract.Events.TITLE, training.title)
+                put(
+                    CalendarContract.Events.DESCRIPTION,
+                    "Instructor: ${training.instructor}\n${training.location}"
+                )
+                put(
+                    CalendarContract.Events.EVENT_LOCATION,
+                    "Swimgym, Wibautstraat 131b, 1091 GL Amsterdam"
+                )
+                put(CalendarContract.Events.CALENDAR_ID, 1)
+                put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+            }
+            val _context = SwimGymApp.getApplicationContext()
+            //val resolver: ContentResolver? = _context.getContentResolver()
+            _context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

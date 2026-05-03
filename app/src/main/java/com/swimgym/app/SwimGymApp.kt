@@ -1,6 +1,9 @@
 package com.swimgym.app
 
 import android.app.Application
+import android.content.Context
+import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.Configuration
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -14,14 +17,18 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
+
 @HiltAndroidApp
-class SwimGymApp : Application() {
+class SwimGymApp : Application(), Configuration.Provider {
 
     @Inject
     lateinit var webScraper: WebScraper
 
+    @Inject
+    lateinit var workerFactory: HiltWorkerFactory
     override fun onCreate() {
         super.onCreate()
+        //context = getApplicationContext()
 
         // Load cached cookies on app startup
         CoroutineScope(Dispatchers.IO).launch {
@@ -30,9 +37,9 @@ class SwimGymApp : Application() {
 
         // Schedule periodic booking check every 30 minutes
         val bookingCheckRequest = PeriodicWorkRequestBuilder<ScheduledBookingCheckWorker>(
-            1, TimeUnit.MINUTES
-        ).build()
-
+            15, TimeUnit.MINUTES
+        )
+            .build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             ScheduledBookingCheckWorker.WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
@@ -49,5 +56,15 @@ class SwimGymApp : Application() {
             ExistingPeriodicWorkPolicy.KEEP,
             scheduleSyncRequest
         )
+    }
+
+    override fun getWorkManagerConfiguration(): Configuration {
+        return Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .build()
+    }
+
+    companion object {
+        fun getApplicationContext(): Context {return getApplicationContext()}
     }
 }

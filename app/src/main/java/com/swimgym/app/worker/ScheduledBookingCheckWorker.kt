@@ -30,7 +30,9 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         return try {
-            val bookings = scheduledBookingRepo.getAllBookings()
+          webScraper.checkBookings()
+         /*
+           val bookings = scheduledBookingRepo.getAllBookings()
             val trainings = dao.getAllTrainingsList();
 
             //webScraper.getSchedule()
@@ -41,13 +43,13 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
             activeBookings.forEach { booking ->
                 processBooking(booking, trainings)
             }
-
+*/
             Result.success()
         } catch (e: Exception) {
             Result.retry()
         }
     }
-
+/*
     private suspend fun getNextTraining(
         startTime: Long,
         title: String,
@@ -99,7 +101,7 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
         val calendar = Calendar.getInstance()
         return booking.startTime*1000 > calendar.time.time
     }
-
+*/
 
     companion object {
         const val WORK_NAME = "scheduled_booking_check"
