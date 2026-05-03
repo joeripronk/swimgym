@@ -167,19 +167,19 @@ private fun ScheduledBookingCard(
     val dateFormat = remember { SimpleDateFormat("EEEE", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val weekday = if (scheduled.startTime > 0) {
-        dateFormat.format(Date(scheduled.startTime))
+        dateFormat.format(Date(scheduled.startTime*1000))
     } else {
         ""
     }
     val startTimeStr = if (scheduled.startTime > 0) {
-        timeFormat.format(Date(scheduled.startTime))
+        timeFormat.format(Date(scheduled.startTime*1000))
     } else {
         scheduled.classTime
     }
 
     val nextBookingTime = remember(scheduled.startTime) {
         if (scheduled.startTime > 0) {
-            scheduled.startTime + (7 * 24 * 60 * 60 * 1000L)
+            scheduled.startTime*1000 + (7 * 24 * 60 * 60 * 1000L)
         } else {
             0L
         }

@@ -30,7 +30,7 @@ class SwimGymApp : Application() {
 
         // Schedule periodic booking check every 30 minutes
         val bookingCheckRequest = PeriodicWorkRequestBuilder<ScheduledBookingCheckWorker>(
-            30, TimeUnit.MINUTES
+            1, TimeUnit.MINUTES
         ).build()
 
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(

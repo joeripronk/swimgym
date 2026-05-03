@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.swimgym.app.data.api.WebScraper
+import com.swimgym.app.data.local.SwimGymDao
 import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.data.repository.ScheduledBookingRepository
 import com.swimgym.app.data.repository.ScheduledBookingStatus
@@ -22,6 +23,7 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
     @Assisted private val context: Context,
     @Assisted private val params: WorkerParameters,
     private val webScraper: WebScraper,
+    private val dao: SwimGymDao,
     private val scheduledBookingRepo: ScheduledBookingRepository,
     private val notificationManager: BookingNotificationManager,
 ) : CoroutineWorker(context, params) {
@@ -29,7 +31,9 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         return try {
             val bookings = scheduledBookingRepo.getAllBookings()
-            val trainings = webScraper.getSchedule()
+            val trainings = dao.getAllTrainingsList();
+
+            //webScraper.getSchedule()
 
 
             val activeBookings = bookings.filter { it.status == ScheduledBookingStatus.ACTIVE }
@@ -51,7 +55,7 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
     ): TrainingEntity? {
         for (training in trainings) {
             val titleMatches = training.title.equals(title, ignoreCase = true)
-            if (training.startTime == startTime + 7 * 86400000 && titleMatches)
+            if (training.startTime == startTime + 7 * 86400 && titleMatches)
                 return training
         }
         return null
@@ -93,7 +97,7 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
 
     private fun shouldBookNow(booking: com.swimgym.app.data.repository.ScheduledBooking): Boolean {
         val calendar = Calendar.getInstance()
-        return booking.startTime > calendar.time.time
+        return booking.startTime*1000 > calendar.time.time
     }
 
 

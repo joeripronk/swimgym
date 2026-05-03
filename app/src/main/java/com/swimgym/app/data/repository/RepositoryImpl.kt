@@ -92,11 +92,11 @@ class TrainingRepositoryImpl @Inject constructor(
                 System.currentTimeMillis() > it.lastSyncTime + it.staleAfterMillis
             } ?: true
 
-            if (cachedTrainings.isEmpty() || isDataStale) {
-                cachedTrainings = webScraper.getSchedule()
-                updateSyncStatus()
-                //cachedTrainings = dao.getAllTrainingsList()
-            }
+            //if (false && cachedTrainings.isEmpty() || isDataStale) {
+            //    webScraper.getSchedule()
+             //   updateSyncStatus()
+              //  cachedTrainings = dao.getAllTrainingsList()
+            //}
 
             val filteredTrainings = cachedTrainings
                 .map { it.toDomain() }

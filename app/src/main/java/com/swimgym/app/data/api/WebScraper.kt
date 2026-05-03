@@ -16,10 +16,15 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import java.text.SimpleDateFormat
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.Result
 
 @Singleton
 class WebScraper @Inject constructor(
@@ -115,18 +120,20 @@ class WebScraper @Inject constructor(
 
     suspend fun getSchedule(
         weeks: Int = 4
-    ): List<TrainingEntity>  {
-        var trainings = mutableListOf<Training>()
+    ): Result<List<TrainingDto>> = withContext(Dispatchers.IO) {
 
         try {
-
+            val trainings = mutableListOf<TrainingDto>()
+            val date = java.util.Calendar.getInstance()
+            val now=date.timeInMillis/1000
             repeat(weeks) { weekOffset ->
-                val date = java.util.Calendar.getInstance().apply {
-                    add(java.util.Calendar.DATE, 7 * weekOffset)
-                }
-                val now=date.timeInMillis/1000
-                val formattedDate =
-                    SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date.time)
+                val formattedDate =LocalDate.now(ZoneId.systemDefault()) .minusWeeks(1-weekOffset.toLong()) .with(TemporalAdjusters.nextOrSame(
+                    DayOfWeek.MONDAY))
+
+
+
+          //      val formattedDate =
+           //         SimpleDateFormat("yyyy-MM-dd", startofweek)
 
                 val url = "$baseUrl/classes/week/$formattedDate?event_type=8"
                 //val url = if (activityId.isNotEmpty()) "$base&$activityId" else base
@@ -150,7 +157,6 @@ class WebScraper @Inject constructor(
                         val classId = classElement.id()
                         val timeText = classElement.selectFirst(".time")?.text() ?: ""
                         val instructor = classElement.selectFirst(".instructor i")?.text() ?: "TBA"
-                        //val isFull2 = classElement.selectFirst(".instructor i div")?.text() == "VOL"
                         val isFull = classElement.selectFirst(".full")?.text() == "VOL"
                         val isJoined = classElement.selectFirst("div.joined") != null
                         val eventDate = extractDateFromClass(classElement) ?: dayName
@@ -158,18 +164,16 @@ class WebScraper @Inject constructor(
                         //val spotsAvailable = if (isFull && !isJoined) 0 else 1
                         if (classId.isNotBlank() && startTime>now) {
                             trainings.add(
-                                Training(
+                                TrainingDto(
                                     id = classId,
                                     title = className,
                                     instructor = instructor,
                                     startTime = startTime,
                                     endTime = endTime,
                                     isFull = isFull,
-                                    location = "Swimgym",
                                     isJoined = isJoined,
                                     classTime = timeText,
-                                    classDate = eventDate,
-                                    spotsAvailable = 10
+                                    classDate = eventDate
                                 )
                             )
                         }
@@ -177,18 +181,15 @@ class WebScraper @Inject constructor(
                 }
 
             }
-            var trainingentities = trainings.map { it.toEntity() }
-            dao.insertTrainings(trainingentities)
-            return trainingentities
+            dao.insertTrainings(trainings.map { it.toEntity() })
+            Result.success(trainings)
 
-            } catch (e: Exception) {
-                e.printStackTrace()
-
-           }
-        var trainingentities = trainings.map { it.toEntity() }
-            return trainingentities
-
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
     }
+
 
     suspend fun bookTraining(
         training: TrainingEntity
