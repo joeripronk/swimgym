@@ -14,8 +14,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.swimgym.app.data.api.WebScraper
+import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.ui.navigation.Screen
 import com.swimgym.app.data.repository.ScheduledBooking
+import com.swimgym.app.domain.model.BookingStatus
 import com.swimgym.app.ui.screens.LoginScreen
 import com.swimgym.app.ui.screens.MyBookingsScreen
 import com.swimgym.app.ui.screens.ScheduleScreen
@@ -94,10 +96,18 @@ fun SwimGymNavigation(
                 trainerImageUrl = trainerImageUrl,
                 onBack = { navController.popBackStack() },
                 onBook = { training ->
-                    scheduleViewModel.bookTraining(training.id, training.title, training.classTime, training.classDate)
+                    scheduleViewModel.bookTraining(training.toEntity())
                 },
                 onCancel = { training ->
-                    scheduleViewModel.cancelBooking(training.id, training.title, training.classTime, training.classDate)
+                    val booking = com.swimgym.app.domain.model.Booking(
+                        id = training.id.hashCode(),
+                        trainingId = training.id,
+                        className = training.title,
+                        classTime = training.classTime,
+                        classDate = training.classDate,
+                        status = BookingStatus.BOOKED
+                    )
+                    scheduleViewModel.cancelBooking(booking)
                 },
                 onSchedule = { trainingId, className, classTime, classDate, maxRepeat ->
                     scheduleViewModel.scheduleRecurringBooking(
@@ -121,8 +131,8 @@ fun SwimGymNavigation(
                 bookings = scheduleState.bookings,
                 scheduledBookings = scheduledBookings,
                 onBack = { navController.popBackStack() },
-                onCancelBooking = { trainingId ->
-                    scheduleViewModel.cancelBooking(trainingId)
+                onCancelBooking = { booking ->
+                    scheduleViewModel.cancelBooking(booking)
                 },
                 onPauseScheduled = { bookingId ->
                     scheduleViewModel.pauseScheduledBooking(bookingId)

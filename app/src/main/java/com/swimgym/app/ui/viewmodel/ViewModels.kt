@@ -2,6 +2,8 @@ package com.swimgym.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.swimgym.app.data.local.entity.TrainingEntity
+import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.data.repository.ScheduledBooking
 import com.swimgym.app.data.repository.ScheduledBookingRepository
 import com.swimgym.app.data.repository.ScheduledBookingStatus
@@ -194,9 +196,9 @@ class ScheduleViewModel @Inject constructor(
         loadSchedule(_uiState.value.selectedLevel, hide)
     }
 
-    fun bookTraining(trainingId: String, className: String = "", classTime: String = "", classDate: String = "") {
+    fun bookTraining(training: TrainingEntity) {
         viewModelScope.launch {
-            bookTrainingUseCase(trainingId, className, classTime, classDate)
+            bookTrainingUseCase(training)
                 .onSuccess { booking ->
                     val current = _uiState.value.bookings.toMutableList()
                     current.add(booking)
@@ -208,12 +210,23 @@ class ScheduleViewModel @Inject constructor(
         }
     }
 
-    fun cancelBooking(trainingId: String, className: String = "", classTime: String = "", classDate: String = "") {
+    fun cancelBooking(booking: Booking) {
         viewModelScope.launch {
-            cancelBookingUseCase(trainingId, className, classTime, classDate)
+            val training = Training(
+                id = booking.trainingId,
+                title = booking.className,
+                instructor = "",
+                startTime = 0L,
+                endTime = 0L,
+                location = "",
+                spotsAvailable = 0,
+                classTime = booking.classTime,
+                classDate = booking.classDate
+            )
+            cancelBookingUseCase(training.toEntity())
                 .onSuccess {
                     val current = _uiState.value.bookings.toMutableList()
-                    current.removeAll { it.trainingId == trainingId }
+                    current.removeAll { it.trainingId == booking.trainingId }
                     _uiState.update { it.copy(bookings = current) }
                 }
                 .onFailure { e ->

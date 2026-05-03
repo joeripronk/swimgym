@@ -1,5 +1,6 @@
 package com.swimgym.app.domain.usecase
 
+import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.domain.model.*
 import com.swimgym.app.domain.repository.AuthRepository
 import com.swimgym.app.domain.repository.SwodLevel
@@ -41,7 +42,7 @@ class GetTrainingDetailsUseCase @Inject constructor(
 class BookTrainingUseCase @Inject constructor(
     private val trainingRepository: TrainingRepository
 ) {
-    suspend operator fun invoke(training: Training): Result<Booking> {
+    suspend operator fun invoke(training: TrainingEntity): Result<Booking> {
         return trainingRepository.bookTraining(training)
     }
 }
@@ -49,7 +50,7 @@ class BookTrainingUseCase @Inject constructor(
 class CancelBookingUseCase @Inject constructor(
     private val trainingRepository: TrainingRepository
 ) {
-    suspend operator fun invoke(training: Training): Result<Booking> {
+    suspend operator fun invoke(training: TrainingEntity): Result<Booking> {
         return trainingRepository.cancelBooking(training)
     }
 }

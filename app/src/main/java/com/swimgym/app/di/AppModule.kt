@@ -48,7 +48,7 @@ object DataModule {
 
     @Provides
     @Singleton
-    fun provideUserFlow(): MutableStateFlow<User?> {
+    fun provideUserFlow(): MutableStateFlow<com.swimgym.app.domain.model.User?> {
         return MutableStateFlow(null)
     }
 

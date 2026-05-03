@@ -9,7 +9,7 @@ data class TrainingEntity(
     val id: String,
     val title: String,
     val instructor: String,
-    val instructorLink: String,
+    val instructorLink: String="",
     val startTime: Long,
     val endTime: Long,
     val location: String,

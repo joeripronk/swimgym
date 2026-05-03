@@ -94,13 +94,14 @@ object Mappers {
     fun BookingResponse.toDomain(): Booking {
         return Booking(
             id = id,
-            trainingId = trainingId.toString(),
+            trainingId = trainingId,
+            userId = userId,
             status = when (status.lowercase()) {
                 "confirmed" -> BookingStatus.CONFIRMED
                 "cancelled" -> BookingStatus.CANCELLED
                 else -> BookingStatus.PENDING
             },
-            title = className,
+            className = className,
             classTime = classTime,
             classDate = classDate
         )
@@ -109,21 +110,24 @@ object Mappers {
     fun Booking.toEntity() = BookingEntity(
         id = id,
         trainingId = trainingId,
-        title = title,
-        instructor = instructor,
+        userId = userId,
+        startTime = 0L,
+        title = className,
         status = status.name
     )
 
     fun BookingEntity.toDomain() = Booking(
         id = id,
         trainingId = trainingId,
-        title = title,
-        instructor = instructor,
+        userId = userId,
         status = when (status) {
             "CONFIRMED" -> BookingStatus.CONFIRMED
             "CANCELLED" -> BookingStatus.CANCELLED
             else -> BookingStatus.PENDING
-        }
+        },
+        className = title,
+        classTime = "",
+        classDate = ""
     )
 
     private fun parseIsoDate(isoDate: String): Long {

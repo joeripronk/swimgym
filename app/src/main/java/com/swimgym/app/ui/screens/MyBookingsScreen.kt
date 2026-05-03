@@ -37,7 +37,7 @@ fun MyBookingsScreen(
     bookings: List<Booking>,
     scheduledBookings: List<ScheduledBooking>,
     onBack: () -> Unit,
-    onCancelBooking: (String) -> Unit,
+    onCancelBooking: (Booking) -> Unit,
     onPauseScheduled: (String) -> Unit,
     onResumeScheduled: (String) -> Unit,
     onDeleteScheduled: (String) -> Unit,
@@ -102,7 +102,7 @@ fun MyBookingsScreen(
                     items(bookings) { booking ->
                         BookingCard(
                             booking = booking,
-                            onCancel = { onCancelBooking(booking.trainingId) }
+                            onCancel = { onCancelBooking(booking) }
                         )
                     }
                 }
@@ -117,9 +117,7 @@ private fun BookingCard(
     onCancel: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            ,
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors()
     ) {
         Column(
@@ -180,21 +178,23 @@ private fun ScheduledBookingCard(
     }
 
     val nextBookingTime = remember(scheduled.startTime) {
-        scheduled.startTime-(7*86400)
+        if (scheduled.startTime > 0) {
+            scheduled.startTime + (7 * 24 * 60 * 60 * 1000L)
+        } else {
+            0L
+        }
     }
 
     val timeUntilNext = remember(nextBookingTime) {
-        if (nextBookingTime != null) {
+        if (nextBookingTime > 0) {
             formatTimeUntilNext(nextBookingTime)
         } else {
             ""
-            }
+        }
     }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier.padding(16.dp)

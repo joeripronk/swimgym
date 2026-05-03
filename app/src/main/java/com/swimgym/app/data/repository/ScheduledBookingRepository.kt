@@ -3,6 +3,7 @@ package com.swimgym.app.data.repository
 import android.content.Context
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.domain.model.Training
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -52,7 +53,7 @@ class ScheduledBookingRepository @Inject constructor(
         return getAllBookings().find { it.id == id }
     }
 
-    suspend fun incrementBookingCount(bookingId: String,training: Training) {
+    suspend fun incrementBookingCount(bookingId: String,training: TrainingEntity) {
         val booking = getBooking(bookingId) ?: return
         saveBooking(booking.copy(bookedCount = booking.bookedCount + 1,
             startTime = training.startTime,

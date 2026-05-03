@@ -2,6 +2,7 @@ package com.swimgym.app.data.api
 
 import com.swimgym.app.data.local.SwimGymDao
 import com.swimgym.app.data.local.entity.InstructorEntity
+import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.data.model.BookingResponse
 import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.data.model.TrainingDto
@@ -114,11 +115,11 @@ class WebScraper @Inject constructor(
 
     suspend fun getSchedule(
         weeks: Int = 4
-    ): Result<List<TrainingDto>> = withContext(Dispatchers.IO) {
+    ): List<TrainingEntity>  {
+        var trainings = mutableListOf<Training>()
 
         try {
-            val trainings = mutableListOf<TrainingDto>()
-            
+
             repeat(weeks) { weekOffset ->
                 val date = java.util.Calendar.getInstance().apply {
                     add(java.util.Calendar.DATE, 7 * weekOffset)
@@ -157,16 +158,18 @@ class WebScraper @Inject constructor(
                         //val spotsAvailable = if (isFull && !isJoined) 0 else 1
                         if (classId.isNotBlank() && startTime>now) {
                             trainings.add(
-                                TrainingDto(
+                                Training(
                                     id = classId,
                                     title = className,
                                     instructor = instructor,
                                     startTime = startTime,
                                     endTime = endTime,
                                     isFull = isFull,
+                                    location = "Swimgym",
                                     isJoined = isJoined,
                                     classTime = timeText,
-                                    classDate = eventDate
+                                    classDate = eventDate,
+                                    spotsAvailable = 10
                                 )
                             )
                         }
@@ -174,17 +177,21 @@ class WebScraper @Inject constructor(
                 }
 
             }
-            dao.insertTrainings(trainings.map { it.toEntity() })
-            Result.success(trainings)
+            var trainingentities = trainings.map { it.toEntity() }
+            dao.insertTrainings(trainingentities)
+            return trainingentities
 
             } catch (e: Exception) {
                 e.printStackTrace()
-            Result.failure(e)
-        }
+
+           }
+        var trainingentities = trainings.map { it.toEntity() }
+            return trainingentities
+
     }
 
     suspend fun bookTraining(
-        training: Training
+        training: TrainingEntity
     ): Result<BookingResponse> = withContext(Dispatchers.IO) {
         try {
             val formBody = FormBody.Builder()
@@ -223,7 +230,9 @@ class WebScraper @Inject constructor(
                     BookingResponse(
                         id = training.id.hashCode(),
                         trainingId = training.id,
+                        userId = 0,
                         status = "confirmed",
+                        className = training.title
                     )
                 )
             } else {
@@ -235,7 +244,7 @@ class WebScraper @Inject constructor(
     }
 
     suspend fun cancelBooking(
-        training: Training
+        training: TrainingEntity
     ): Result<BookingResponse> = withContext(Dispatchers.IO) {
         try {
             val formBody = FormBody.Builder()
@@ -272,8 +281,8 @@ class WebScraper @Inject constructor(
             if (response.isSuccessful || response.code == 302) {
                 Result.success(
                     BookingResponse(
-                        id = trainingId.hashCode(),
-                        trainingId = trainingId,
+                        id = training.id.hashCode(),
+                        trainingId = training.id,
                         userId = 1,
                         status = "cancelled"
                     )
@@ -389,89 +398,7 @@ class WebScraper @Inject constructor(
         }
     }
 
-    suspend fun findNextTrainingByTitle(
-        title: String,
-        weekday: String,
-        startTime: String
-    ): Result<TrainingDto?> = withContext(Dispatchers.IO) {
-        try {
-            val doc = Jsoup.connect("$baseUrl/classes?event_type=8")
-                .cookies(cookies)
-                .userAgent("Mozilla/5.0")
-                .get()
 
-            val trainings = mutableListOf<TrainingDto>()
-            
-            doc.select("#schedule_content .cal_column").forEach dayColumn@{ dayColumn ->
-                val dayHeader = dayColumn.selectFirst(".day_head")
-                val dayName = dayHeader?.selectFirst(".day_name_long")?.text()
-                    ?: dayHeader?.selectFirst(".day_name_short")?.text()
-                    ?: ""
-
-                dayColumn.select(".class").forEach classElement@{ classElement ->
-                    val className = classElement.selectFirst(".classname")?.text() ?: return@classElement
-                    if (className.isBlank()) return@classElement
-
-                    val classId = classElement.id()
-                    val timeText = classElement.selectFirst(".time")?.text() ?: ""
-                    val instructor = classElement.selectFirst(".instructor i")?.text() ?: "TBA"
-                    val isFull = classElement.selectFirst(".full") != null
-                    val isJoined = classElement.selectFirst("div.joined") != null
-
-                    if (isFull && !isJoined) return@classElement
-
-                    val eventDate = extractDateFromClass(classElement) ?: dayName
-                    val (startTime, endTime) = parseTimes(timeText, eventDate)
-                    val spotsAvailable = if (isFull && !isJoined) 0 else 10
-
-                    if (classId.isNotBlank()) {
-                        trainings.add(
-                            TrainingDto(
-                                id = classId,
-                                title = className,
-                                instructor = instructor,
-                                startTime = startTime,
-                                endTime = endTime,
-                                location = "SwimGym",
-                                spotsAvailable = spotsAvailable,
-                                isJoined = isJoined,
-                                classTime = timeText,
-                                classDate = eventDate
-                            )
-                        )
-                    }
-                }
-            }
-
-            val weekdayIndex = getWeekdayIndex(weekday)
-            val trainingsOnSameDay = trainings.filter { 
-                val calendar = java.util.Calendar.getInstance()
-                calendar.timeInMillis = it.startTime
-                calendar.get(java.util.Calendar.DAY_OF_WEEK) == weekdayIndex
-            }
-
-            val nextTraining = trainingsOnSameDay.minByOrNull { 
-                if (it.startTime > System.currentTimeMillis()) it.startTime else Long.MAX_VALUE 
-            }
-
-            Result.success(nextTraining)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    private fun getWeekdayIndex(weekday: String): Int {
-        return when (weekday.lowercase().trim()) {
-            "monday", "mon" -> java.util.Calendar.MONDAY
-            "tuesday", "tue" -> java.util.Calendar.TUESDAY
-            "wednesday", "wed" -> java.util.Calendar.WEDNESDAY
-            "thursday", "thu" -> java.util.Calendar.THURSDAY
-            "friday", "fri" -> java.util.Calendar.FRIDAY
-            "saturday", "sat" -> java.util.Calendar.SATURDAY
-            "sunday", "sun" -> java.util.Calendar.SUNDAY
-            else -> java.util.Calendar.SUNDAY
-        }
-    }
 
     suspend fun logout(): Result<Unit> = withContext(Dispatchers.IO) {
         try {

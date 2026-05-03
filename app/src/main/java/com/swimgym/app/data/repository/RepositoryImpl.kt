@@ -10,6 +10,7 @@ import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.data.model.Mappers.toDomain
 import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.domain.model.*
+import com.swimgym.app.domain.model.User as DomainUser
 import com.swimgym.app.domain.repository.AuthRepository
 import com.swimgym.app.domain.repository.SwodLevel
 import com.swimgym.app.domain.repository.TrainingRepository
@@ -27,18 +28,17 @@ import javax.inject.Singleton
 class AuthRepositoryImpl @Inject constructor(
     private val webScraper: WebScraper,
     private val sessionRepo: SessionRepository,
-    private val userFlow: MutableStateFlow<User?>,
+    private val userFlow: MutableStateFlow<DomainUser?>,
     private val dao: SwimGymDao
 ) : AuthRepository {
 
-    override suspend fun login(email: String, password: String): Result<User> {
+    override suspend fun login(email: String, password: String): Result<DomainUser> {
         return try {
             val result = webScraper.login(email, password)
             result.map { userDto ->
-                val user = userDto.toDomain()
+                val user = DomainUser(userDto.id, userDto.name, userDto.email)
                 sessionRepo.saveSession("", user.id, user.name, user.email)
                 userFlow.value = user
-                dao.insertUser(user.toEntity())
                 user
             }
         } catch (e: Exception) {
@@ -50,10 +50,8 @@ class AuthRepositoryImpl @Inject constructor(
         return try {
             webScraper.logout()
             sessionRepo.clearSession()
-            // Clear cookies from cache on logout
             sessionRepo.saveCookies(emptyMap())
             userFlow.value = null
-            dao.clearUsers()
             dao.clearBookings()
             dao.clearTrainings()
             dao.clearCacheControl()
@@ -62,7 +60,6 @@ class AuthRepositoryImpl @Inject constructor(
             sessionRepo.clearSession()
             sessionRepo.saveCookies(emptyMap())
             userFlow.value = null
-            dao.clearUsers()
             dao.clearBookings()
             dao.clearTrainings()
             dao.clearCacheControl()
@@ -72,17 +69,18 @@ class AuthRepositoryImpl @Inject constructor(
 
     override fun isLoggedIn(): Flow<Boolean> = sessionRepo.isLoggedIn
 
-    override fun getCurrentUser(): Flow<User?> = userFlow
+    override fun getCurrentUser(): Flow<DomainUser?> = userFlow
 }
 
 @Singleton
 class TrainingRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val webScraper: WebScraper,
-    private val userFlow: MutableStateFlow<User?>,
+    private val userFlow: MutableStateFlow<DomainUser?>,
     private val dao: SwimGymDao,
     private val notificationManager: BookingNotificationManager,
 ) : TrainingRepository {
+
     private val bookingsFlow = MutableStateFlow<List<Booking>>(emptyList())
     private val syncStatusFlow = MutableStateFlow(SyncStatus())
 
@@ -90,31 +88,31 @@ class TrainingRepositoryImpl @Inject constructor(
         return try {
             var cachedTrainings = dao.getAllTrainingsList()
             val cacheControl = dao.getCacheControl()
-            var isDataStale = cacheControl?.let {
-                System.currentTimeMillis() > it.lastSyncTime + it.staleAfterMillis 
+            val isDataStale = cacheControl?.let {
+                System.currentTimeMillis() > it.lastSyncTime + it.staleAfterMillis
             } ?: true
-            isDataStale=false
+
             if (cachedTrainings.isEmpty() || isDataStale) {
-
-                webScraper.getSchedule()
+                cachedTrainings = webScraper.getSchedule()
                 updateSyncStatus()
-                cachedTrainings = dao.getAllTrainingsList()
+                //cachedTrainings = dao.getAllTrainingsList()
             }
-            val filteredtrainings = cachedTrainings
-                    .map { it.toDomain() }
-                    .filter { 
-                        when (level) {
-                            SwodLevel.ALL -> true
-                            SwodLevel.STARTERS -> it.title.contains("Starters", ignoreCase = true)
-                            SwodLevel.MID -> it.title.contains("Mid", ignoreCase = true)
-                            SwodLevel.PRO -> it.title.contains("Pro", ignoreCase = true)
-                        }
-                    }
-                    .filter { if (hideFullyBooked) !it.isFull || it.isJoined else true }
-            Result.success(filteredtrainings)
 
+            val filteredTrainings = cachedTrainings
+                .map { it.toDomain() }
+                .filter {
+                    when (level) {
+                        SwodLevel.ALL -> true
+                        SwodLevel.STARTERS -> it.title.contains("Starters", ignoreCase = true)
+                        SwodLevel.MID -> it.title.contains("Mid", ignoreCase = true)
+                        SwodLevel.PRO -> it.title.contains("Pro", ignoreCase = true)
+                    }
+                }
+                .filter { if (hideFullyBooked) !it.isFull || it.isJoined else true }
+
+            Result.success(filteredTrainings)
         } catch (e: Exception) {
-          return Result.failure(e)
+            Result.failure(e)
         }
     }
 
@@ -122,44 +120,22 @@ class TrainingRepositoryImpl @Inject constructor(
         return try {
             val cached = dao.getTrainingById(trainingId)
             if (cached == null) {
-                return Result.failure(Exception("cannot locate training for details"))
+                return Result.failure(Exception("Cannot locate training for details"))
             }
-            val instructor = dao.getInstructor(cached.instructor)
 
+            val instructor = dao.getInstructor(cached.instructor)
             val result = webScraper.getTrainingDetails(trainingId)
 
-
             result.map { details ->
-                var training = Training(
-                    id = details.id,
-                    title = details.title,
-                    instructor = details.instructor,
-                    //instructorLink = instructor?.instructorLink,
-                    location = details.location,
-                    spotsAvailable = details.spotsAvailable,
-                    startTime = cached.startTime,
-                    endTime = cached.endTime,
-                    isJoined = details.isJoined,
-                    isFull = details.isFull,
-                    //imageUrl = instructor?.instructorImage,
-                    description = details.description,
-                    cost = details.cost,
-                    totalSpots = details.totalSpots,
-                    cancelPolicy = details.cancelPolicy
-                )
-                //val trainer = dao.getInstructor(details.instructor)
-
-                dao.insertTraining(training.toEntity())
-                //training.imageUrl=instructor.instructorImage
-                //training.instructorLink=instructor.instructorLink
                 var instructorLink = ""
                 var instructorImage = ""
 
-                if (instructor!=null) {
+                if (instructor != null) {
                     instructorLink = instructor.instructorLink
                     instructorImage = instructor.instructorImage
                 }
-                training = Training(
+
+                Training(
                     id = details.id,
                     title = details.title,
                     instructor = details.instructor,
@@ -176,8 +152,6 @@ class TrainingRepositoryImpl @Inject constructor(
                     totalSpots = details.totalSpots,
                     cancelPolicy = details.cancelPolicy
                 )
-
-                training
             }
         } catch (e: Exception) {
             val cached = dao.getTrainingById(trainingId)
@@ -189,7 +163,7 @@ class TrainingRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun bookTraining(training: Training): Result<Booking> {
+    override suspend fun bookTraining(training: TrainingEntity): Result<Booking> {
         return try {
             val result = webScraper.bookTraining(training)
             result.map { bookingDto ->
@@ -211,14 +185,14 @@ class TrainingRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun cancelBooking(trainingId: String, className: String, classTime: String, classDate: String): Result<Booking> {
+    override suspend fun cancelBooking(training: TrainingEntity): Result<Booking> {
         return try {
-            val result = webScraper.cancelBooking(trainingId, className, classTime, classDate)
+            val result = webScraper.cancelBooking(training)
             result.map { bookingDto ->
                 val booking = bookingDto.toDomain()
-                dao.deleteBookingByTrainingId(trainingId)
+                dao.deleteBookingByTrainingId(training.id)
                 val current = bookingsFlow.value.toMutableList()
-                current.removeAll { it.trainingId == trainingId }
+                current.removeAll { it.trainingId == training.id }
                 bookingsFlow.value = current
                 booking
             }
@@ -231,7 +205,7 @@ class TrainingRepositoryImpl @Inject constructor(
 
     override suspend fun refreshSchedule(): Result<Unit> {
         return try {
-            val result = webScraper.getSchedule()
+            webScraper.getSchedule()
             updateSyncStatus()
             Result.success(Unit)
         } catch (e: Exception) {
@@ -247,8 +221,8 @@ class TrainingRepositoryImpl @Inject constructor(
             isSyncing = false,
             lastSyncTime = cacheControl?.lastSyncTime ?: 0L,
             nextSyncTime = cacheControl?.nextSyncTime ?: 0L,
-            isDataStale = cacheControl?.let { 
-                System.currentTimeMillis() > it.lastSyncTime + it.staleAfterMillis 
+            isDataStale = cacheControl?.let {
+                System.currentTimeMillis() > it.lastSyncTime + it.staleAfterMillis
             } ?: true
         )
     }
