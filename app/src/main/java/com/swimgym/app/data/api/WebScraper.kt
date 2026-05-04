@@ -1,10 +1,10 @@
 package com.swimgym.app.data.api
 
-import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Context
+import android.net.Uri
 import android.provider.CalendarContract
-import com.swimgym.app.SwimGymApp
+import android.provider.CalendarContract.Events
 import com.swimgym.app.data.local.SwimGymDao
 import com.swimgym.app.data.local.entity.InstructorEntity
 import com.swimgym.app.data.local.entity.TrainingEntity
@@ -240,19 +240,22 @@ class WebScraper @Inject constructor(
                     .post(formBody)
                     .build()
             ).execute()
+            var r=getTrainingDetails(training.id,context)
+            var t = r.getOrThrow()
 
-            if (response.isSuccessful || response.code == 302) {
+            if (t.isJoined && (response.isSuccessful || response.code == 302)) {
 
-                addTrainingToCalendar(training.toDomain(),context)
-                Result.success(
-                    BookingResponse(
-                        id = training.id.hashCode(),
-                        trainingId = training.id,
-                        userId = 0,
-                        status = "confirmed",
-                        className = training.title
+
+                    addTrainingToCalendar(training.toDomain(), context)
+                    Result.success(
+                        BookingResponse(
+                            id = training.id.hashCode(),
+                            trainingId = training.id,
+                            userId = 0,
+                            status = "confirmed",
+                            className = training.title
+                        )
                     )
-                )
             } else {
                 Result.failure(Exception("Booking failed: ${response.code}"))
             }
@@ -262,7 +265,8 @@ class WebScraper @Inject constructor(
     }
 
     suspend fun cancelBooking(
-        training: TrainingEntity
+        training: TrainingEntity,
+        context: Context
     ): Result<BookingResponse> = withContext(Dispatchers.IO) {
         try {
             val formBody = FormBody.Builder()
@@ -295,8 +299,9 @@ class WebScraper @Inject constructor(
                     .post(formBody)
                     .build()
             ).execute()
-
-            if (response.isSuccessful || response.code == 302) {
+            var r=getTrainingDetails(training.id,context)
+            var t = r.getOrThrow()
+            if (t.isJoined && (response.isSuccessful || response.code == 302)) {
                 Result.success(
                     BookingResponse(
                         id = training.id.hashCode(),
@@ -626,7 +631,15 @@ private fun shouldBookNow(booking: com.swimgym.app.data.repository.ScheduledBook
             }
            // val _context = SwimGymApp.getApplicationContext()
             //val resolver: ContentResolver? = _context.getContentResolver()
-            context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+            val uri=context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+
+
+
+            // get the event ID that is the last element in the Uri
+            val eventId = uri!!.getLastPathSegment()!!.toLong()
+            //training.eventId=eventId
+            //return eventId
+
         } catch (e: Exception) {
             e.printStackTrace()
         }

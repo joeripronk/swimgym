@@ -187,7 +187,7 @@ class TrainingRepositoryImpl @Inject constructor(
 
     override suspend fun cancelBooking(training: TrainingEntity,context: Context): Result<Booking> {
         return try {
-            val result = webScraper.cancelBooking(training)
+            val result = webScraper.cancelBooking(training,context)
             result.map { bookingDto ->
                 val booking = bookingDto.toDomain()
                 dao.deleteBookingByTrainingId(training.id)

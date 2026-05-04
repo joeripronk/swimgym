@@ -9,7 +9,7 @@ import com.swimgym.app.data.local.entity.CacheControlEntity
 
 @Database(
     entities = [TrainingEntity::class, BookingEntity::class, InstructorEntity::class, CacheControlEntity::class],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class SwimGymDatabase : RoomDatabase() {

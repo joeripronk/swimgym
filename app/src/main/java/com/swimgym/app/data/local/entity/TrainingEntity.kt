@@ -23,5 +23,7 @@ data class TrainingEntity(
     val cost: String,
     val totalSpots: Int = 10,
     val cancelPolicy: String,
+    val eventId: String="",
+    val calendarId: String="",
     val lastFetched: Long = System.currentTimeMillis()
 )

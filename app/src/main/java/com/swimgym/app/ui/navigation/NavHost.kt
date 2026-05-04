@@ -87,9 +87,19 @@ fun SwimGymNavigation(
                 scheduleViewModel.loadTrainingDetails(id)
             }
             val selectedTraining by scheduleViewModel.selectedTraining.collectAsState()
+            val justBookedTrainingId by scheduleViewModel.justBookedTrainingId.collectAsState()
             val trainerImageUrl = selectedTraining?.let { training ->
                 scheduleViewModel.resolveTrainerImage(training.instructor, training.imageUrl)
             }
+
+            // Close view if booking was just verified
+            LaunchedEffect(justBookedTrainingId) {
+                if (justBookedTrainingId == id) {
+                    scheduleViewModel.clearJustBookedTrainingId()
+                    navController.popBackStack()
+                }
+            }
+
             TrainingDetailScreen(
                 trainingId = id,
                 trainings = listOfNotNull(selectedTraining),

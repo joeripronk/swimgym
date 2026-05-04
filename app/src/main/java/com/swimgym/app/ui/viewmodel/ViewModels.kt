@@ -101,6 +101,13 @@ class ScheduleViewModel @Inject constructor(
     private val _selectedTraining = MutableStateFlow<Training?>(null)
     val selectedTraining: StateFlow<Training?> = _selectedTraining.asStateFlow()
 
+    private val _justBookedTrainingId = MutableStateFlow<String?>(null)
+    val justBookedTrainingId: StateFlow<String?> = _justBookedTrainingId.asStateFlow()
+
+    fun clearJustBookedTrainingId() {
+        _justBookedTrainingId.value = null
+    }
+
     val imageLoader get() = trainerImageCache.imageLoader
 
     init {
@@ -203,6 +210,12 @@ class ScheduleViewModel @Inject constructor(
                     val current = _uiState.value.bookings.toMutableList()
                     current.add(booking)
                     _uiState.update { it.copy(bookings = current) }
+                    // Verify booking by refreshing training details
+                    getTrainingDetailsUseCase(training.id)
+                        .onSuccess { updatedTraining ->
+                            _selectedTraining.value = updatedTraining
+                            _justBookedTrainingId.value = training.id
+                        }
                 }
                 .onFailure { e ->
                     _uiState.update { it.copy(error = e.message) }

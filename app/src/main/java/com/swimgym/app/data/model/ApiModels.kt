@@ -24,7 +24,9 @@ data class TrainingDto(
     var cost: String = "",
     var totalSpots: Int = 0,
     var spotsAvailable: Int = 0,
-    var cancelPolicy: String = ""
+    var cancelPolicy: String = "",
+    var eventId: String = "",
+    var calendarId: String = ""
 )
 
 data class BookingResponse(
