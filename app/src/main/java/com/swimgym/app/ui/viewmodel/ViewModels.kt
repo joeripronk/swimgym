@@ -198,7 +198,7 @@ class ScheduleViewModel @Inject constructor(
 
     fun bookTraining(training: TrainingEntity) {
         viewModelScope.launch {
-            bookTrainingUseCase(training)
+            bookTrainingUseCase(training,applicationContext)
                 .onSuccess { booking ->
                     val current = _uiState.value.bookings.toMutableList()
                     current.add(booking)
@@ -223,7 +223,7 @@ class ScheduleViewModel @Inject constructor(
                 classTime = booking.classTime,
                 classDate = booking.classDate
             )
-            cancelBookingUseCase(training.toEntity())
+            cancelBookingUseCase(training.toEntity(),applicationContext)
                 .onSuccess {
                     val current = _uiState.value.bookings.toMutableList()
                     current.removeAll { it.trainingId == booking.trainingId }

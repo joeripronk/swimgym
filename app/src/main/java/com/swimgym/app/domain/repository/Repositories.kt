@@ -1,5 +1,6 @@
 package com.swimgym.app.domain.repository
 
+import android.content.Context
 import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.domain.model.User
 import kotlinx.coroutines.flow.Flow
@@ -18,8 +19,8 @@ enum class SwodLevel {
 interface TrainingRepository {
     suspend fun getSchedule(level: SwodLevel = SwodLevel.ALL, hideFullyBooked: Boolean = false, startDate: String? = null): Result<List<com.swimgym.app.domain.model.Training>>
     suspend fun getTrainingDetails(trainingId: String): Result<com.swimgym.app.domain.model.Training>
-    suspend fun bookTraining(training: TrainingEntity): Result<com.swimgym.app.domain.model.Booking>
-    suspend fun cancelBooking(training: TrainingEntity): Result<com.swimgym.app.domain.model.Booking>
+    suspend fun bookTraining(training: TrainingEntity,context: Context): Result<com.swimgym.app.domain.model.Booking>
+    suspend fun cancelBooking(training: TrainingEntity,context: Context): Result<com.swimgym.app.domain.model.Booking>
     fun getMyBookings(): Flow<List<com.swimgym.app.domain.model.Booking>>
     suspend fun refreshSchedule(): Result<Unit>
     fun getSyncStatus(): Flow<SyncStatus>

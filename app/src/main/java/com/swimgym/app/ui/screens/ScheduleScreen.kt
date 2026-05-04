@@ -2,7 +2,9 @@ package com.swimgym.app.ui.screens
 
 import android.Manifest
 import android.content.ContentValues
+import android.content.Intent
 import android.provider.CalendarContract
+import android.provider.CalendarContract.Events
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -18,15 +20,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat.startActivity
 import com.swimgym.app.domain.model.Training
 import com.swimgym.app.domain.repository.SwodLevel
 import com.swimgym.app.ui.viewmodel.ScheduleViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -248,6 +251,19 @@ private fun TrainingCard(
 
     fun addTrainingToCalendar(context: android.content.Context, training: Training) {
     try {
+       /*
+        val intent: Intent = Intent(Intent.ACTION_INSERT)
+            .setData(Events.CONTENT_URI)
+            .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, training.startTime*1000)
+            .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, training.endTime*1000)
+            .putExtra(Events.TITLE, training.title)
+            .putExtra(Events.DESCRIPTION, "Trainer: ${training.instructor} \nLocatie: ${training.location}")
+            .putExtra(Events.EVENT_LOCATION, "Swimgym, Wibautstraat 131b, 1091 GL Amsterdam")
+            .putExtra(Events.AVAILABILITY, Events.AVAILABILITY_BUSY)
+            .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+          //  .putExtra(Intent.EXTRA_EMAIL, "rowan@example.com,trevor@example.com")
+        startActivity(intent)
+        */
         val values = ContentValues().apply {
             put(CalendarContract.Events.DTSTART, training.startTime*1000)
             put(CalendarContract.Events.DTEND, training.endTime*1000)

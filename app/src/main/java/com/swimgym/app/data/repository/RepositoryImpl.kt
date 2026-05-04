@@ -124,7 +124,7 @@ class TrainingRepositoryImpl @Inject constructor(
             }
 
             val instructor = dao.getInstructor(cached.instructor)
-            val result = webScraper.getTrainingDetails(trainingId)
+            val result = webScraper.getTrainingDetails(trainingId,context)
 
             result.map { details ->
                 var instructorLink = ""
@@ -163,9 +163,9 @@ class TrainingRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun bookTraining(training: TrainingEntity): Result<Booking> {
+    override suspend fun bookTraining(training: TrainingEntity,context: Context): Result<Booking> {
         return try {
-            val result = webScraper.bookTraining(training)
+            val result = webScraper.bookTraining(training,context)
             result.map { bookingDto ->
                 val booking = bookingDto.toDomain()
                 dao.insertBooking(booking.toEntity())
@@ -185,7 +185,7 @@ class TrainingRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun cancelBooking(training: TrainingEntity): Result<Booking> {
+    override suspend fun cancelBooking(training: TrainingEntity,context: Context): Result<Booking> {
         return try {
             val result = webScraper.cancelBooking(training)
             result.map { bookingDto ->

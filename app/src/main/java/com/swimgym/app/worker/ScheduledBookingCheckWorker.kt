@@ -30,7 +30,7 @@ class ScheduledBookingCheckWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         return try {
-          webScraper.checkBookings()
+          webScraper.checkBookings(context)
          /*
            val bookings = scheduledBookingRepo.getAllBookings()
             val trainings = dao.getAllTrainingsList();

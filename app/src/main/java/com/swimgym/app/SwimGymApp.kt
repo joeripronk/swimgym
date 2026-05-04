@@ -64,7 +64,4 @@ class SwimGymApp : Application(), Configuration.Provider {
             .build()
     }
 
-    companion object {
-        fun getApplicationContext(): Context {return getApplicationContext()}
-    }
 }
