@@ -362,20 +362,29 @@ class WebScraper @Inject constructor(
     suspend fun getTrainingDetails(trainingId: String): Result<TrainingDetails> = withContext(Dispatchers.IO) {
         try {
             checkBookings()
+            val training = dao.getTrainingById(trainingId)
             val doc = Jsoup.connect("$baseUrl/classes/class/$trainingId?embedded=0")
                 .cookies(cookies)
                 .userAgent("Mozilla/5.0")
                 .get()
-            val title = doc.selectFirst(".modal-title-replacement, .class-info .class-name")?.text() ?: ""
-            val instructorLink = doc.selectFirst(".event-details-icon a[href^=/userid]")?.attr("href") ?: ""
-            val instructor = doc.selectFirst(".event-details-icon a[href^=/userid]")?.text() ?: "TBA"
-            val location = doc.selectFirst("div.event-details-icons:nth-child(3) > div.event-details-icon:nth-child(2) > div.icon-text:nth-child(2)")?.text() ?: "SwimGym"
-            val spotsText = doc.selectFirst("div.event-details-icons:nth-child(2) > div.event-details-icon:nth-child(3) > div.icon-text:nth-child(2)")?.text() ?: "invalid"
+            val title =
+                doc.selectFirst(".modal-title-replacement, .class-info .class-name")?.text() ?: ""
+            val instructorLink =
+                doc.selectFirst(".event-details-icon a[href^=/userid]")?.attr("href") ?: ""
+            val instructor =
+                doc.selectFirst(".event-details-icon a[href^=/userid]")?.text() ?: "TBA"
+            val location =
+                doc.selectFirst("div.event-details-icons:nth-child(3) > div.event-details-icon:nth-child(2) > div.icon-text:nth-child(2)")
+                    ?.text() ?: "SwimGym"
+            val spotsText =
+                doc.selectFirst("div.event-details-icons:nth-child(2) > div.event-details-icon:nth-child(3) > div.icon-text:nth-child(2)")
+                    ?.text() ?: "invalid"
             val imageUrl = doc.selectFirst(".event-image-holder img")?.attr("src") ?: ""
             val description = doc.selectFirst(".event-description-holder")?.text() ?: ""
             val cost = doc.selectFirst(".event-details-icon.ticket-star .icon-text")?.text() ?: ""
             val isJoined = doc.selectFirst(".booking-text.green") != null
-            val cancelPolicy = doc.selectFirst(".event-actions > div:not(.booking-text)")?.text() ?: ""
+            val cancelPolicy =
+                doc.selectFirst(".event-actions > div:not(.booking-text)")?.text() ?: ""
 
             val spotsParts = spotsText.split("/").map { it.trim() }
             val spotsTaken = spotsParts.getOrNull(0)?.toIntOrNull() ?: 0
@@ -394,6 +403,29 @@ class WebScraper @Inject constructor(
             }
 
             //val (startTime, endTime) = parseTimes(timeText, dateText.ifBlank { "01-01-2024" })
+      //      var t = dao.getTrainingById(trainingId)
+       //     if (t != null) {
+            var tupdate = TrainingEntity(
+                id = trainingId,
+                instructor = instructor,
+                startTime = training!!.startTime,
+                endTime = training!!.endTime,
+                classDate = training!!.classDate,
+                classTime = training!!.classTime,
+                title = title,
+                location = location,
+                spotsAvailable = spotsAvailable,
+                totalSpots = totalSpots,
+                description = description,
+                isFull = isFull,
+                cost = cost,
+                isJoined = isJoined,
+                imageUrl = imageUrl,
+                cancelPolicy = cancelPolicy
+            )
+
+            dao.insertTraining(tupdate)
+        //}
 
             Result.success(
                 TrainingDetails(
