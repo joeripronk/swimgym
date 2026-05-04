@@ -249,8 +249,8 @@ private fun TrainingCard(
     fun addTrainingToCalendar(context: android.content.Context, training: Training) {
     try {
         val values = ContentValues().apply {
-            put(CalendarContract.Events.DTSTART, training.startTime)
-            put(CalendarContract.Events.DTEND, training.endTime)
+            put(CalendarContract.Events.DTSTART, training.startTime*1000)
+            put(CalendarContract.Events.DTEND, training.endTime*1000)
             put(CalendarContract.Events.TITLE, training.title)
             put(CalendarContract.Events.DESCRIPTION, "Trainer: ${training.instructor} \nLocatie: ${training.location}")
             put(CalendarContract.Events.EVENT_LOCATION, "Swimgym, Wibautstraat 131b, 1091 GL Amsterdam")
