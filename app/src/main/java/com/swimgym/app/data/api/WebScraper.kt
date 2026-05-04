@@ -359,7 +359,7 @@ class WebScraper @Inject constructor(
         val cancelPolicy: String
     )
 
-    suspend fun getTrainingDetails(trainingId: String): Result<TrainingDetails> = withContext(Dispatchers.IO) {
+    suspend fun getTrainingDetails(trainingId: String): Result<TrainingEntity> = withContext(Dispatchers.IO) {
         try {
             checkBookings()
             val training = dao.getTrainingById(trainingId)
@@ -426,8 +426,9 @@ class WebScraper @Inject constructor(
 
             dao.insertTraining(tupdate)
         //}
-
-            Result.success(
+            Result.success(tupdate)
+/*
+                Result.success(
                 TrainingDetails(
                     id = trainingId,
                     title = title,
@@ -442,6 +443,7 @@ class WebScraper @Inject constructor(
                     cancelPolicy = cancelPolicy
                 )
             )
+            */
         } catch (e: Exception) {
             Result.failure(e)
         }
