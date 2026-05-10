@@ -21,6 +21,9 @@ interface SwimGymDao {
     @Query("SELECT * FROM trainings ORDER BY startTime ASC")
     suspend fun getAllTrainingsList(): List<TrainingEntity>
 
+    @Query("SELECT * FROM trainings WHERE isJoined = 1 ORDER BY startTime ASC")
+    fun getConfirmedBookings(): Flow<List<TrainingEntity>>
+
     @Query("SELECT * FROM trainings WHERE id = :trainingId")
     suspend fun getTrainingById(trainingId: String): TrainingEntity?
 

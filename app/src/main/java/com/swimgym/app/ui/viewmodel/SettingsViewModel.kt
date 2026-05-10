@@ -5,8 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.swimgym.app.data.repository.SessionRepository
 import com.swimgym.app.domain.model.CalendarInfo
 import com.swimgym.app.domain.repository.CalendarRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -25,8 +23,7 @@ data class SettingsUiState(
     val calendarPermissionDenied: Boolean = false
 )
 
-@HiltViewModel
-class SettingsViewModel @Inject constructor(
+class SettingsViewModel(
     private val sessionRepository: SessionRepository,
     private val calendarRepository: CalendarRepository
 ) : ViewModel() {
@@ -75,6 +72,14 @@ class SettingsViewModel @Inject constructor(
             sessionRepository.saveSelectedCalendar(calendarName)
             sessionRepository.saveSelectedCalendarId(calendarId)
             _uiState.update { it.copy(selectedCalendar = calendarName, selectedCalendarId = calendarId) }
+        }
+    }
+
+    fun selectCalendarAsNone() {
+        viewModelScope.launch {
+            sessionRepository.saveSelectedCalendar("")
+            sessionRepository.saveSelectedCalendarId(0)
+            _uiState.update { it.copy(selectedCalendar = "", selectedCalendarId = 0L) }
         }
     }
 

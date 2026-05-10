@@ -9,12 +9,11 @@ object Mappers {
    // fun User.toEntity() = UserEntity(id, name, email)
     //fun UserEntity.toDomain() = User(id, name, email)
 
-    fun TrainingDto.toDomain(): Training {
-        return Training(
+    fun TrainingEntity.toDto(): TrainingDto {
+        return TrainingDto(
             id = id,
             title = title,
             instructor = instructor,
-            instructorLink = "",
             startTime = startTime,
             endTime = endTime,
             location = location,
@@ -102,8 +101,8 @@ object Mappers {
                 else -> BookingStatus.PENDING
             },
             className = className,
-            classTime = classTime,
-            classDate = classDate
+            startTime = startTime,
+            endTime = endTime
         )
     }
 
@@ -111,7 +110,8 @@ object Mappers {
         id = id,
         trainingId = trainingId,
         userId = userId,
-        startTime = 0L,
+        startTime = startTime,
+        endTime = endTime,
         title = className,
         status = status.name
     )
@@ -126,8 +126,8 @@ object Mappers {
             else -> BookingStatus.PENDING
         },
         className = title,
-        classTime = "",
-        classDate = ""
+        startTime = startTime,
+        endTime = endTime
     )
 
     private fun parseIsoDate(isoDate: String): Long {

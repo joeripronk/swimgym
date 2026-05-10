@@ -5,13 +5,11 @@ import coil.ImageLoader
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.request.CachePolicy
-import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
-import javax.inject.Singleton
+import com.swimgym.app.data.local.SwimGymDao
 
-@Singleton
-class TrainerImageCache @Inject constructor(
-    @ApplicationContext private val context: Context
+class TrainerImageCache(
+    private val context: Context,
+    private val dao: SwimGymDao
 ) {
     private val localTrainerImages = mapOf("" to "")
 
@@ -50,5 +48,14 @@ class TrainerImageCache @Inject constructor(
         val normalizedName = instructorName.trim()
         return localTrainerImages.containsKey(normalizedName) ||
                 localTrainerImages.keys.any { normalizedName.contains(it) }
+    }
+
+    suspend fun getInstructorImage(instructorName: String): String? {
+        return dao.getInstructor(instructorName)?.instructorImage
+    }
+
+    suspend fun resolveTrainerImageUrlWithCache(instructorName: String, fallbackUrl: String): String {
+        val cachedImage = getInstructorImage(instructorName)
+        return cachedImage ?: fallbackUrl
     }
 }

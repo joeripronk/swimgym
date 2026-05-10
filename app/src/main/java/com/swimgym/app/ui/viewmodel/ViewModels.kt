@@ -1,23 +1,20 @@
 package com.swimgym.app.ui.viewmodel
 
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.data.repository.ScheduledBooking
 import com.swimgym.app.data.repository.ScheduledBookingRepository
-import com.swimgym.app.data.repository.ScheduledBookingStatus
 import com.swimgym.app.data.repository.TrainerImageCache
 import com.swimgym.app.domain.model.Booking
 import com.swimgym.app.domain.model.Training
 import com.swimgym.app.domain.repository.SwodLevel
 import com.swimgym.app.domain.repository.SyncStatus
 import com.swimgym.app.domain.usecase.*
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class LoginUiState(
     val email: String = "",
@@ -27,44 +24,7 @@ data class LoginUiState(
     val isSuccess: Boolean = false
 )
 
-@HiltViewModel
-class LoginViewModel @Inject constructor(
-    private val loginUseCase: LoginUseCase,
-    private val logoutUseCase: LogoutUseCase,
-    private val isLoggedInUseCase: IsLoggedInUseCase
-) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(LoginUiState())
-    val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
-
-    fun onEmailChange(email: String) {
-        _uiState.update { it.copy(email = email, error = null) }
-    }
-
-    fun onPasswordChange(password: String) {
-        _uiState.update { it.copy(password = password, error = null) }
-    }
-
-    fun login() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
-            val state = _uiState.value
-            loginUseCase(state.email, state.password)
-                .onSuccess {
-                    _uiState.update { it.copy(isLoading = false, isSuccess = true) }
-                }
-                .onFailure { e ->
-                    _uiState.update { it.copy(isLoading = false, error = e.message) }
-                }
-        }
-    }
-
-    fun logout() {
-        viewModelScope.launch {
-            logoutUseCase()
-        }
-    }
-}
 
 data class ScheduleUiState(
     val trainings: List<Training> = emptyList(),
@@ -76,11 +36,14 @@ data class ScheduleUiState(
     val hideFullyBooked: Boolean = true,
     val currentStartDate: String? = null,
     val weeksLoaded: Int = 0,
-    val syncStatus: SyncStatus = SyncStatus()
+    val syncStatus: SyncStatus = SyncStatus(),
+    val isBookingInProgress: Boolean = false,
+    val isCancellingInProgress: Boolean = false,
+    val bookingError: String? = null,
+    val cancelError: String? = null
 )
 
-@HiltViewModel
-class ScheduleViewModel @Inject constructor(
+class ScheduleViewModel(
     private val getScheduleUseCase: GetScheduleUseCase,
     private val getTrainingDetailsUseCase: GetTrainingDetailsUseCase,
     private val getMyBookingsUseCase: GetMyBookingsUseCase,
@@ -92,7 +55,7 @@ class ScheduleViewModel @Inject constructor(
     private val scheduledBookingRepo: ScheduledBookingRepository,
     private val trainerImageCache: TrainerImageCache,
     private val dao: com.swimgym.app.data.local.SwimGymDao,
-    @ApplicationContext private val applicationContext: android.content.Context
+    private val applicationContext: android.content.Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ScheduleUiState())
@@ -111,13 +74,15 @@ class ScheduleViewModel @Inject constructor(
     val imageLoader get() = trainerImageCache.imageLoader
 
     init {
+        // Load trainings from database immediately on startup
+        loadSchedule(SwodLevel.ALL, _uiState.value.hideFullyBooked)
+        
         viewModelScope.launch {
             sessionRepository.selectedLevel.collect { savedLevel ->
                 val level = savedLevel?.let { levelStr ->
                     try { com.swimgym.app.domain.repository.SwodLevel.valueOf(levelStr) } catch (e: Exception) { com.swimgym.app.domain.repository.SwodLevel.ALL }
                 } ?: com.swimgym.app.domain.repository.SwodLevel.ALL
                 _uiState.update { it.copy(selectedLevel = level) }
-                loadSchedule(level)
             }
         }
         observeBookings()
@@ -205,67 +170,95 @@ class ScheduleViewModel @Inject constructor(
 
     fun bookTraining(training: TrainingEntity) {
         viewModelScope.launch {
+            _uiState.update { it.copy(isBookingInProgress = true, bookingError = null) }
             bookTrainingUseCase(training,applicationContext)
                 .onSuccess { booking ->
                     val current = _uiState.value.bookings.toMutableList()
-                    current.add(booking)
+                    val bookingWithDetails = booking.copy(
+                        instructor = training.instructor,
+                        imageUrl = training.imageUrl
+                    )
+                    current.add(bookingWithDetails)
                     _uiState.update { it.copy(bookings = current) }
                     // Verify booking by refreshing training details
                     getTrainingDetailsUseCase(training.id)
-                        .onSuccess { updatedTraining ->
-                            _selectedTraining.value = updatedTraining
+                        .onSuccess { training ->
                             _justBookedTrainingId.value = training.id
+                            _selectedTraining.value = training
+                            // update training data with new data
+                            val currentTrainings = _uiState.value.trainings.toMutableList()
+                            val index = currentTrainings.indexOfFirst { it.id == training.id }
+                            if (index >= 0) {
+                                currentTrainings[index] = training
+                            } else {
+                                currentTrainings.add(training)
+                            }
+                            if (training.isJoined) {
+                                Toast.makeText(applicationContext,"Successfully booked",5)
+                            } else {
+                                _uiState.update { it.copy(bookingError = "Cannot book this training") }
+                            }
+                            _uiState.update { it.copy(trainings = currentTrainings, isLoading = false, isBookingInProgress = false) }
+                        }
+                        .onFailure { e ->
+                            _uiState.update { it.copy(isBookingInProgress = false, bookingError = e.message ?: "Booking failed") }
                         }
                 }
                 .onFailure { e ->
-                    _uiState.update { it.copy(error = e.message) }
+                    _uiState.update { it.copy(bookingError = e.message ?: "Booking failed", isBookingInProgress = false) }
                 }
         }
     }
 
     fun cancelBooking(booking: Booking) {
         viewModelScope.launch {
+            _uiState.update { it.copy(isCancellingInProgress = true, cancelError = null) }
             val training = Training(
                 id = booking.trainingId,
                 title = booking.className,
-                instructor = "",
-                startTime = 0L,
-                endTime = 0L,
+                instructor = booking.instructor,
+                startTime = booking.startTime,
+                endTime = booking.endTime,
                 location = "",
                 spotsAvailable = 0,
-                classTime = booking.classTime,
-                classDate = booking.classDate
+                imageUrl = booking.imageUrl
             )
             cancelBookingUseCase(training.toEntity(),applicationContext)
                 .onSuccess {
                     val current = _uiState.value.bookings.toMutableList()
                     current.removeAll { it.trainingId == booking.trainingId }
-                    _uiState.update { it.copy(bookings = current) }
+                    _uiState.update { it.copy(bookings = current, cancelError = null, isCancellingInProgress = false) }
                 }
                 .onFailure { e ->
-                    _uiState.update { it.copy(error = e.message) }
+                    _uiState.update { it.copy(cancelError = e.message ?: "Cancellation failed", isCancellingInProgress = false) }
                 }
         }
+    }
+
+    fun clearBookingError() {
+        _uiState.update { it.copy(bookingError = null) }
+    }
+
+    fun clearCancelError() {
+        _uiState.update { it.copy(cancelError = null) }
     }
 
     fun scheduleRecurringBooking(
         trainingId: String,
         className: String,
-        classTime: String,
-        classDate: String,
         startTime: Long = 0L,
+        endTime: Long = 0L,
         instructor: String = "",
         maxRepeatCount: Int? = null
     ) {
         viewModelScope.launch {
-            val bookingId = java.util.UUID.randomUUID().toString()
+            val bookingId = System.currentTimeMillis()/1000
             val scheduledBooking = ScheduledBooking(
                 id = bookingId,
                 trainingId = trainingId,
                 className = className,
-                classTime = classTime,
-                classDate = classDate,
                 startTime = startTime,
+                endTime = endTime,
                 instructor = instructor,
                 maxRepeatCount = maxRepeatCount
             )
@@ -278,37 +271,49 @@ class ScheduleViewModel @Inject constructor(
         return scheduledBookingRepo.getAllBookingsFlow()
     }
 
-    fun pauseScheduledBooking(bookingId: String) {
+    fun pauseScheduledBooking(bookingId: Long) {
         viewModelScope.launch {
             scheduledBookingRepo.pauseBooking(bookingId)
         }
     }
 
-    fun resumeScheduledBooking(bookingId: String) {
+    fun resumeScheduledBooking(bookingId: Long) {
         viewModelScope.launch {
             scheduledBookingRepo.resumeBooking(bookingId)
         }
     }
 
-    fun deleteScheduledBooking(bookingId: String) {
+    fun deleteScheduledBooking(bookingId: Long) {
         viewModelScope.launch {
             scheduledBookingRepo.deleteBooking(bookingId)
         }
     }
 
-    fun updateMaxRepeat(bookingId: String, newMax: Int?) {
+    fun updateMaxRepeat(bookingId: Long, newMax: Int?) {
         viewModelScope.launch {
             scheduledBookingRepo.updateMaxRepeat(bookingId, newMax)
         }
     }
 
+    fun getTrainingById(trainingId: String): Training? {
+        return _uiState.value.trainings.find { it.id == trainingId }
+    }
+
     fun loadTrainingDetails(trainingId: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
+            _uiState.update { it.copy(isLoading = true, error = null, bookingError = null, cancelError = null) }
             getTrainingDetailsUseCase(trainingId)
                 .onSuccess { training ->
                     _selectedTraining.value = training
-                    _uiState.update { it.copy(isLoading = false) }
+                    // update training data with new data
+                    val currentTrainings = _uiState.value.trainings.toMutableList()
+                    val index = currentTrainings.indexOfFirst { it.id == trainingId }
+                    if (index >= 0) {
+                        currentTrainings[index] = training
+                    } else {
+                        currentTrainings.add(training)
+                    }
+                    _uiState.update { it.copy(trainings = currentTrainings, isLoading = false) }
                 }
                 .onFailure { e ->
                     _uiState.update { it.copy(isLoading = false, error = e.message) }
@@ -318,20 +323,16 @@ class ScheduleViewModel @Inject constructor(
 
     fun resolveTrainerImage(instructorName: String, remoteImageUrl: String): String {
         if (trainerImageCache.hasLocalImage(instructorName)) {
-            //     trainerImageCache.resolveTrainerImageUrl(instructorName, remoteImageUrl)
-            //}
-            val localImage =
-                trainerImageCache.resolveTrainerImageUrl(instructorName, remoteImageUrl)
-            if (localImage.isNotEmpty() || remoteImageUrl.isEmpty()) return localImage
+            val localImage = trainerImageCache.resolveTrainerImageUrl(instructorName, remoteImageUrl)
+            if (localImage.isNotEmpty()) return localImage
         }
-        // Cache miss, trigger background fetch
+        // Cache miss, fetch from database in background
         viewModelScope.launch {
-            val instructor = dao.getInstructor(instructorName)
-            if (instructor?.instructorImage?.isNotEmpty() == true) {
-                trainerImageCache.resolveTrainerImageUrl(instructorName, instructor.instructorImage)
+            val cachedImage = trainerImageCache.resolveTrainerImageUrlWithCache(instructorName, remoteImageUrl)
+            if (cachedImage.isNotEmpty()) {
+                // Update the training with cached image
             }
         }
-
         return remoteImageUrl
     }
 

@@ -2,6 +2,7 @@ package com.swimgym.app.data.model
 
 import com.google.gson.annotations.SerializedName
 
+
 data class UserDto(
     @SerializedName("id") val id: Int,
     @SerializedName("name") val name: String,
@@ -30,11 +31,11 @@ data class TrainingDto(
 )
 
 data class BookingResponse(
-    @SerializedName("id") val id: Int,
+    @SerializedName("id") val id: Long,
     @SerializedName("training_id") val trainingId: String,
     @SerializedName("user_id") val userId: Int,
     @SerializedName("status") val status: String,
     val className: String = "",
-    val classTime: String = "",
-    val classDate: String = ""
+    @SerializedName("start_time") val startTime: Long = 0L,
+    @SerializedName("end_time") val endTime: Long = 0L
 )

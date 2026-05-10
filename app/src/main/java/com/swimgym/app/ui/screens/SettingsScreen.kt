@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.platform.LocalDensity
 
 @ExperimentalComposeUiApi
 @OptIn(ExperimentalMaterial3Api::class)
@@ -117,70 +118,78 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    } else {
-                        var expanded by remember { mutableStateOf(false) }
-                        var selectedCalendar by remember { mutableStateOf(uiState.selectedCalendar) }
-                        val focusRequester = FocusRequester()
+                   } else {
+                          var dropdownExpanded by remember { mutableStateOf(false) }
+                          
+                          Box(
+                              modifier = Modifier.fillMaxWidth()
+                          ) {
+                              TextButton(onClick = { dropdownExpanded = true }) {
+                                  Text(
+                                      uiState.selectedCalendar.ifEmpty { "Select Calendar" }
 
-                        var dropdownExpanded by remember { mutableStateOf(false) }
-                        
-                        OutlinedTextField(
-                            value = selectedCalendar.ifEmpty { "Select calendar" },
-                            onValueChange = {},
-                            readOnly = true,
-                            trailingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDropDown,
-                                    contentDescription = null
-                                )
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { dropdownExpanded = true }
-                                .focusRequester(focusRequester)
-                        )
-                        
-                        if (dropdownExpanded) {
-                            Card(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                LazyColumn(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(max = 300.dp)
-                                ) {
-                                    uiState.availableCalendars.forEach { calendar ->
-                                        item {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(16.dp)
-                                                    .clickable {
-                                                        selectedCalendar = calendar.displayName
-                                                        viewModel.selectCalendar(calendar.id, calendar.displayName)
-                                                        dropdownExpanded = false
-                                                    },
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    text = calendar.displayName,
-                                                    style = MaterialTheme.typography.bodyMedium
-                                                )
-                                                if (uiState.selectedCalendarId == calendar.id) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.CheckCircle,
-                                                        contentDescription = "Selected",
-                                                        tint = MaterialTheme.colorScheme.primary
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                                  )
+                              }
+
+                              DropdownMenu(
+                                   expanded = dropdownExpanded,
+                                   onDismissRequest = { dropdownExpanded = false }
+                               ) {
+                                   DropdownMenuItem(
+                                       onClick = {
+                                           viewModel.selectCalendarAsNone()
+                                           dropdownExpanded = false
+                                       },
+                                       text = {
+                                           Row(
+                                               horizontalArrangement = Arrangement.SpaceBetween,
+                                               verticalAlignment = Alignment.CenterVertically
+                                           ) {
+                                               Text(
+                                                   text = "None (Disable calendar)",
+                                                   style = MaterialTheme.typography.bodyMedium
+                                               )
+                                               Spacer(modifier = Modifier.weight(1f))
+                                               if (uiState.selectedCalendarId == 0L) {
+                                                   Icon(
+                                                       imageVector = Icons.Default.CheckCircle,
+                                                       contentDescription = "Selected",
+                                                       tint = MaterialTheme.colorScheme.primary
+                                                   )
+                                               }
+                                           }
+                                       }
+                                   )
+                                   uiState.availableCalendars.forEach { calendar ->
+                                       DropdownMenuItem(
+                                           onClick = {
+                                               viewModel.selectCalendar(calendar.id, calendar.displayName)
+                                               dropdownExpanded = false
+                                           },
+                                           text = {
+                                               Row(
+                                                   horizontalArrangement = Arrangement.SpaceBetween,
+                                                   verticalAlignment = Alignment.CenterVertically
+                                               ) {
+                                                   Text(
+                                                       text = calendar.displayName,
+                                                       style = MaterialTheme.typography.bodyMedium
+                                                   )
+                                                   Spacer(modifier = Modifier.weight(1f))
+                                                   if (uiState.selectedCalendarId == calendar.id) {
+                                                       Icon(
+                                                           imageVector = Icons.Default.CheckCircle,
+                                                           contentDescription = "Selected",
+                                                           tint = MaterialTheme.colorScheme.primary
+                                                       )
+                                                   }
+                                               }
+                                           }
+                                       )
+                                   }
+                               }
+                          }
+                      }
                 }
             }
 

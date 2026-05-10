@@ -1,15 +1,19 @@
 package com.swimgym.app.data.api
 
+import android.content.BroadcastReceiver
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.provider.CalendarContract
 import android.provider.CalendarContract.Events
+
 import com.swimgym.app.data.local.SwimGymDao
 import com.swimgym.app.data.local.entity.InstructorEntity
 import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.data.model.BookingResponse
 import com.swimgym.app.data.model.Mappers.toDomain
+import com.swimgym.app.data.model.Mappers.toDto
 import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.data.model.TrainingDto
 import com.swimgym.app.data.model.UserDto
@@ -19,6 +23,7 @@ import com.swimgym.app.data.repository.SessionRepository
 import com.swimgym.app.domain.model.Training
 import com.swimgym.app.util.BookingNotificationManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -33,29 +38,45 @@ import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.TimeUnit
-import javax.inject.Inject
-import javax.inject.Singleton
-
-
-@Singleton
-class WebScraper @Inject constructor(
+class WebScraper(
     private val sessionRepository: SessionRepository,
     private val dao: SwimGymDao,
     private val scheduledBookingRepo: ScheduledBookingRepository,
-    private val notificationManager: BookingNotificationManager
-
+    private val notificationManager: BookingNotificationManager,
+    private val context: Context
 ) {
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .followRedirects(true)
         .build()
-
+    private var logintime: Long = 0
     private val baseUrl = "https://swimgym.virtuagym.com"
     private var cookies: Map<String, String> = emptyMap()
+    private var mobileuserAgent: String = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Mobile Safari/537.36"
+    private var userAgent: String = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
-    fun setCookies(cookieMap: Map<String, String>) {
-        cookies = cookieMap
+    suspend fun loadFromCache() {
+        loadCookiesFromCache()
+        loadUserAgentFromCache()
+    }
+
+    private fun triggerLoginRequired() {
+        val now = System.currentTimeMillis()/1000
+        if (logintime>0 && now-logintime<60) return
+        logintime = now
+
+       // cookies = emptyMap()
+       // saveCookiesToCache()
+        val intent = Intent(context, com.swimgym.app.receiver.LoginRequiredReceiver::class.java).apply {
+            action = com.swimgym.app.receiver.LoginActivity.ACTION_LOGIN_REQUIRED
+        }
+        context.sendBroadcast(intent)
+    }
+
+    suspend fun setUserAgent(agent: String) {
+        userAgent = agent
+        saveUserAgentToCache()
     }
 
     suspend fun setCookiesAndSave(cookieMap: Map<String, String>) {
@@ -63,79 +84,92 @@ class WebScraper @Inject constructor(
         saveCookiesToCache()
     }
 
-    suspend fun loadCookiesFromCache() {
+    suspend fun setCookiesAndUserAgent(cookieMap: Map<String, String>, userAgent: String) {
+        setCookiesAndSave(cookieMap)
+        setUserAgent(userAgent)
+    }
+
+     suspend fun loadCookiesFromCache() {
         cookies = sessionRepository.loadCookies()
+        val cachedUserAgent = sessionRepository.loadUserAgent()
+        if (cachedUserAgent != null) {
+            userAgent = cachedUserAgent
+        }
     }
 
     suspend fun saveCookiesToCache() {
         sessionRepository.saveCookies(cookies)
     }
 
-    private fun buildRequest(url: String): Request.Builder {
-        val builder = Request.Builder().url(url)
-        for ((name, value) in cookies) {
-            builder.addHeader("Cookie", "$name=$value")
+    suspend fun saveUserAgentToCache() {
+        sessionRepository.saveUserAgent(userAgent)
+    }
+
+    private suspend fun loadUserAgentFromCache() {
+        val cachedUserAgent = sessionRepository.loadUserAgent()
+        if (cachedUserAgent != null) {
+            userAgent = cachedUserAgent
         }
+    }
+
+    private suspend fun buildRequest(url: String): Request.Builder {
+        val builder = Request.Builder().url(url)
+        if (cookies.isNullOrEmpty()) {
+            loadFromCache()
+        //           return Jsoup.parse("")
+        }
+        var cookieheader= ""
+        for ((name, value) in cookies) {
+            //if (name.contains("virtuagym")) {
+                if (cookieheader.isNotBlank()) cookieheader+="; "
+                cookieheader+= "$name=$value"
+            //}
+        }
+        builder.addHeader("Cookie", cookieheader)
+        builder.addHeader("User-Agent", userAgent)
         return builder
     }
 
-    suspend fun login(email: String, password: String): Result<UserDto> = withContext(Dispatchers.IO) {
-        try {
-            val csrfResponse = client.newCall(
-                Request.Builder().url("$baseUrl/login").build()
-            ).execute()
+    private suspend fun fetchHtml(url: String): org.jsoup.nodes.Document {
+        val request = buildRequest(url)
+            .method("GET", null)
+            .build()
 
-            val doc = Jsoup.parse(csrfResponse.body?.string() ?: "")
-            val csrfToken = doc.selectFirst("input[name=_csrf]")?.attr("value") 
-                ?: doc.selectFirst("#global_csrf_token")?.attr("value")
-                ?: ""
+        val response = client.newCall(request).execute()
+        extractCookiesFromResponse(response)
 
-            val formBody = FormBody.Builder()
-                .add("_csrf", csrfToken)
-                .add("email", email)
-                .add("password", password)
-                .build()
+        val html = response.body?.string() ?: ""
+        val doc = Jsoup.parse(html)
+        if (doc.selectFirst(".menu-item.btn-login, .menu-item .btn-login") != null) {
+            triggerLoginRequired()
+            throw Exception("need to login")
+        }
+        return doc
+    }
 
-            val loginResponse = client.newCall(
-                Request.Builder()
-                    .url("$baseUrl/login")
-                    .post(formBody)
-                    .build()
-            ).execute()
+    private suspend fun extractCookiesFromResponse(response: okhttp3.Response) {
+        var nextiscookie = false
+        val newCookies = response.headers.filter {
+            it.first.lowercase().equals("set-cookie")
+        }.map {
+            parseCookie(it.second)
+        }
 
-            cookies = loginResponse.headers.toMultimap()
-                .filter { it.key.lowercase().startsWith("set-cookie") }
-                .map { parseCookie(it.value.firstOrNull() ?: "") }
-                .toMap()
-
-            if (cookies.containsKey("virtuagym_u") || cookies.values.any { it.contains("virtuagym_u") }) {
-                saveCookiesToCache()
-
-                val userDoc = Jsoup.connect(baseUrl)
-                    .cookies(cookies)
-                    .get()
-
-                val userName = userDoc.selectFirst(".user-menu-name")?.text()
-                    ?: userDoc.selectFirst("[data-cy=topNavBarUserMenuItemUserProfileName]")?.text()
-                    ?: "User"
-
-                Result.success(UserDto(id = 1, name = userName, email = email))
-            } else {
-                Result.failure(Exception("Login failed"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
+          /*  .filter { it.key.lowercase().startsWith("set-cookie") }
+            .mapValues { it.value.firstOrNull() ?: "" }
+            .map { parseCookie(it.value) }
+            .toMap()
+        */
+        if (newCookies.isNotEmpty()) {
+            cookies += newCookies
+            saveCookiesToCache()
         }
     }
 
-    enum class SwodLevel {
-        ALL, STARTERS, MID, PRO
-    }
-
-    suspend fun getSchedule(
-        weeks: Int = 4
+   suspend fun getSchedule(
+        context: Context,
+        weeks: Int = 3
     ): Result<List<TrainingDto>> = withContext(Dispatchers.IO) {
-
         try {
             val trainings = mutableListOf<TrainingDto>()
             val date = java.util.Calendar.getInstance()
@@ -147,16 +181,13 @@ class WebScraper @Inject constructor(
 
 
           //      val formattedDate =
-           //         SimpleDateFormat("yyyy-MM-dd", startofweek)
+         //         SimpleDateFormat("yyyy-MM-dd", startofweek)
 
                 val url = "$baseUrl/classes/week/$formattedDate?event_type=8"
                 //val url = if (activityId.isNotEmpty()) "$base&$activityId" else base
 
-                val doc = Jsoup.connect(url)
-                    .cookies(cookies)
-                    .userAgent("Mozilla/5.0")
-                    .get()
-
+                val doc = fetchHtml(url)
+                
                 doc.select("#schedule_content .cal_column").forEach dayColumn@{ dayColumn ->
                     val dayHeader = dayColumn.selectFirst(".day_head")
                     val dayName = dayHeader?.selectFirst(".day_name_long")?.text()
@@ -177,7 +208,51 @@ class WebScraper @Inject constructor(
                         val (startTime, endTime) = parseTimes(timeText, eventDate)
                         //val spotsAvailable = if (isFull && !isJoined) 0 else 1
                         if (classId.isNotBlank() && startTime>now) {
-                            trainings.add(
+                            var training= TrainingEntity(
+                                id = classId,
+                                title = className,
+                                instructor = instructor,
+                                startTime = startTime,
+                                endTime = endTime,
+                                location = "",
+                                isFull = isFull,
+                                isJoined = isJoined,
+                                spotsAvailable = 0,
+                                classTime = timeText,
+                                imageUrl = "",
+                                description = "",
+                                cost = "",
+                                cancelPolicy = "",
+                                classDate = eventDate
+                            )
+
+                            var cachedTraining = dao.getTrainingById(classId)?.toDto()
+                            var imageUrl = dao.getInstructor(instructor)?.instructorImage
+                            if (imageUrl==null) {
+                                val trainingDetailsResult = getTrainingDetails(training, context)
+                                cachedTraining = trainingDetailsResult.getOrNull()?.toDto()
+                                imageUrl = cachedTraining?.imageUrl
+                            }
+                            if (imageUrl==null) {
+                                imageUrl = ""
+                            }
+                            if(cachedTraining!=null) {
+                                trainings.add(
+                                    cachedTraining.copy(
+                                        id = classId,
+                                        title = className,
+                                        instructor = instructor,
+                                        startTime = startTime,
+                                        endTime = endTime,
+                                        isFull = isFull,
+                                        isJoined = isJoined,
+                                        classTime = timeText,
+                                        classDate = eventDate,
+                                        imageUrl = imageUrl
+                                    )
+                                )
+                            } else {
+                                trainings.add(
                                 TrainingDto(
                                     id = classId,
                                     title = className,
@@ -187,17 +262,17 @@ class WebScraper @Inject constructor(
                                     isFull = isFull,
                                     isJoined = isJoined,
                                     classTime = timeText,
-                                    classDate = eventDate
+                                    classDate = eventDate,
+                                    imageUrl = imageUrl
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
                 }
-
             }
             dao.insertTrainings(trainings.map { it.toEntity() })
             Result.success(trainings)
-
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -240,16 +315,19 @@ class WebScraper @Inject constructor(
                     .post(formBody)
                     .build()
             ).execute()
-            var r=getTrainingDetails(training.id,context)
+            extractCookiesFromResponse(response)
+            var r=getTrainingDetails(training,context)
             var t = r.getOrThrow()
 
             if (t.isJoined && (response.isSuccessful || response.code == 302)) {
-
-
-                    addTrainingToCalendar(training.toDomain(), context)
+                    try {
+                        addTrainingToCalendar(training.toDomain(), context)
+                    } catch (e: Exception) {
+                        // warn user about calendar
+                    }
                     Result.success(
                         BookingResponse(
-                            id = training.id.hashCode(),
+                            id = 0,
                             trainingId = training.id,
                             userId = 0,
                             status = "confirmed",
@@ -299,12 +377,16 @@ class WebScraper @Inject constructor(
                     .post(formBody)
                     .build()
             ).execute()
-            var r=getTrainingDetails(training.id,context)
+            extractCookiesFromResponse(response)
+            var r=getTrainingDetails(training,context)
             var t = r.getOrThrow()
-            if (t.isJoined && (response.isSuccessful || response.code == 302)) {
+            if (!t.isJoined && (response.isSuccessful || response.code == 302)) {
+                // Remove from calendar when booking is canceled
+                removeTrainingFromCalendar(training, context)
+                
                 Result.success(
                     BookingResponse(
-                        id = training.id.hashCode(),
+                        id = 0,
                         trainingId = training.id,
                         userId = 1,
                         status = "cancelled"
@@ -318,62 +400,11 @@ class WebScraper @Inject constructor(
         }
     }
 
-    suspend fun getBookings(): Result<List<BookingResponse>> = withContext(Dispatchers.IO) {
+    suspend fun getTrainingDetails(training: TrainingEntity,context: Context): Result<TrainingEntity> = withContext(Dispatchers.IO) {
         try {
-            val doc = Jsoup.connect("$baseUrl/bookings")
-                .cookies(cookies)
-                .get()
+            val trainingId = training.id
+            val doc = fetchHtml("$baseUrl/classes/class/$trainingId?embedded=0")
 
-            val bookings = mutableListOf<BookingResponse>()
-            doc.select(".booking, .booking-item, .my-booking, tr.booking-row").forEach { element ->
-                val id = element.attr("data-id").toIntOrNull() ?: 0
-                var trainingId: String = element.attr("data-training-id")
-                if (trainingId.isBlank()) {
-                    val href = element.selectFirst("a[href*=training]")?.attr("href") ?: ""
-                    trainingId = href.substringAfter("/training/").substringBefore("/")
-                }
-                val status = element.selectFirst(".status, .booking-status")?.text()?.lowercase() ?: "confirmed"
-
-                if (trainingId.isNotBlank()) {
-                    bookings.add(
-                        BookingResponse(
-                            id = id,
-                            trainingId = trainingId,
-                            userId = 1,
-                            status = status
-                        )
-                    )
-                }
-            }
-
-            Result.success(bookings)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    data class TrainingDetails(
-        val id: String,
-        val title: String,
-        val instructor: String,
-        val location: String,
-        val spotsAvailable: Int,
-        val totalSpots: Int,
-        val description: String,
-        val cost: String,
-        val isJoined: Boolean,
-        val isFull: Boolean,
-        val cancelPolicy: String
-    )
-
-    suspend fun getTrainingDetails(trainingId: String,context: Context): Result<TrainingEntity> = withContext(Dispatchers.IO) {
-        try {
-            checkBookings(context)
-            val training = dao.getTrainingById(trainingId)
-            val doc = Jsoup.connect("$baseUrl/classes/class/$trainingId?embedded=0")
-                .cookies(cookies)
-                .userAgent("Mozilla/5.0")
-                .get()
             val title =
                 doc.selectFirst(".modal-title-replacement, .class-info .class-name")?.text() ?: ""
             val instructorLink =
@@ -415,7 +446,7 @@ class WebScraper @Inject constructor(
             var tupdate = TrainingEntity(
                 id = trainingId,
                 instructor = instructor,
-                startTime = training!!.startTime,
+                startTime = training.startTime,
                 endTime = training.endTime,
                 classDate = training.classDate,
                 classTime = training.classTime,
@@ -460,9 +491,6 @@ class WebScraper @Inject constructor(
 
     suspend fun logout(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            client.newCall(
-                buildRequest("$baseUrl/logout").build()
-            ).execute()
             cookies = emptyMap()
             saveCookiesToCache()
             Result.success(Unit)
@@ -539,109 +567,190 @@ class WebScraper @Inject constructor(
 
 
     suspend fun checkBookings(context: Context) {
+        val calendar = Calendar.getInstance()
+        val now = calendar.time.time/1000
         val bookings = scheduledBookingRepo.getAllBookings()
-        val trainings = dao.getAllTrainingsList();
+        if (bookings.isNullOrEmpty()) return
+        var trainings = dao.getAllTrainingsList();
+        if (trainings.isNullOrEmpty()) {
+            return
+        }
 
-        //webScraper.getSchedule()
-
-
-        val activeBookings = bookings.filter { it.status == ScheduledBookingStatus.ACTIVE }
+        var activeBookings = bookings.filter { it.status == ScheduledBookingStatus.ACTIVE }
 
         activeBookings.forEach { booking ->
+            // make sure the startTime is in the future
+            while(booking.startTime<now) {
+                booking.startTime+=7*86400
+            }
             processBooking(booking, trainings,context)
         }
 
     //    ListenableWorker.Result.success()
     }
 
-
-private suspend fun getNextTraining(
+    fun getNextTraining(
     startTime: Long,
     title: String,
     trainings: List<TrainingEntity>
 ): TrainingEntity? {
-    val nexttime=startTime + (7 * 86400)
-
-    for (training in trainings) {
-        val titleMatches = training.title.equals(title, ignoreCase = true)
-        if (training.startTime == nexttime && titleMatches)
-            return training
-    }
-    return null
-}
-
-
-private suspend fun processBooking(booking: com.swimgym.app.data.repository.ScheduledBooking, trainings: List<TrainingEntity>,context: Context) {
-    try {
-        val shouldBook = shouldBookNow(booking)
-        if (!shouldBook) return
-        val training = getNextTraining(booking.startTime, booking.className, trainings) ?: return
-        val result = bookTraining(training, context)
-
-        result.fold(
-            onSuccess = {
-                scheduledBookingRepo.incrementBookingCount(booking.id, training)
-
-                val maxRepeat = booking.maxRepeatCount
-                if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
-                    scheduledBookingRepo.completeBooking(booking.id)
-                    return
-                }
-          //      addTrainingToCalendar(SwimGymApp.getApplicationContext(),training.toDomain())
-                notificationManager.showBookingConfirmation(
-                    trainingName = training.title,
-                    classTime = training.classTime,
-                    classDate = training.classDate,
-                    isScheduledBooking = true
-                )
-            },
-            onFailure = {
-                // Don't retry here, will be checked again in 30 minutes
-            }
-        )
-    } catch (e: Exception) {
-        // Error handled silently, will retry on next periodic run
-    }
-}
-
-private fun shouldBookNow(booking: com.swimgym.app.data.repository.ScheduledBooking): Boolean {
     val calendar = Calendar.getInstance()
     val now=calendar.time.time/1000
-    val next=booking.startTime //-(7 * 86400)
-   // val diff=(next-now)/86400
-    return now > next-7*86400
-}
-    // TODO: duplicate from ScheduleScreen.kt
-    fun addTrainingToCalendar( training: Training,context: Context) {
-        try {
-            val values = ContentValues().apply {
-                put(CalendarContract.Events.DTSTART, training.startTime)
-                put(CalendarContract.Events.DTEND, training.endTime)
-                put(CalendarContract.Events.TITLE, training.title)
-                put(
-                    CalendarContract.Events.DESCRIPTION,
-                    "Instructor: ${training.instructor}\n${training.location}"
-                )
-                put(
-                    CalendarContract.Events.EVENT_LOCATION,
-                    "Swimgym, Wibautstraat 131b, 1091 GL Amsterdam"
-                )
-                put(CalendarContract.Events.CALENDAR_ID, 1)
-                put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+    var nexttime=startTime;
+    val week = 7 * 86400
+    while (nexttime<now) {
+        nexttime+=week
+    }
+    if (nexttime>now+week) {
+        // bug,cannot book more than a week in advance
+        return null
+    }
+    if (nexttime<now+86400) {
+        // cannot book less than a day in advance
+        return null
+    }
+
+        for (training in trainings) {
+            if (training.startTime == nexttime) {
+                if (training.title.equals(title, ignoreCase = true)) { return training
+                } else {
+                    // warn user training is renamed return null
+                }
             }
-           // val _context = SwimGymApp.getApplicationContext()
-            //val resolver: ContentResolver? = _context.getContentResolver()
-            val uri=context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+        }
+    // maybe get new schedule?
+        return null
+    }
 
+    suspend fun addTrainingToCalendar(training: Training, context: Context): String? {
+            try {
+                // Get the selected calendar ID from SessionRepository
+                val sessionRepository = SessionRepository(context)
+                val selectedCalendarId = sessionRepository.selectedCalendarId.first() ?: 1L
+                if (selectedCalendarId<1) {
+                    // no calendar selected
+                    return null
+                }
+                // Get reminder settings
+                val reminderMinutes = sessionRepository.getReminderMinutes()
+                val reminderEnabled = sessionRepository.getReminderEnabled()
+                
+                val values = ContentValues().apply {
+                    put(CalendarContract.Events.DTSTART, training.startTime*1000)
+                    put(CalendarContract.Events.DTEND, training.endTime*1000)
+                    put(CalendarContract.Events.TITLE, training.title)
+                    put(
+                        CalendarContract.Events.DESCRIPTION,
+                        "${training.instructor}\n${training.location}"
+                    )
+                    put(
+                        CalendarContract.Events.EVENT_LOCATION,
+                        "Swimgym, Wibautstraat 131b, 1091 GL Amsterdam"
+                    )
+                    put(CalendarContract.Events.CALENDAR_ID, selectedCalendarId)
+                    put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+                    if (reminderEnabled && reminderMinutes > 0) {
+                        put(Events.HAS_ALARM, true);
+                    }
+                }
+                
+                val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+                val eventId = uri?.getLastPathSegment() ?: return null
 
+                // Store eventId and calendarId in the training entity
+                val trainingEntity = training.toEntity()
+                val updatedTraining = trainingEntity.copy(
+                    eventId = eventId,
+                    calendarId = selectedCalendarId.toString()
+                )
+                dao.insertTraining(updatedTraining)
 
-            // get the event ID that is the last element in the Uri
-            val eventId = uri!!.getLastPathSegment()!!.toLong()
-            //training.eventId=eventId
-            //return eventId
+                // Add reminder if enabled
+                if (reminderEnabled && reminderMinutes > 0) {
+                    val reminderValues = ContentValues().apply {
+                        put(CalendarContract.Reminders.EVENT_ID, eventId.toLong())
+                        put(CalendarContract.Reminders.MINUTES, reminderMinutes)
+                        put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+                    }
+                    context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
+                }
 
+            return eventId
+
+            } catch (e: Exception) {
+                 e.printStackTrace()
+                return null
+             }
+        }
+
+    suspend fun removeTrainingFromCalendar(training: TrainingEntity, context: Context) {
+        try {
+            val eventId = training.eventId
+            if (eventId.isBlank()) {
+                return
+            }
+
+            val calendarId = training.calendarId.toLongOrNull() ?: return
+
+            // Delete the event from the calendar
+            context.contentResolver.delete(
+                CalendarContract.Events.CONTENT_URI,
+                "_id=? AND calendar_id=?",
+                arrayOf(eventId, calendarId.toString())
+            )
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    private suspend fun processBooking(booking: com.swimgym.app.data.repository.ScheduledBooking, trainings: List<TrainingEntity>, context: Context) {
+        try {
+            val shouldBook = shouldBookNow(booking)
+            if (!shouldBook) return
+            val training = getNextTraining(booking.startTime, booking.className, trainings) ?: return
+            val res = getTrainingDetails(training,context)
+            val updtraining = res.getOrThrow()
+            if (updtraining.isJoined) {
+                // training is already booked, skip to next
+                scheduledBookingRepo.incrementBookingCount(booking.id, training)
+                return
+            }
+            if (updtraining.isFull) {
+                // training is full, retry later
+                return
+            }
+            val result = bookTraining(training, context)
+            result.fold(
+                onSuccess = {
+                    scheduledBookingRepo.incrementBookingCount(booking.id, training)
+
+                    val maxRepeat = booking.maxRepeatCount
+                    if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
+                        scheduledBookingRepo.completeBooking(booking.id)
+                        return
+                    }
+                    notificationManager.showBookingConfirmation(
+                        trainingName = training.title,
+                        classTime = training.classTime,
+                        classDate = training.classDate,
+                        isScheduledBooking = true
+                    )
+                },
+                onFailure = {
+                    // Don't retry here, will be checked again in 30 minutes
+                }
+            )
+        } catch (e: Exception) {
+            // Error handled silently, will retry on next periodic run
+        }
+    }
+
+    private fun shouldBookNow(booking: com.swimgym.app.data.repository.ScheduledBooking): Boolean {
+        val calendar = Calendar.getInstance()
+        val now=calendar.time.time/1000
+        val next=booking.startTime //-(7 * 86400)
+        val diff=(next-now)/86400
+        //if (diff<7)
+        return next < now + 7 * 86400 && next>now+86400
     }
 }

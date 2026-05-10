@@ -6,18 +6,14 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
-import javax.inject.Singleton
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "session")
 
-@Singleton
-class SessionRepository @Inject constructor(
-    @ApplicationContext private val context: Context
+class SessionRepository(
+    private val context: Context
 ) {
     companion object {
         private val AUTH_TOKEN = stringPreferencesKey("auth_token")
@@ -30,6 +26,7 @@ class SessionRepository @Inject constructor(
         private val REMINDER_MINUTES = stringPreferencesKey("reminder_minutes")
         private val REMINDER_ENABLED = stringPreferencesKey("reminder_enabled")
         private val COOKIES = stringPreferencesKey("cookies")
+        private val USER_AGENT = stringPreferencesKey("user_agent")
     }
 
     val authToken: Flow<String?> = context.dataStore.data.map { it[AUTH_TOKEN] }
@@ -104,5 +101,29 @@ class SessionRepository @Inject constructor(
             }
             .filter { it.first.isNotBlank() }
             .toMap()
+    }
+
+    suspend fun getReminderMinutes(): Int {
+        return context.dataStore.data
+            .map { it[REMINDER_MINUTES]?.toIntOrNull() ?: 30 }
+            .first()
+    }
+
+    suspend fun getReminderEnabled(): Boolean {
+        return context.dataStore.data
+            .map { it[REMINDER_ENABLED]?.toBoolean() ?: true }
+            .first()
+    }
+
+    suspend fun saveUserAgent(userAgent: String) {
+        context.dataStore.edit { prefs ->
+            prefs[USER_AGENT] = userAgent
+        }
+    }
+
+    suspend fun loadUserAgent(): String? {
+        return context.dataStore.data
+            .map { it[USER_AGENT] }
+            .first()
     }
 }

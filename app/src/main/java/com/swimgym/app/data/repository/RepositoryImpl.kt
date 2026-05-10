@@ -3,86 +3,51 @@ package com.swimgym.app.data.repository
 import android.content.Context
 import com.swimgym.app.data.api.WebScraper
 import com.swimgym.app.data.local.SwimGymDao
-import com.swimgym.app.data.local.entity.CacheControlEntity
-import com.swimgym.app.data.local.entity.BookingEntity
-import com.swimgym.app.data.local.entity.InstructorEntity
 import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.data.model.Mappers.toDomain
 import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.domain.model.*
-import com.swimgym.app.domain.model.User as DomainUser
-import com.swimgym.app.domain.repository.AuthRepository
 import com.swimgym.app.domain.repository.SwodLevel
 import com.swimgym.app.domain.repository.TrainingRepository
 import com.swimgym.app.domain.repository.SyncStatus
 import com.swimgym.app.util.BookingNotificationManager
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
-import javax.inject.Singleton
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-@Singleton
-class AuthRepositoryImpl @Inject constructor(
+
+
+class TrainingRepositoryImpl(
+    private val context: Context,
     private val webScraper: WebScraper,
-    private val sessionRepo: SessionRepository,
-    private val userFlow: MutableStateFlow<DomainUser?>,
-    private val dao: SwimGymDao
-) : AuthRepository {
-
-    override suspend fun login(email: String, password: String): Result<DomainUser> {
-        return try {
-            val result = webScraper.login(email, password)
-            result.map { userDto ->
-                val user = DomainUser(userDto.id, userDto.name, userDto.email)
-                sessionRepo.saveSession("", user.id, user.name, user.email)
-                userFlow.value = user
-                user
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    override suspend fun logout(): Result<Unit> {
-        return try {
-            webScraper.logout()
-            sessionRepo.clearSession()
-            sessionRepo.saveCookies(emptyMap())
-            userFlow.value = null
-            dao.clearBookings()
-            dao.clearTrainings()
-            dao.clearCacheControl()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            sessionRepo.clearSession()
-            sessionRepo.saveCookies(emptyMap())
-            userFlow.value = null
-            dao.clearBookings()
-            dao.clearTrainings()
-            dao.clearCacheControl()
-            Result.success(Unit)
-        }
-    }
-
-    override fun isLoggedIn(): Flow<Boolean> = sessionRepo.isLoggedIn
-
-    override fun getCurrentUser(): Flow<DomainUser?> = userFlow
-}
-
-@Singleton
-class TrainingRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val webScraper: WebScraper,
-    private val userFlow: MutableStateFlow<DomainUser?>,
     private val dao: SwimGymDao,
     private val notificationManager: BookingNotificationManager,
 ) : TrainingRepository {
 
     private val bookingsFlow = MutableStateFlow<List<Booking>>(emptyList())
     private val syncStatusFlow = MutableStateFlow(SyncStatus())
+
+   override fun getMyBookings(): Flow<List<Booking>> {
+        return dao.getConfirmedBookings()
+            .map { entities ->
+                entities.map { entity ->
+                    Booking(
+                        id = 0,
+                        trainingId = entity.id,
+                        className = entity.title,
+                        startTime = entity.startTime,
+                        endTime = entity.endTime,
+                        status = BookingStatus.CONFIRMED,
+                        instructor = entity.instructor,
+                        imageUrl = entity.imageUrl
+                    )
+                }
+            }
+    }
+
 
     override suspend fun getSchedule(level: SwodLevel, hideFullyBooked: Boolean, startDate: String?): Result<List<Training>> {
         return try {
@@ -124,7 +89,7 @@ class TrainingRepositoryImpl @Inject constructor(
             }
 
             val instructor = dao.getInstructor(cached.instructor)
-            val result = webScraper.getTrainingDetails(trainingId,context)
+            val result = webScraper.getTrainingDetails(cached,context)
 
             result.map { details ->
                 var instructorLink = ""
@@ -172,12 +137,12 @@ class TrainingRepositoryImpl @Inject constructor(
                 val current = bookingsFlow.value.toMutableList()
                 current.add(booking)
                 bookingsFlow.value = current
-                notificationManager.showBookingConfirmation(
-                    trainingName = booking.className,
-                    classTime = booking.classTime,
-                    classDate = booking.classDate,
-                    isScheduledBooking = false
-                )
+              notificationManager.showBookingConfirmation(
+                     trainingName = booking.className,
+                     classTime = formatTimestamp(booking.startTime),
+                     classDate = formatDate(booking.startTime),
+                     isScheduledBooking = false
+                 )
                 booking
             }
         } catch (e: Exception) {
@@ -201,11 +166,11 @@ class TrainingRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun getMyBookings(): Flow<List<Booking>> = bookingsFlow
+  
 
-    override suspend fun refreshSchedule(): Result<Unit> {
+   override suspend fun refreshSchedule(): Result<Unit> {
         return try {
-            webScraper.getSchedule()
+            webScraper.getSchedule(context)
             updateSyncStatus()
             Result.success(Unit)
         } catch (e: Exception) {
@@ -225,5 +190,16 @@ class TrainingRepositoryImpl @Inject constructor(
                 System.currentTimeMillis() > it.lastSyncTime + it.staleAfterMillis
             } ?: true
         )
+    }
+
+    companion object {
+        private fun formatDate(timestamp: Long): String {
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            return sdf.format(Date(timestamp))
+        }
+        private fun formatTimestamp(timestamp: Long): String {
+            val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+            return sdf.format(Date(timestamp))
+        }
     }
 }

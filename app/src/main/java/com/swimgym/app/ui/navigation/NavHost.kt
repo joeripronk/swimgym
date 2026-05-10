@@ -1,52 +1,81 @@
 package com.swimgym.app.ui.navigation
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import android.content.Context
+import android.content.Intent
+import androidx.compose.runtime.*
 import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.swimgym.app.di.SwimGymAppContainer
 import com.swimgym.app.data.api.WebScraper
 import com.swimgym.app.data.model.Mappers.toEntity
-import com.swimgym.app.ui.navigation.Screen
-import com.swimgym.app.data.repository.ScheduledBooking
 import com.swimgym.app.domain.model.BookingStatus
+import com.swimgym.app.receiver.LoginActivity
 import com.swimgym.app.ui.screens.LoginScreen
 import com.swimgym.app.ui.screens.MyBookingsScreen
 import com.swimgym.app.ui.screens.ScheduleScreen
 import com.swimgym.app.ui.screens.TrainingDetailScreen
 import com.swimgym.app.ui.screens.SettingsScreen
-import com.swimgym.app.ui.viewmodel.LoginViewModel
 import com.swimgym.app.ui.viewmodel.ScheduleViewModel
 import com.swimgym.app.ui.viewmodel.SettingsViewModel
+import kotlinx.coroutines.runBlocking
+import okhttp3.internal.toLongOrDefault
 
 @ExperimentalComposeUiApi
 @Composable
 fun SwimGymNavigation(
+    context: Context,
     webScraper: WebScraper
 ) {
     val navController = rememberNavController()
-    val scheduleViewModel: ScheduleViewModel = hiltViewModel()
-    val loginViewModel: LoginViewModel = hiltViewModel()
-    val settingsViewModel: SettingsViewModel = hiltViewModel()
-    val scheduleState by scheduleViewModel.uiState.collectAsState()
+    val container = SwimGymAppContainer.getInstance()
+    
+    var hasCookies by remember { mutableStateOf(true) }
+    
+    LaunchedEffect(Unit) {
+        val cookies = container.sessionRepository.loadCookies()
+        var lid: Long = 0
+        if (cookies.contains("virtuagym_u")) {
+            val uid = cookies.get("virtuagym_u")
+            lid = uid?.toLongOrDefault(1L)!!
+        }
+        hasCookies =  lid>1
+
+    }
+    
+  
+    val scheduleViewModel = ScheduleViewModel(
+        getScheduleUseCase = container.getScheduleUseCase,
+        getTrainingDetailsUseCase = container.getTrainingDetailsUseCase,
+        getMyBookingsUseCase = container.getMyBookingsUseCase,
+        bookTrainingUseCase = container.bookTrainingUseCase,
+        cancelBookingUseCase = container.cancelBookingUseCase,
+        refreshScheduleUseCase = container.refreshScheduleUseCase,
+        getSyncStatusUseCase = container.getSyncStatusUseCase,
+        sessionRepository = container.sessionRepository,
+        scheduledBookingRepo = container.scheduledBookingRepository,
+        trainerImageCache = container.trainerImageCache,
+        dao = container.dao,
+        applicationContext = context
+    )
+    
+    val settingsViewModel = SettingsViewModel(
+        sessionRepository = container.sessionRepository,
+        calendarRepository = container.calendarRepository
+    )
 
     NavHost(
         navController = navController,
-        startDestination = Screen.Login.route
+        startDestination = if (hasCookies) Screen.Schedule.route else Screen.Login.route
     ) {
         composable(Screen.Login.route) {
             LoginScreen(
                 webScraper = webScraper,
                 onLoginSuccess = {
-                    scheduleViewModel.loadSchedule()
+                    scheduleViewModel.refreshSchedule()
                     navController.navigate(Screen.Schedule.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
@@ -55,8 +84,12 @@ fun SwimGymNavigation(
         }
 
         composable(Screen.Schedule.route) {
+            LaunchedEffect(Unit) {
+                if (hasCookies) {
+                    scheduleViewModel.loadSchedule()
+                }
+            }
             ScheduleScreen(
-                viewModel = scheduleViewModel,
                 onTrainingClick = { training ->
                     navController.navigate(Screen.TrainingDetail.createRoute(training.id))
                 },
@@ -67,11 +100,17 @@ fun SwimGymNavigation(
                     navController.navigate(Screen.Settings.route)
                 },
                 onLogout = {
-                    loginViewModel.logout()
+                    runBlocking {
+                        webScraper.logout()
+                    }
+                    hasCookies = false
+                    val intent = Intent(LoginActivity.ACTION_LOGIN_REQUIRED)
+                    context.sendBroadcast(intent)
                     navController.navigate(Screen.Login.route) {
                         popUpTo(0) { inclusive = true }
                     }
-                }
+                },
+                viewModel = scheduleViewModel
             )
         }
 
@@ -80,60 +119,88 @@ fun SwimGymNavigation(
             arguments = listOf(
                 navArgument("id") { type = NavType.StringType }
             )
-        ) { backStackEntry ->
+         ) { backStackEntry ->
             val encodedId = backStackEntry.arguments?.getString("id") ?: return@composable
             val id = Screen.decodeId(encodedId)
             LaunchedEffect(id) {
                 scheduleViewModel.loadTrainingDetails(id)
             }
-            val selectedTraining by scheduleViewModel.selectedTraining.collectAsState()
+            //val selectedTraining by scheduleViewModel.selectedTraining.collectAsState(initial = null)
+            var selectedTraining = scheduleViewModel.getTrainingById(trainingId = id)
+
+            val uiState by scheduleViewModel.uiState.collectAsState()
+            val isLoading = uiState.isLoading
             val justBookedTrainingId by scheduleViewModel.justBookedTrainingId.collectAsState()
             val trainerImageUrl = selectedTraining?.let { training ->
                 scheduleViewModel.resolveTrainerImage(training.instructor, training.imageUrl)
             }
-
+            if (selectedTraining!=null && trainerImageUrl!=null) {
+                selectedTraining.imageUrl = trainerImageUrl
+            }
             // Close view if booking was just verified
             LaunchedEffect(justBookedTrainingId) {
                 if (justBookedTrainingId == id) {
                     scheduleViewModel.clearJustBookedTrainingId()
-                    navController.popBackStack()
+                   // navController.popBackStack()
                 }
             }
 
             TrainingDetailScreen(
-                trainingId = id,
-                trainings = listOfNotNull(selectedTraining),
-                trainerImageUrl = trainerImageUrl,
-                onBack = { navController.popBackStack() },
-                onBook = { training ->
+                 training = selectedTraining,
+                 onBack = { navController.popBackStack() },
+                 onBook = { training ->
                     scheduleViewModel.bookTraining(training.toEntity())
                 },
                 onCancel = { training ->
                     val booking = com.swimgym.app.domain.model.Booking(
-                        id = training.id.hashCode(),
+                        id = 0,
                         trainingId = training.id,
                         className = training.title,
-                        classTime = training.classTime,
-                        classDate = training.classDate,
+                        startTime = training.startTime,
+                        endTime = training.endTime,
                         status = BookingStatus.BOOKED
                     )
                     scheduleViewModel.cancelBooking(booking)
                 },
-                onSchedule = { trainingId, className, classTime, classDate, maxRepeat ->
+                onSchedule = { trainingId, className, instructor, maxRepeat ->
                     scheduleViewModel.scheduleRecurringBooking(
                         trainingId = trainingId,
                         className = className,
-                        classTime = classTime,
-                        classDate = classDate,
                         startTime = selectedTraining?.startTime ?: 0L,
-                        instructor = selectedTraining?.instructor ?: "",
+                        endTime = selectedTraining?.endTime ?: 0L,
+                        instructor = instructor,
                         maxRepeatCount = maxRepeat
                     )
+                },
+                onAddToCalendar = { training ->
+                },
+                onNavigateToMyBookings = {
+                    navController.navigate(Screen.MyBookings.route)
+                },
+                onRefresh = { trainingId ->
+                    scheduleViewModel.loadTrainingDetails(trainingId)
+                },
+                onBookingSuccess = { trainingId ->
+                    scheduleViewModel.loadTrainingDetails(trainingId)
+                },
+                onCancellationSuccess = { trainingId ->
+                    scheduleViewModel.loadTrainingDetails(trainingId)
+                },
+                isBookingInProgress = uiState.isBookingInProgress,
+                isCancellingInProgress = uiState.isCancellingInProgress,
+                bookingError = uiState.bookingError,
+                cancelError = uiState.cancelError,
+                onClearBookingError = {
+                    scheduleViewModel.clearBookingError()
+                },
+                onClearCancelError = {
+                    scheduleViewModel.clearCancelError()
                 }
             )
         }
 
         composable(Screen.MyBookings.route) {
+            val scheduleState by scheduleViewModel.uiState.collectAsState()
             val scheduledBookingsFlow = scheduleViewModel.getScheduledBookings()
             val scheduledBookings by scheduledBookingsFlow.collectAsState(initial = emptyList())
 
@@ -155,6 +222,9 @@ fun SwimGymNavigation(
                 },
                 onScheduledBookingClick = { trainingId ->
                     navController.navigate(Screen.TrainingDetail.createRoute(trainingId))
+                },
+                onBookingClick = { booking ->
+                    navController.navigate(Screen.TrainingDetail.createRoute(booking.trainingId))
                 }
             )
         }

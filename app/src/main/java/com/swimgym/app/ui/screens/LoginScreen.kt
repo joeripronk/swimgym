@@ -38,6 +38,7 @@ fun LoginScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var hasNavigated by remember { mutableStateOf(false) }
     var cookiesToSave by remember { mutableStateOf<Map<String, String>?>(null) }
+    var userAgentToSave by remember { mutableStateOf<String?>(null) }
 
     val cookieManager = CookieManager.getInstance()
 
@@ -45,6 +46,13 @@ fun LoginScreen(
     LaunchedEffect(cookiesToSave) {
         cookiesToSave?.let { cookies ->
             webScraper.setCookiesAndSave(cookies)
+        }
+    }
+
+    // Save User-Agent to cache when it changes
+    LaunchedEffect(userAgentToSave) {
+        userAgentToSave?.let { agent ->
+            webScraper.setUserAgent(agent)
         }
     }
 
@@ -59,6 +67,7 @@ fun LoginScreen(
                 settings.domStorageEnabled = true
                 settings.allowFileAccess = true
                 settings.allowContentAccess = true
+                settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
@@ -69,6 +78,10 @@ fun LoginScreen(
                         if (cookies.contains(regex = Regex("virtuagym_u=[0-9][0-9]+")) && !hasNavigated) {
                             val cookieMap = parseCookiesFromString(cookies)
                             cookiesToSave = cookieMap
+                            
+                            // Save User-Agent from WebView
+                            userAgentToSave = settings.userAgentString
+                            
                             hasNavigated = true
                             onLoginSuccess()
                         }

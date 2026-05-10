@@ -7,23 +7,33 @@ import android.provider.CalendarContract
 import android.provider.CalendarContract.Events
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
+import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.ContentScale.Companion.Fit
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat.startActivity
+import com.swimgym.app.data.api.WebScraper
+import com.swimgym.app.di.SwimGymAppContainer
 import com.swimgym.app.domain.model.Training
 import com.swimgym.app.domain.repository.SwodLevel
 import com.swimgym.app.ui.viewmodel.ScheduleViewModel
@@ -34,11 +44,11 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleScreen(
+    viewModel: ScheduleViewModel,
     onTrainingClick: (Training) -> Unit,
     onMyBookingsClick: () -> Unit,
     onLogout: () -> Unit,
-    onSettingsClick: () -> Unit,
-    viewModel: ScheduleViewModel
+    onSettingsClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -53,8 +63,11 @@ fun ScheduleScreen(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         if (permissions[Manifest.permission.WRITE_CALENDAR] == true && trainingToAddToCalendar != null) {
-            addTrainingToCalendar(context, trainingToAddToCalendar!!)
+            val training = trainingToAddToCalendar!!
             trainingToAddToCalendar = null
+            coroutineScope.launch {
+                SwimGymAppContainer.getInstance().webScraper.addTrainingToCalendar(training, context)
+            }
         }
     }
 
@@ -170,47 +183,53 @@ private fun TrainingCard(
     onClick: () -> Unit,
     onAddToCalendar: () -> Unit
 ) {
-    val dateFormat = remember { SimpleDateFormat("EEE, MMM d", Locale.getDefault()) }
+    val now = remember { System.currentTimeMillis()/1000 }
+    val dateFormat = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
+    val dayFormat = remember { SimpleDateFormat("EEE HH:mm", Locale.getDefault()) }
+
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (training.isJoined) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+        )
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
+        Box(
+            modifier = Modifier.fillMaxSize()
         ) {
-            Text(
-                text = training.title,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = training.instructor,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
             ) {
                 Text(
-                    text = "${dateFormat.format(Date(training.startTime*1000))} ${timeFormat.format(Date(training.startTime*1000))}-${timeFormat.format(Date(training.endTime*1000))}",
-                    style = MaterialTheme.typography.bodySmall
+                    text = "${dayFormat.format(Date(training.startTime*1000))} ${training.title}",
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
-            }
+                Text(
+                    text = training.instructor,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-            Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${dateFormat.format(Date(training.startTime*1000))} ${timeFormat.format(Date(training.startTime*1000))}-${timeFormat.format(Date(training.endTime*1000))}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -227,6 +246,12 @@ private fun TrainingCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )
+                    } else if (training.startTime>now+7*86400) {
+                        Text(
+                            text = "too early to book",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
                     } else if (!training.isFull) {
                         Text(
                             text = "spot available",
@@ -241,40 +266,24 @@ private fun TrainingCard(
                         )
                     }
                 }
-                TextButton(onClick = onAddToCalendar) {
-                    Text("+ Calendar")
-                }
+
+
+
+            }
+            if (training.imageUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = training.imageUrl,
+                    contentDescription = "Instructor image",
+
+                    modifier = Modifier
+                        .size(108.dp)
+                        .clip(CircleShape)
+                        .align(Alignment.CenterEnd),
+                    contentScale = ContentScale.Crop
+                )
             }
         }
     }
 }
 
-    fun addTrainingToCalendar(context: android.content.Context, training: Training) {
-    try {
-       /*
-        val intent: Intent = Intent(Intent.ACTION_INSERT)
-            .setData(Events.CONTENT_URI)
-            .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, training.startTime*1000)
-            .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, training.endTime*1000)
-            .putExtra(Events.TITLE, training.title)
-            .putExtra(Events.DESCRIPTION, "Trainer: ${training.instructor} \nLocatie: ${training.location}")
-            .putExtra(Events.EVENT_LOCATION, "Swimgym, Wibautstraat 131b, 1091 GL Amsterdam")
-            .putExtra(Events.AVAILABILITY, Events.AVAILABILITY_BUSY)
-            .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-          //  .putExtra(Intent.EXTRA_EMAIL, "rowan@example.com,trevor@example.com")
-        startActivity(intent)
-        */
-        val values = ContentValues().apply {
-            put(CalendarContract.Events.DTSTART, training.startTime*1000)
-            put(CalendarContract.Events.DTEND, training.endTime*1000)
-            put(CalendarContract.Events.TITLE, training.title)
-            put(CalendarContract.Events.DESCRIPTION, "Trainer: ${training.instructor} \nLocatie: ${training.location}")
-            put(CalendarContract.Events.EVENT_LOCATION, "Swimgym, Wibautstraat 131b, 1091 GL Amsterdam")
-            put(CalendarContract.Events.CALENDAR_ID, 1)
-            put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
-        }
-        context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-    } catch (e: Exception) {
-        e.printStackTrace()
-    }
-}
+

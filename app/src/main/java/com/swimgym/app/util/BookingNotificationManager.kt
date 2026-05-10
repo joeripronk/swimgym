@@ -12,15 +12,11 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.swimgym.app.MainActivity
 import com.swimgym.app.R
-import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
-import javax.inject.Singleton
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-@Singleton
-class BookingNotificationManager @Inject constructor(
-    @ApplicationContext private val context: Context
+class BookingNotificationManager(
+    private val context: Context
 ) {
     companion object {
         private const val BOOKING_CHANNEL_ID = "swimgym_booking_channel"

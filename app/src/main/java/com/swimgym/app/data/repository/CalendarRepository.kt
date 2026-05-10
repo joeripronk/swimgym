@@ -4,11 +4,9 @@ import android.content.Context
 import android.provider.CalendarContract
 import com.swimgym.app.domain.model.CalendarInfo
 import com.swimgym.app.domain.repository.CalendarRepository
-import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
 
-class CalendarRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context
+class CalendarRepositoryImpl(
+    private val context: Context
 ) : CalendarRepository {
 
     override suspend fun getAvailableCalendars(): List<CalendarInfo> {

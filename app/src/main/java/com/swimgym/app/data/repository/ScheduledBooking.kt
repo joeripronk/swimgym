@@ -1,7 +1,5 @@
 package com.swimgym.app.data.repository
 
-import java.util.*
-
 enum class ScheduledBookingStatus {
     ACTIVE,
     PAUSED,
@@ -10,12 +8,11 @@ enum class ScheduledBookingStatus {
 }
 
 data class ScheduledBooking(
-    val id: String,
+    val id: Long,
     val trainingId: String,
     val className: String,
-    val classTime: String,
-    val classDate: String,
-    val startTime: Long = 0L,
+    var startTime: Long,
+    val endTime: Long,
     val instructor: String = "",
     val status: ScheduledBookingStatus = ScheduledBookingStatus.ACTIVE,
     val bookedCount: Int = 0,

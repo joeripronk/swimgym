@@ -19,7 +19,7 @@ data class Training(
     val isFull: Boolean = false,
     val classTime: String = "",
     val classDate: String = "",
-    val imageUrl: String = "",
+    var imageUrl: String = "",
     val description: String = "",
     val cost: String = "",
     val totalSpots: Int = 0,
@@ -27,13 +27,15 @@ data class Training(
 )
 
 data class Booking(
-    val id: Int,
+    val id: Long,
     val trainingId: String,
     val userId: Int = 0,
     val status: BookingStatus,
     val className: String = "",
-    val classTime: String = "",
-    val classDate: String = ""
+    val startTime: Long = 0L,
+    val endTime: Long = 0L,
+    val instructor: String = "",
+    val imageUrl: String = ""
 )
 
 enum class BookingStatus {

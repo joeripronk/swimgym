@@ -8,9 +8,8 @@ import com.swimgym.app.domain.repository.SwodLevel
 import com.swimgym.app.domain.repository.SyncStatus
 import com.swimgym.app.domain.repository.TrainingRepository
 import kotlinx.coroutines.flow.Flow
-import javax.inject.Inject
-
-class LoginUseCase @Inject constructor(
+/*
+class LoginUseCase(
     private val authRepository: AuthRepository
 ) {
     suspend operator fun invoke(email: String, password: String): Result<User> {
@@ -19,28 +18,28 @@ class LoginUseCase @Inject constructor(
         return authRepository.login(email, password)
     }
 }
-
-class LogoutUseCase @Inject constructor(
+*/
+class LogoutUseCase(
     private val authRepository: AuthRepository
 ) {
     suspend operator fun invoke(): Result<Unit> = authRepository.logout()
 }
 
-class GetScheduleUseCase @Inject constructor(
+class GetScheduleUseCase(
     private val trainingRepository: TrainingRepository
 ) {
     suspend operator fun invoke(level: SwodLevel = SwodLevel.ALL, hideFullyBooked: Boolean = true, startDate: String? = null): Result<List<Training>> = 
         trainingRepository.getSchedule(level, hideFullyBooked, startDate)
 }
 
-class GetTrainingDetailsUseCase @Inject constructor(
+class GetTrainingDetailsUseCase(
     private val trainingRepository: TrainingRepository
 ) {
     suspend operator fun invoke(trainingId: String): Result<Training> =
         trainingRepository.getTrainingDetails(trainingId)
 }
 
-class BookTrainingUseCase @Inject constructor(
+class BookTrainingUseCase(
     private val trainingRepository: TrainingRepository
 ) {
     suspend operator fun invoke(training: TrainingEntity,context: Context): Result<Booking> {
@@ -48,7 +47,7 @@ class BookTrainingUseCase @Inject constructor(
     }
 }
 
-class CancelBookingUseCase @Inject constructor(
+class CancelBookingUseCase(
     private val trainingRepository: TrainingRepository
 ) {
     suspend operator fun invoke(training: TrainingEntity,context: Context): Result<Booking> {
@@ -57,25 +56,25 @@ class CancelBookingUseCase @Inject constructor(
     }
 }
 
-class GetMyBookingsUseCase @Inject constructor(
+class GetMyBookingsUseCase(
     private val trainingRepository: TrainingRepository
 ) {
     operator fun invoke(): Flow<List<Booking>> = trainingRepository.getMyBookings()
 }
 
-class IsLoggedInUseCase @Inject constructor(
+class IsLoggedInUseCase(
     private val authRepository: AuthRepository
 ) {
     operator fun invoke(): Flow<Boolean> = authRepository.isLoggedIn()
 }
 
-class RefreshScheduleUseCase @Inject constructor(
+class RefreshScheduleUseCase(
     private val trainingRepository: TrainingRepository
 ) {
     suspend operator fun invoke(): Result<Unit> = trainingRepository.refreshSchedule()
 }
 
-class GetSyncStatusUseCase @Inject constructor(
+class GetSyncStatusUseCase(
     private val trainingRepository: TrainingRepository
 ) {
     operator fun invoke(): Flow<SyncStatus> = trainingRepository.getSyncStatus()

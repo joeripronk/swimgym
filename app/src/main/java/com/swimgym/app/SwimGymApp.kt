@@ -1,39 +1,28 @@
 package com.swimgym.app
 
 import android.app.Application
-import android.content.Context
-import androidx.hilt.work.HiltWorkerFactory
-import androidx.work.Configuration
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import com.swimgym.app.data.api.WebScraper
-import com.swimgym.app.worker.ScheduledBookingCheckWorker
-import com.swimgym.app.worker.ScheduleSyncWorker
-import dagger.hilt.android.HiltAndroidApp
+import com.swimgym.app.di.SwimGymAppContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
-import javax.inject.Inject
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import com.swimgym.app.worker.ScheduledBookingCheckWorker
+import com.swimgym.app.worker.ScheduleSyncWorker
+import androidx.work.WorkManager
 
-
-@HiltAndroidApp
-class SwimGymApp : Application(), Configuration.Provider {
-
-    @Inject
-    lateinit var webScraper: WebScraper
-
-    @Inject
-    lateinit var workerFactory: HiltWorkerFactory
+class SwimGymApp : Application() {
+    
+    companion object {
+        lateinit var instance: SwimGymApp
+            private set
+    }
+    
     override fun onCreate() {
         super.onCreate()
-        //context = getApplicationContext()
-
-        // Load cached cookies on app startup
-        CoroutineScope(Dispatchers.IO).launch {
-            webScraper.loadCookiesFromCache()
-        }
+        instance = this
+        SwimGymAppContainer.getInstance()
 
         // Schedule periodic booking check every 30 minutes
         val bookingCheckRequest = PeriodicWorkRequestBuilder<ScheduledBookingCheckWorker>(
@@ -48,7 +37,7 @@ class SwimGymApp : Application(), Configuration.Provider {
 
         // Schedule periodic schedule sync every 30 minutes
         val scheduleSyncRequest = PeriodicWorkRequestBuilder<ScheduleSyncWorker>(
-            30, TimeUnit.MINUTES
+            60, TimeUnit.MINUTES
         ).build()
 
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
@@ -58,10 +47,5 @@ class SwimGymApp : Application(), Configuration.Provider {
         )
     }
 
-    override fun getWorkManagerConfiguration(): Configuration {
-        return Configuration.Builder()
-            .setWorkerFactory(workerFactory)
-            .build()
-    }
-
+    fun getContainer(): SwimGymAppContainer = SwimGymAppContainer.getInstance()
 }

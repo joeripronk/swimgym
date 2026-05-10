@@ -12,6 +12,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import com.swimgym.app.data.repository.ScheduledBooking
 import com.swimgym.app.data.repository.ScheduledBookingStatus
 import com.swimgym.app.domain.model.Booking
@@ -38,10 +44,11 @@ fun MyBookingsScreen(
     scheduledBookings: List<ScheduledBooking>,
     onBack: () -> Unit,
     onCancelBooking: (Booking) -> Unit,
-    onPauseScheduled: (String) -> Unit,
-    onResumeScheduled: (String) -> Unit,
-    onDeleteScheduled: (String) -> Unit,
-    onScheduledBookingClick: (String) -> Unit
+    onPauseScheduled: (Long) -> Unit,
+    onResumeScheduled: (Long) -> Unit,
+    onDeleteScheduled: (Long) -> Unit,
+    onScheduledBookingClick: (String) -> Unit,
+    onBookingClick: (Booking) -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -102,7 +109,8 @@ fun MyBookingsScreen(
                     items(bookings) { booking ->
                         BookingCard(
                             booking = booking,
-                            onCancel = { onCancelBooking(booking) }
+                            onCancel = { onCancelBooking(booking) },
+                            onClick = { onBookingClick(booking) }
                         )
                     }
                 }
@@ -114,45 +122,85 @@ fun MyBookingsScreen(
 @Composable
 private fun BookingCard(
     booking: Booking,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onClick: () -> Unit
 ) {
+    val dayFormat = remember { SimpleDateFormat("EEE HH:mm", Locale.getDefault()) }
+    val dateFormat = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors()
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Training #${booking.trainingId.substringBefore("-")}",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Text(
-                text = "Status: ${booking.status.name}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = when (booking.status) {
-                    BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.primary
-                    BookingStatus.CANCELLED -> MaterialTheme.colorScheme.error
-                    BookingStatus.PENDING -> MaterialTheme.colorScheme.onSurfaceVariant
-                    BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.tertiary
-                    BookingStatus.BOOKED -> MaterialTheme.colorScheme.primary
-                    BookingStatus.FAILED -> MaterialTheme.colorScheme.error
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = "${dayFormat.format(Date(booking.startTime*1000))} ${booking.className}",
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "Status: ${booking.status.name}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = when (booking.status) {
+                        BookingStatus.CONFIRMED -> MaterialTheme.colorScheme.primary
+                        BookingStatus.CANCELLED -> MaterialTheme.colorScheme.error
+                        BookingStatus.PENDING -> MaterialTheme.colorScheme.onSurfaceVariant
+                        BookingStatus.IN_PROGRESS -> MaterialTheme.colorScheme.tertiary
+                        BookingStatus.BOOKED -> MaterialTheme.colorScheme.primary
+                        BookingStatus.FAILED -> MaterialTheme.colorScheme.error
+                    }
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${dateFormat.format(Date(booking.startTime*1000))} ${timeFormat.format(Date(booking.startTime*1000))}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
-            )
+                
+                if (booking.instructor.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Instructor: ${booking.instructor}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
-            Text(
-                text = "Feedback: ${getFeedbackStatus(booking.status)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (booking.imageUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = booking.imageUrl,
+                    contentDescription = "Instructor image",
+                    modifier = Modifier
+                        .size(108.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            }
+        }
+        /*
+        if (booking.status == BookingStatus.CONFIRMED) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
 
-            if (booking.status == BookingStatus.CONFIRMED) {
-                Spacer(modifier = Modifier.height(8.dp))
+            ) {
                 TextButton(onClick = onCancel) {
                     Text("Cancel Booking")
                 }
             }
         }
+       */
     }
 }
 
@@ -164,6 +212,7 @@ private fun ScheduledBookingCard(
     onResume: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val dayFormat = remember { SimpleDateFormat("EEE HH:mm", Locale.getDefault()) }
     val dateFormat = remember { SimpleDateFormat("EEEE", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val weekday = if (scheduled.startTime > 0) {
@@ -172,14 +221,14 @@ private fun ScheduledBookingCard(
         ""
     }
     val startTimeStr = if (scheduled.startTime > 0) {
-        timeFormat.format(Date(scheduled.startTime*1000))
+        timeFormat.format(Date(scheduled.startTime * 1000))
     } else {
-        scheduled.classTime
+        "invalid"
     }
 
     val nextBookingTime = remember(scheduled.startTime) {
         if (scheduled.startTime > 0) {
-            scheduled.startTime*1000 + (7 * 24 * 60 * 60 * 1000L)
+            scheduled.startTime
         } else {
             0L
         }
@@ -206,7 +255,7 @@ private fun ScheduledBookingCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = scheduled.className,
+                        text = "${dayFormat.format(Date(scheduled.startTime*1000))} ${scheduled.className}",
                         style = MaterialTheme.typography.titleMedium
                     )
                     if (scheduled.instructor.isNotEmpty()) {
@@ -272,14 +321,14 @@ private fun ScheduledBookingCard(
 
 
 private fun formatTimeUntilNext(nextTime: Long): String {
-    val now = System.currentTimeMillis()
+    val now = System.currentTimeMillis()/1000
     val diff = nextTime - now
 
     if (diff <= 0) return "soon"
 
-    val days = diff / (24 * 60 * 60 * 1000)
-    val hours = (diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000)
-    val minutes = (diff % (60 * 60 * 1000)) / (60 * 1000)
+    val days = diff / (24 * 60 * 60)
+    val hours = (diff % (24 * 60 * 60 )) / (60 * 60 )
+    val minutes = (diff % (60 * 60 )) / (60)
 
     return when {
         days > 0 -> "in ${days}d ${String.format("%02d:%02d", hours, minutes)}"
