@@ -220,12 +220,11 @@ import java.util.*
                         color = MaterialTheme.colorScheme.primary
                     )
 
-                    val context = LocalContext.current
                     Button(
                         onClick = {
                             onAddToCalendar(training)
                             CoroutineScope(Dispatchers.IO).launch {
-                                SwimGymAppContainer.getInstance().webScraper.addTrainingToCalendar(training, context)
+                                SwimGymAppContainer.getInstance().webScraper.addTrainingToCalendar(training)
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(50.dp),

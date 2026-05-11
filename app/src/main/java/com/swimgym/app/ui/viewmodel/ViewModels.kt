@@ -171,7 +171,7 @@ class ScheduleViewModel(
     fun bookTraining(training: TrainingEntity) {
         viewModelScope.launch {
             _uiState.update { it.copy(isBookingInProgress = true, bookingError = null) }
-            bookTrainingUseCase(training,applicationContext)
+            bookTrainingUseCase(training)
                 .onSuccess { booking ->
                     val current = _uiState.value.bookings.toMutableList()
                     val bookingWithDetails = booking.copy(
@@ -223,7 +223,7 @@ class ScheduleViewModel(
                 spotsAvailable = 0,
                 imageUrl = booking.imageUrl
             )
-            cancelBookingUseCase(training.toEntity(),applicationContext)
+            cancelBookingUseCase(training.toEntity())
                 .onSuccess {
                     val current = _uiState.value.bookings.toMutableList()
                     current.removeAll { it.trainingId == booking.trainingId }

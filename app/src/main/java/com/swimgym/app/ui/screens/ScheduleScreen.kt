@@ -66,7 +66,7 @@ fun ScheduleScreen(
             val training = trainingToAddToCalendar!!
             trainingToAddToCalendar = null
             coroutineScope.launch {
-                SwimGymAppContainer.getInstance().webScraper.addTrainingToCalendar(training, context)
+                SwimGymAppContainer.getInstance().webScraper.addTrainingToCalendar(training)
             }
         }
     }

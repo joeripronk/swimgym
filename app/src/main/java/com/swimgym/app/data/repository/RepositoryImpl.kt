@@ -89,7 +89,7 @@ class TrainingRepositoryImpl(
             }
 
             val instructor = dao.getInstructor(cached.instructor)
-            val result = webScraper.getTrainingDetails(cached,context)
+            val result = webScraper.getTrainingDetails(cached)
 
             result.map { details ->
                 var instructorLink = ""
@@ -128,9 +128,9 @@ class TrainingRepositoryImpl(
         }
     }
 
-    override suspend fun bookTraining(training: TrainingEntity,context: Context): Result<Booking> {
+    override suspend fun bookTraining(training: TrainingEntity): Result<Booking> {
         return try {
-            val result = webScraper.bookTraining(training,context)
+            val result = webScraper.bookTraining(training)
             result.map { bookingDto ->
                 val booking = bookingDto.toDomain()
                 dao.insertBooking(booking.toEntity())
@@ -150,9 +150,9 @@ class TrainingRepositoryImpl(
         }
     }
 
-    override suspend fun cancelBooking(training: TrainingEntity,context: Context): Result<Booking> {
+    override suspend fun cancelBooking(training: TrainingEntity): Result<Booking> {
         return try {
-            val result = webScraper.cancelBooking(training,context)
+            val result = webScraper.cancelBooking(training)
             result.map { bookingDto ->
                 val booking = bookingDto.toDomain()
                 dao.deleteBookingByTrainingId(training.id)
@@ -170,7 +170,7 @@ class TrainingRepositoryImpl(
 
    override suspend fun refreshSchedule(): Result<Unit> {
         return try {
-            webScraper.getSchedule(context)
+            webScraper.getSchedule()
             updateSyncStatus()
             Result.success(Unit)
         } catch (e: Exception) {

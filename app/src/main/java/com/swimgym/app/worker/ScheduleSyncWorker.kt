@@ -31,7 +31,7 @@ class ScheduleSyncWorker(
         val now = System.currentTimeMillis()/1000
         
         dao.deleteOldTrainings(now)
-        webScraper.getSchedule(applicationContext)
+        webScraper.getSchedule()
     }
 
     companion object {

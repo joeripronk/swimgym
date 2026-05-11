@@ -167,7 +167,6 @@ class WebScraper(
     }
 
    suspend fun getSchedule(
-        context: Context,
         weeks: Int = 3
     ): Result<List<TrainingDto>> = withContext(Dispatchers.IO) {
         try {
@@ -229,7 +228,7 @@ class WebScraper(
                             var cachedTraining = dao.getTrainingById(classId)?.toDto()
                             var imageUrl = dao.getInstructor(instructor)?.instructorImage
                             if (imageUrl==null) {
-                                val trainingDetailsResult = getTrainingDetails(training, context)
+                                val trainingDetailsResult = getTrainingDetails(training)
                                 cachedTraining = trainingDetailsResult.getOrNull()?.toDto()
                                 imageUrl = cachedTraining?.imageUrl
                             }
@@ -281,8 +280,7 @@ class WebScraper(
 
 
     suspend fun bookTraining(
-        training: TrainingEntity,
-        context: Context
+        training: TrainingEntity
     ): Result<BookingResponse> = withContext(Dispatchers.IO) {
         try {
             val formBody = FormBody.Builder()
@@ -316,12 +314,12 @@ class WebScraper(
                     .build()
             ).execute()
             extractCookiesFromResponse(response)
-            var r=getTrainingDetails(training,context)
+            var r=getTrainingDetails(training)
             var t = r.getOrThrow()
 
             if (t.isJoined && (response.isSuccessful || response.code == 302)) {
                     try {
-                        addTrainingToCalendar(training.toDomain(), context)
+                        addTrainingToCalendar(training.toDomain())
                     } catch (e: Exception) {
                         // warn user about calendar
                     }
@@ -343,8 +341,7 @@ class WebScraper(
     }
 
     suspend fun cancelBooking(
-        training: TrainingEntity,
-        context: Context
+        training: TrainingEntity
     ): Result<BookingResponse> = withContext(Dispatchers.IO) {
         try {
             val formBody = FormBody.Builder()
@@ -378,11 +375,11 @@ class WebScraper(
                     .build()
             ).execute()
             extractCookiesFromResponse(response)
-            var r=getTrainingDetails(training,context)
+            var r=getTrainingDetails(training)
             var t = r.getOrThrow()
             if (!t.isJoined && (response.isSuccessful || response.code == 302)) {
                 // Remove from calendar when booking is canceled
-                removeTrainingFromCalendar(training, context)
+                removeTrainingFromCalendar(training)
                 
                 Result.success(
                     BookingResponse(
@@ -400,7 +397,7 @@ class WebScraper(
         }
     }
 
-    suspend fun getTrainingDetails(training: TrainingEntity,context: Context): Result<TrainingEntity> = withContext(Dispatchers.IO) {
+    suspend fun getTrainingDetails(training: TrainingEntity): Result<TrainingEntity> = withContext(Dispatchers.IO) {
         try {
             val trainingId = training.id
             val doc = fetchHtml("$baseUrl/classes/class/$trainingId?embedded=0")
@@ -566,7 +563,7 @@ class WebScraper(
     }
 
 
-    suspend fun checkBookings(context: Context) {
+    suspend fun checkBookings() {
         val calendar = Calendar.getInstance()
         val now = calendar.time.time/1000
         val bookings = scheduledBookingRepo.getAllBookings()
@@ -583,7 +580,7 @@ class WebScraper(
             while(booking.startTime<now) {
                 booking.startTime+=7*86400
             }
-            processBooking(booking, trainings,context)
+            processBooking(booking, trainings)
         }
 
     //    ListenableWorker.Result.success()
@@ -622,7 +619,7 @@ class WebScraper(
         return null
     }
 
-    suspend fun addTrainingToCalendar(training: Training, context: Context): String? {
+    suspend fun addTrainingToCalendar(training: Training): String? {
             try {
                 // Get the selected calendar ID from SessionRepository
                 val sessionRepository = SessionRepository(context)
@@ -683,7 +680,7 @@ class WebScraper(
              }
         }
 
-    suspend fun removeTrainingFromCalendar(training: TrainingEntity, context: Context) {
+    suspend fun removeTrainingFromCalendar(training: TrainingEntity) {
         try {
             val eventId = training.eventId
             if (eventId.isBlank()) {
@@ -703,12 +700,12 @@ class WebScraper(
         }
     }
 
-    private suspend fun processBooking(booking: com.swimgym.app.data.repository.ScheduledBooking, trainings: List<TrainingEntity>, context: Context) {
+    private suspend fun processBooking(booking: com.swimgym.app.data.repository.ScheduledBooking, trainings: List<TrainingEntity>) {
         try {
             val shouldBook = shouldBookNow(booking)
             if (!shouldBook) return
             val training = getNextTraining(booking.startTime, booking.className, trainings) ?: return
-            val res = getTrainingDetails(training,context)
+            val res = getTrainingDetails(training)
             val updtraining = res.getOrThrow()
             if (updtraining.isJoined) {
                 // training is already booked, skip to next
@@ -719,7 +716,7 @@ class WebScraper(
                 // training is full, retry later
                 return
             }
-            val result = bookTraining(training, context)
+            val result = bookTraining(training)
             result.fold(
                 onSuccess = {
                     scheduledBookingRepo.incrementBookingCount(booking.id, training)

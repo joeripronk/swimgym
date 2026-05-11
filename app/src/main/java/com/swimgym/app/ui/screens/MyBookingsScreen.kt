@@ -322,7 +322,9 @@ private fun ScheduledBookingCard(
 
 private fun formatTimeUntilNext(nextTime: Long): String {
     val now = System.currentTimeMillis()/1000
-    val diff = nextTime - now
+    var diff = nextTime - now - 7 * 86400
+    // if the booking was actually started from this week, adjust
+    if (diff <= 0) diff+=7 * 86400
 
     if (diff <= 0) return "soon"
 
