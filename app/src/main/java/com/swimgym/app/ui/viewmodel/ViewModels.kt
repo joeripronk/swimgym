@@ -245,21 +245,35 @@ class ScheduleViewModel(
 
     fun scheduleRecurringBooking(
         trainingId: String,
-        className: String,
+        title: String,
         startTime: Long = 0L,
         endTime: Long = 0L,
         instructor: String = "",
         maxRepeatCount: Int? = null
     ) {
         viewModelScope.launch {
+            var locstartTime=startTime
+            var locinstructor = instructor
+            var loctitle=title
+            var loctrainingId=trainingId
             val bookingId = System.currentTimeMillis()/1000
+            var training = dao.getTrainingById(trainingId)
+            if (training !=null && training!!.isJoined) {
+                training = dao.getTrainingByStartTime(startTime+7*86400)
+                if (training != null) {
+                    locstartTime+=7*86400
+                    locinstructor=training.instructor
+                    loctitle=training.title
+                    loctrainingId = training.id
+                }
+            }
             val scheduledBooking = ScheduledBooking(
                 id = bookingId,
-                trainingId = trainingId,
-                className = className,
-                startTime = startTime,
+                trainingId = loctrainingId,
+                className = loctitle,
+                startTime = locstartTime,
                 endTime = endTime,
-                instructor = instructor,
+                instructor = locinstructor,
                 maxRepeatCount = maxRepeatCount
             )
             scheduledBookingRepo.saveBooking(scheduledBooking)

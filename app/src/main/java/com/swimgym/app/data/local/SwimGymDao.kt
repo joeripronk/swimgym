@@ -27,6 +27,9 @@ interface SwimGymDao {
     @Query("SELECT * FROM trainings WHERE id = :trainingId")
     suspend fun getTrainingById(trainingId: String): TrainingEntity?
 
+    @Query("SELECT * FROM trainings WHERE startTime = :startTime")
+    suspend fun getTrainingByStartTime(startTime: Long): TrainingEntity?
+
     @Query("SELECT * FROM trainings WHERE startTime >= :startTime ORDER BY startTime ASC")
     suspend fun getTrainingsFrom(startTime: Long): List<TrainingEntity>
 
