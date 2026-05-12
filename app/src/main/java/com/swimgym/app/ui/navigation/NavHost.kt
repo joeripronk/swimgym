@@ -167,7 +167,6 @@ fun SwimGymNavigation(
                         trainingId = trainingId,
                         title = title,
                         startTime = selectedTraining?.startTime ?: 0L,
-                        endTime = selectedTraining?.endTime ?: 0L,
                         instructor = instructor,
                         maxRepeatCount = maxRepeat
                     )

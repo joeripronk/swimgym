@@ -97,7 +97,7 @@ class ScheduledBookingRepository(
     private suspend fun saveAllBookings(bookings: List<ScheduledBooking>) {
         // Simple JSON serialization
         val json = bookings.joinToString(",", "[", "]") { booking ->
-            """{"id":"${booking.id}","trainingId":"${booking.trainingId}","className":"${booking.className}","endTime":"${booking.endTime}","startTime":${booking.startTime},"instructor":"${booking.instructor}","status":"${booking.status.name}","bookedCount":${booking.bookedCount},"maxRepeatCount":${booking.maxRepeatCount ?: "null"},"createdAt":${booking.createdAt}}"""
+            """{"id":"${booking.id}","trainingId":"${booking.trainingId}","className":"${booking.className}","startTime":${booking.startTime},"instructor":"${booking.instructor}","status":"${booking.status.name}","bookedCount":${booking.bookedCount},"maxRepeatCount":${booking.maxRepeatCount ?: "null"},"createdAt":${booking.createdAt}}"""
         }
         context.scheduledBookingDataStore.edit { prefs ->
             prefs[bookingsKey] = json
@@ -114,7 +114,6 @@ class ScheduledBookingRepository(
                 val id = obj.findValue("id")?.toLongOrNull() ?: 0L
                 val trainingId = obj.findValue("trainingId")
                 val className = obj.findValue("className")
-                val endTime = obj.findValue("endTime")?.toLongOrNull() ?: 0L
                 val startTime = obj.findValue("startTime")?.toLongOrNull() ?: 0L
                 val instructor = obj.findValue("instructor") ?: ""
                 val statusStr = obj.findValue("status")
@@ -136,7 +135,6 @@ class ScheduledBookingRepository(
                             trainingId = trainingId,
                             className = className ?: "",
                             startTime = startTime,
-                            endTime = endTime,
                             instructor = instructor,
                             status = status,
                             bookedCount = bookedCount,

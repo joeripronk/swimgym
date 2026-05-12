@@ -247,7 +247,6 @@ class ScheduleViewModel(
         trainingId: String,
         title: String,
         startTime: Long = 0L,
-        endTime: Long = 0L,
         instructor: String = "",
         maxRepeatCount: Int? = null
     ) {
@@ -272,7 +271,6 @@ class ScheduleViewModel(
                 trainingId = loctrainingId,
                 className = loctitle,
                 startTime = locstartTime,
-                endTime = endTime,
                 instructor = locinstructor,
                 maxRepeatCount = maxRepeatCount
             )

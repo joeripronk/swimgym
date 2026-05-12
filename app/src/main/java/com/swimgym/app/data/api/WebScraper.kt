@@ -28,6 +28,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.internal.toLongOrDefault
 import org.jsoup.Jsoup
 import java.text.SimpleDateFormat
 import java.time.DayOfWeek
@@ -129,8 +130,20 @@ class WebScraper(
         builder.addHeader("User-Agent", userAgent)
         return builder
     }
-
+    fun loggedin(): Boolean {
+        try {
+            var lid: Long = 0
+            if (cookies.contains("virtuagym_u")) {
+                val uid = cookies.get("virtuagym_u")
+                lid = uid?.toLongOrDefault(1L)!!
+            }
+            return lid>1
+        } catch(e: Exception) {
+        }
+        return false
+    }
     private suspend fun fetchHtml(url: String): org.jsoup.nodes.Document {
+        if (!loggedin()) return Jsoup.parse("");
         val request = buildRequest(url)
             .method("GET", null)
             .build()
@@ -149,20 +162,24 @@ class WebScraper(
 
     private suspend fun extractCookiesFromResponse(response: okhttp3.Response) {
         var nextiscookie = false
-        val newCookies = response.headers.filter {
+        val newCookies: Map<String, String> = response.headers.filter {
             it.first.lowercase().equals("set-cookie")
-        }.map {
+        }.associate {
             parseCookie(it.second)
+
         }
 
-          /*  .filter { it.key.lowercase().startsWith("set-cookie") }
-            .mapValues { it.value.firstOrNull() ?: "" }
-            .map { parseCookie(it.value) }
-            .toMap()
-        */
-        if (newCookies.isNotEmpty()) {
-            cookies += newCookies
-            saveCookiesToCache()
+        /*  .filter { it.key.lowercase().startsWith("set-cookie") }
+          .mapValues { it.value.firstOrNull() ?: "" }
+          .map { parseCookie(it.value) }
+          .toMap()
+      */
+        if (!newCookies.contains("virtuagym_u")) {
+                cookies += newCookies
+                saveCookiesToCache()
+        } else {
+            val uid = newCookies.get("virtuagym_u")
+            throw Exception("uid=${uid} is ignored")
         }
     }
 

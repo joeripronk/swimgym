@@ -12,7 +12,6 @@ data class ScheduledBooking(
     val trainingId: String,
     val className: String,
     var startTime: Long,
-    val endTime: Long,
     val instructor: String = "",
     val status: ScheduledBookingStatus = ScheduledBookingStatus.ACTIVE,
     val bookedCount: Int = 0,
