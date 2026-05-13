@@ -6,10 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import com.swimgym.app.MainActivity
 import com.swimgym.app.R
 import java.text.SimpleDateFormat
@@ -123,10 +121,6 @@ class BookingNotificationManager(
     }
 
     private fun hasNotificationPermission(context: Context): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
-        }
+        return PermissionHelper.hasNotificationPermission(context)
     }
 }
