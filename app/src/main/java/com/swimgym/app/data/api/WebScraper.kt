@@ -177,12 +177,15 @@ class WebScraper(
           .map { parseCookie(it.value) }
           .toMap()
       */
-        if (!newCookies.contains("virtuagym_u")) {
-                cookies += newCookies
-                saveCookiesToCache()
-        } else {
+        if (newCookies.contains("virtuagym_u")) {
             val uid = newCookies.get("virtuagym_u")
-            throw Exception("uid=${uid} is ignored")
+            if (uid?.toLongOrDefault(0L)==1L) {
+                throw Exception("uid=${uid} is ignored")
+            }
+        } else {
+            cookies += newCookies
+            saveCookiesToCache()
+
         }
     }
 
@@ -424,6 +427,9 @@ class WebScraper(
 
             val title =
                 doc.selectFirst(".modal-title-replacement, .class-info .class-name")?.text() ?: ""
+            if (title.isNullOrEmpty()) {
+                throw Exception("failed to fetch data")
+            }
             val instructorLink =
                 doc.selectFirst(".event-details-icon a[href^=/userid]")?.attr("href") ?: ""
             val instructor =
