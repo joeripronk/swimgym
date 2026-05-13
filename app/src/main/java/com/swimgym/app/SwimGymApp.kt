@@ -37,7 +37,7 @@ class SwimGymApp : Application() {
 
         // Schedule periodic schedule sync every 30 minutes
         val scheduleSyncRequest = PeriodicWorkRequestBuilder<ScheduleSyncWorker>(
-            60, TimeUnit.MINUTES
+            1440, TimeUnit.MINUTES
         ).build()
 
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(

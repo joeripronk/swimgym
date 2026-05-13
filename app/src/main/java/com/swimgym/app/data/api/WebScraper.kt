@@ -115,10 +115,7 @@ class WebScraper(
 
     private suspend fun buildRequest(url: String): Request.Builder {
         val builder = Request.Builder().url(url)
-        if (cookies.isNullOrEmpty()) {
-            loadFromCache()
-        //           return Jsoup.parse("")
-        }
+        loadCookiesFromCache()
         var cookieheader= ""
         for ((name, value) in cookies) {
             //if (name.contains("virtuagym")) {
@@ -130,10 +127,10 @@ class WebScraper(
         builder.addHeader("User-Agent", userAgent)
         return builder
     }
-    suspend fun loggedin(): Boolean {
-        if(cookies.isNullOrEmpty()) {
-            loadFromCache()
-        }
+    fun loggedin(): Boolean {
+        //if(cookies.isNullOrEmpty()) {
+            //loadFromCache()
+        //}
         try {
             var lid: Long = 0
             if (cookies.contains("virtuagym_u")) {
@@ -146,7 +143,10 @@ class WebScraper(
         return false
     }
     private suspend fun fetchHtml(url: String): org.jsoup.nodes.Document {
-        if (!loggedin()) return Jsoup.parse("");
+      //  if (!loggedin()) {
+      //      throw Exception("not logged in")
+      //      //return Jsoup.parse("")
+      //  }
         val request = buildRequest(url)
             .method("GET", null)
             .build()
@@ -199,11 +199,6 @@ class WebScraper(
             repeat(weeks) { weekOffset ->
                 val formattedDate =LocalDate.now(ZoneId.systemDefault()) .minusWeeks(1-weekOffset.toLong()) .with(TemporalAdjusters.nextOrSame(
                     DayOfWeek.MONDAY))
-
-
-
-          //      val formattedDate =
-         //         SimpleDateFormat("yyyy-MM-dd", startofweek)
 
                 val url = "$baseUrl/classes/week/$formattedDate?event_type=8"
                 //val url = if (activityId.isNotEmpty()) "$base&$activityId" else base
