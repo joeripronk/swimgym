@@ -130,7 +130,10 @@ class WebScraper(
         builder.addHeader("User-Agent", userAgent)
         return builder
     }
-    fun loggedin(): Boolean {
+    suspend fun loggedin(): Boolean {
+        if(cookies.isNullOrEmpty()) {
+            loadFromCache()
+        }
         try {
             var lid: Long = 0
             if (cookies.contains("virtuagym_u")) {
