@@ -22,7 +22,8 @@ data class SettingsUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val reminderConfig: ReminderConfig = ReminderConfig(),
-    val calendarPermissionDenied: Boolean = false
+    val calendarPermissionDenied: Boolean = false,
+    val hideFullyBooked: Boolean = false
 )
 
 class SettingsViewModel(
@@ -36,6 +37,7 @@ class SettingsViewModel(
     init {
         loadCalendars()
         loadReminderSettings()
+        loadHideFullyBookedSetting()
         viewModelScope.launch {
             sessionRepository.selectedCalendar.collect { calendar ->
                 if (calendar != null) {
@@ -67,6 +69,20 @@ class SettingsViewModel(
                     )
                 )
             }
+        }
+    }
+
+    private fun loadHideFullyBookedSetting() {
+        viewModelScope.launch {
+            val hideFullyBooked = sessionRepository.getHideFullyBooked()
+            _uiState.update { it.copy(hideFullyBooked = hideFullyBooked) }
+        }
+    }
+
+    fun setHideFullyBooked(hide: Boolean) {
+        viewModelScope.launch {
+            sessionRepository.saveHideFullyBooked(hide)
+            _uiState.update { it.copy(hideFullyBooked = hide) }
         }
     }
 

@@ -26,6 +26,7 @@ class SessionRepository(
         private val REMINDER_MINUTES = stringPreferencesKey("reminder_minutes")
         private val REMINDER_ENABLED = stringPreferencesKey("reminder_enabled")
         private val REMINDER_TIMES = stringPreferencesKey("reminder_times")
+        private val HIDE_FULLY_BOOKED = stringPreferencesKey("hide_fully_booked")
         private val COOKIES = stringPreferencesKey("cookies")
         private val USER_AGENT = stringPreferencesKey("user_agent")
     }
@@ -93,6 +94,18 @@ class SessionRepository(
                     .mapNotNull { it.trim().toIntOrNull() }
                     .filter { it > 0 }
             } ?: emptyList()
+    }
+
+    suspend fun saveHideFullyBooked(hide: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[HIDE_FULLY_BOOKED] = hide.toString()
+        }
+    }
+
+    suspend fun getHideFullyBooked(): Boolean {
+        return context.dataStore.data
+            .map { it[HIDE_FULLY_BOOKED]?.toBoolean() ?: false }
+            .first()
     }
 
     suspend fun clearSession() {

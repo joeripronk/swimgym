@@ -87,12 +87,30 @@ class ScheduleViewModel(
         }
         observeBookings()
         observeSyncStatus()
+        observeHideFullyBooked()
     }
 
     private fun observeSyncStatus() {
         viewModelScope.launch {
             getSyncStatusUseCase().collect { syncStatus: SyncStatus ->
                 _uiState.update { it.copy(syncStatus = syncStatus) }
+            }
+        }
+    }
+    
+    private fun observeHideFullyBooked() {
+        viewModelScope.launch {
+            // Create a flow that periodically checks for changes
+            kotlinx.coroutines.flow.flow {
+                while (true) {
+                    emit(sessionRepository.getHideFullyBooked())
+                    kotlinx.coroutines.delay(2000)
+                }
+            }.distinctUntilChanged().collect { hideFullyBooked ->
+                if (hideFullyBooked != _uiState.value.hideFullyBooked) {
+                    _uiState.update { it.copy(hideFullyBooked = hideFullyBooked) }
+                    loadSchedule(_uiState.value.selectedLevel, hideFullyBooked)
+                }
             }
         }
     }
