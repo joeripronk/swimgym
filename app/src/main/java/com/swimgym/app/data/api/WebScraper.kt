@@ -179,16 +179,17 @@ class WebScraper(
           .map { parseCookie(it.value) }
           .toMap()
       */
-        cookies += newCookies
-        saveCookiesToCache()
-
         if (newCookies.contains("virtuagym_u")) {
             val uid = newCookies.get("virtuagym_u")
             if (uid?.toLongOrDefault(0L)==1L) {
-               triggerLoginRequired()
-               throw Exception("you are logged out")
+                triggerLoginRequired()
+                throw Exception("you are logged out")
             }
         }
+        cookies += newCookies
+        saveCookiesToCache()
+
+
     }
 
    suspend fun getSchedule(
@@ -768,9 +769,7 @@ class WebScraper(
     private fun shouldBookNow(booking: com.swimgym.app.data.repository.ScheduledBooking): Boolean {
         val calendar = Calendar.getInstance()
         val now=calendar.time.time/1000
-        val next=booking.startTime //-(7 * 86400)
-        val diff=(next-now)/86400
-        //if (diff<7)
+        val next=booking.startTime
         return next < now + 7 * 86400 && next>now+86400
     }
 }

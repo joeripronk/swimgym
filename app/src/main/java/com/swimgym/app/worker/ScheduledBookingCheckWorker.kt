@@ -18,7 +18,6 @@ class ScheduledBookingCheckWorker(
             runBlocking {
                 webScraper.checkBookings()
             }
-
             Result.success()
         } catch (e: Exception) {
             Result.retry()
