@@ -10,6 +10,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -20,12 +22,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Notifications
@@ -551,6 +549,10 @@ fun SettingsScreen(
                             "Sunday" to 6
                         )
 
+                        var showTimePicker by remember { mutableStateOf(false) }
+                        var selectedDayIndex by remember { mutableStateOf(-1) }
+                        var selectedTimeType by remember { mutableStateOf("start") }
+                        
                         LazyColumn(
                             modifier = Modifier.height(350.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -577,71 +579,164 @@ fun SettingsScreen(
                                 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    Switch(
+                                        checked = isEnabled,
+                                        onCheckedChange = { 
+                                            viewModel.setWorkTimeEnabledForDay(dayIndex, it)
+                                        },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                                            uncheckedThumbColor = MaterialTheme.colorScheme.error,
+                                            uncheckedTrackColor = MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
+                                        )
+                                    )
+                                    
                                     Text(
                                         text = dayName,
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                     
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        OutlinedTextField(
-                                            value = times.first,
-                                            onValueChange = { 
-                                                if (it.matches(Regex("\\d{2}:\\d{2}"))) {
-                                                    viewModel.setWorkTimeForDay(dayIndex, it, times.second)
+                                        Text(
+                                            text = times.first,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = if (isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                            modifier = Modifier
+                                                .padding(horizontal = 4.dp)
+                                                .clickable {
+                                                    selectedDayIndex = dayIndex
+                                                    selectedTimeType = "start"
+                                                    showTimePicker = true
                                                 }
-                                            },
-                                            modifier = Modifier.width(70.dp),
-                                            singleLine = true,
-                                            placeholder = { Text("08:00") },
-                                            enabled = isEnabled,
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                disabledBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                                                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                                            )
                                         )
                                         Text("to")
-                                        OutlinedTextField(
-                                            value = times.second,
-                                            onValueChange = { 
-                                                if (it.matches(Regex("\\d{2}:\\d{2}"))) {
-                                                    viewModel.setWorkTimeForDay(dayIndex, times.first, it)
+                                        Text(
+                                            text = times.second,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = if (isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                            modifier = Modifier
+                                                .padding(horizontal = 4.dp)
+                                                .clickable {
+                                                    selectedDayIndex = dayIndex
+                                                    selectedTimeType = "end"
+                                                    showTimePicker = true
                                                 }
-                                            },
-                                            modifier = Modifier.width(70.dp),
-                                            singleLine = true,
-                                            placeholder = { Text("18:00") },
-                                            enabled = isEnabled,
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                disabledBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                                                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                                            )
-                                        )
-                                        
-                                        Switch(
-                                            checked = isEnabled,
-                                            onCheckedChange = { 
-                                                viewModel.setWorkTimeEnabledForDay(dayIndex, it)
-                                            },
-                                            colors = SwitchDefaults.colors(
-                                                checkedThumbColor = MaterialTheme.colorScheme.primary,
-                                                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                                                uncheckedThumbColor = MaterialTheme.colorScheme.error,
-                                                uncheckedTrackColor = MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
-                                            )
                                         )
                                     }
                                 }
                             }
+                        }
+                        
+                        if (showTimePicker && selectedDayIndex >= 0) {
+                            val currentTimes = when (selectedDayIndex) {
+                                0 -> uiState.workTimeConfig.monday
+                                1 -> uiState.workTimeConfig.tuesday
+                                2 -> uiState.workTimeConfig.wednesday
+                                3 -> uiState.workTimeConfig.thursday
+                                4 -> uiState.workTimeConfig.friday
+                                5 -> uiState.workTimeConfig.saturday
+                                else -> uiState.workTimeConfig.sunday
+                            }
+                            val initialHour = currentTimes.first.split(":").getOrNull(0)?.toIntOrNull() ?: 9
+                            val initialMinute = currentTimes.first.split(":").getOrNull(1)?.toIntOrNull() ?: 0
+                            
+                            TimePickerDialog(
+                                onDismissRequest = { showTimePicker = false },
+                                onTimeSelected = { hours, minutes ->
+                                    val timeStr = String.format("%02d:%02d", hours, minutes)
+                                    if (selectedTimeType == "start") {
+                                        viewModel.setWorkTimeForDay(selectedDayIndex, timeStr, currentTimes.second)
+                                    } else {
+                                        viewModel.setWorkTimeForDay(selectedDayIndex, currentTimes.first, timeStr)
+                                    }
+                                    showTimePicker = false
+                                },
+                                initialHour = initialHour,
+                                initialMinute = if (selectedTimeType == "end") currentTimes.second.split(":").getOrNull(1)?.toIntOrNull() ?: 0 else initialMinute
+                            )
                         }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+fun TimePickerDialog(
+    onDismissRequest: () -> Unit,
+    onTimeSelected: (Int, Int) -> Unit,
+    initialHour: Int = 9,
+    initialMinute: Int = 0
+) {
+    var hour by remember { mutableStateOf(initialHour) }
+    var minute by remember { mutableStateOf(initialMinute) }
+    
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text("Select Time") },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    for (h in 0..23) {
+                        val isSelected = h == hour
+                        Button(
+                            onClick = { hour = h },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("$h")
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    for (m in (0..59 step 5)) {
+                        val isSelected = m == minute
+                        Button(
+                            onClick = { minute = m },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("$m")
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onTimeSelected(hour, minute) }) {
+                Text("OK")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text("Cancel")
+            }
+        }
+    )
 }
