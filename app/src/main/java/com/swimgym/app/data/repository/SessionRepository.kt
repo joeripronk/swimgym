@@ -25,6 +25,7 @@ class SessionRepository(
         private val SELECTED_CALENDAR_ID = stringPreferencesKey("selected_calendar_id")
         private val REMINDER_MINUTES = stringPreferencesKey("reminder_minutes")
         private val REMINDER_ENABLED = stringPreferencesKey("reminder_enabled")
+        private val REMINDER_TIMES = stringPreferencesKey("reminder_times")
         private val COOKIES = stringPreferencesKey("cookies")
         private val USER_AGENT = stringPreferencesKey("user_agent")
     }
@@ -75,6 +76,23 @@ class SessionRepository(
             prefs[REMINDER_MINUTES] = minutes.toString()
             prefs[REMINDER_ENABLED] = enabled.toString()
         }
+    }
+
+    suspend fun saveReminderTimes(times: List<Int>) {
+        context.dataStore.edit { prefs ->
+            prefs[REMINDER_TIMES] = times.joinToString(",")
+        }
+    }
+
+    suspend fun getReminderTimes(): List<Int> {
+        return context.dataStore.data
+            .map { it[REMINDER_TIMES] }
+            .first()?.let { timesStr ->
+                if (timesStr.isNullOrBlank()) emptyList()
+                else timesStr.split(",")
+                    .mapNotNull { it.trim().toIntOrNull() }
+                    .filter { it > 0 }
+            } ?: emptyList()
     }
 
     suspend fun clearSession() {

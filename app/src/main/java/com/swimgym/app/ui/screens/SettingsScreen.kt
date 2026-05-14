@@ -78,6 +78,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .padding(padding)
                 .padding(16.dp)
+                .verticalScroll(MutableStateFlow(0).asStateFlow().stateIn(viewModelScope) ?: MutableScrollState())
         ) {
             Text(
                 text = "Default Calendar",
@@ -317,7 +318,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "Enable reminders",
+                        text = "Select preset reminder times (can select multiple):",
                         style = MaterialTheme.typography.bodySmall
                     )
 
@@ -325,30 +326,98 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        TextButton(onClick = { viewModel.setReminderConfig(15, true) }) {
-                            Text("15 minutes before")
+                        TextButton(onClick = { viewModel.addReminderTime(5) }) {
+                            Text("5 min")
                         }
-                        TextButton(onClick = { viewModel.setReminderConfig(30, true) }) {
-                            Text("30 minutes before")
+                        TextButton(onClick = { viewModel.addReminderTime(15) }) {
+                            Text("15 min")
                         }
-                        TextButton(onClick = { viewModel.setReminderConfig(60, true) }) {
-                            Text("1 hour before")
+                        TextButton(onClick = { viewModel.addReminderTime(30) }) {
+                            Text("30 min")
+                        }
+                        TextButton(onClick = { viewModel.addReminderTime(60) }) {
+                            Text("1 hour")
                         }
                     }
 
-                    TextButton(onClick = { viewModel.setReminderConfig(0, false) }) {
-                        Text("Disable reminders")
+                    Text(
+                        text = "Custom time (minutes before):",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        var customTime by remember { mutableStateOf("10") }
+                        OutlinedTextField(
+                            value = customTime,
+                            onValueChange = { customTime = it.filter { c -> c.isDigit() } },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            placeholder = { Text("e.g. 10") },
+                            enabled = true
+                        )
+                        Button(
+                            onClick = {
+                                customTime.toIntOrNull()?.let { time ->
+                                    if (time > 0) viewModel.addReminderTime(time)
+                                }
+                            }
+                        ) {
+                            Text("Add")
+                        }
                     }
 
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Text(
-                        text = "Configured: ${uiState.reminderConfig.reminderMinutesBefore} minutes before",
+                        text = "Current reminders:",
                         style = MaterialTheme.typography.bodySmall
                     )
 
-                    Text(
-                        text = "Reminders enabled: ${uiState.reminderConfig.reminderEnabled}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    if (uiState.reminderConfig.reminderTimes.isEmpty()) {
+                        Text(
+                            text = "No reminders configured",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        uiState.reminderConfig.reminderTimes.forEach { time ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "$time minutes before",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                IconButton(
+                                    onClick = { viewModel.removeReminderTime(time) }
+                                ) {
+                                    Text("✕", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TextButton(onClick = { viewModel.setReminderConfig(0, false) }) {
+                            Text("Disable all reminders")
+                        }
+                        TextButton(onClick = { 
+                            viewModel.setReminderTimes(emptyList()) 
+                            viewModel.setReminderConfig(30, true)
+                        }) {
+                            Text("Reset to default (30 min)")
+                        }
+                    }
                 }
             }
         }

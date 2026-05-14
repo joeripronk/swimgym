@@ -10,7 +10,9 @@ import kotlinx.coroutines.launch
 
 data class ReminderConfig(
     val reminderMinutesBefore: Int = 30,
-    val reminderEnabled: Boolean = true
+    val reminderEnabled: Boolean = true,
+    val reminderTimes: List<Int> = emptyList(),
+    val customTimeEnabled: Boolean = false
 )
 
 data class SettingsUiState(
@@ -33,6 +35,7 @@ class SettingsViewModel(
 
     init {
         loadCalendars()
+        loadReminderSettings()
         viewModelScope.launch {
             sessionRepository.selectedCalendar.collect { calendar ->
                 if (calendar != null) {
@@ -45,6 +48,24 @@ class SettingsViewModel(
                 if (calendarId != null) {
                     _uiState.update { it.copy(selectedCalendarId = calendarId) }
                 }
+            }
+        }
+    }
+
+    private fun loadReminderSettings() {
+        viewModelScope.launch {
+            val times = sessionRepository.getReminderTimes()
+            val enabled = sessionRepository.getReminderEnabled()
+            val minutes = sessionRepository.getReminderMinutes()
+            _uiState.update {
+                it.copy(
+                    reminderConfig = ReminderConfig(
+                        reminderMinutesBefore = minutes,
+                        reminderEnabled = enabled,
+                        reminderTimes = if (times.isNotEmpty()) times else listOf(minutes),
+                        customTimeEnabled = times.isNotEmpty() && (times.size > 1 || times.first() != 30)
+                    )
+                )
             }
         }
     }
@@ -86,7 +107,42 @@ class SettingsViewModel(
     fun setReminderConfig(minutes: Int, enabled: Boolean) {
         viewModelScope.launch {
             sessionRepository.saveReminderConfig(minutes, enabled)
-            _uiState.update { it.copy(reminderConfig = ReminderConfig(minutes, enabled)) }
+            _uiState.update { it.copy(reminderConfig = ReminderConfig(minutes, enabled, emptyList(), false)) }
+        }
+    }
+
+    fun setReminderTimes(times: List<Int>, customEnabled: Boolean = true) {
+        viewModelScope.launch {
+            sessionRepository.saveReminderTimes(times)
+            _uiState.update { 
+                it.copy(
+                    reminderConfig = ReminderConfig(
+                        reminderMinutesBefore = times.firstOrNull() ?: 30,
+                        reminderEnabled = times.isNotEmpty(),
+                        reminderTimes = times,
+                        customTimeEnabled = customEnabled
+                    )
+                )
+            }
+        }
+    }
+
+    fun addReminderTime(minutes: Int) {
+        viewModelScope.launch {
+            val currentTimes = _uiState.value.reminderConfig.reminderTimes.toMutableList()
+            if (!currentTimes.contains(minutes)) {
+                currentTimes.add(minutes)
+                currentTimes.sort()
+                setReminderTimes(currentTimes)
+            }
+        }
+    }
+
+    fun removeReminderTime(minutes: Int) {
+        viewModelScope.launch {
+            val currentTimes = _uiState.value.reminderConfig.reminderTimes.toMutableList()
+            currentTimes.remove(minutes)
+            setReminderTimes(currentTimes)
         }
     }
 }

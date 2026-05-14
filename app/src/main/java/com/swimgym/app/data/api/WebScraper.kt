@@ -653,8 +653,8 @@ class WebScraper(
                     return null
                 }
                 // Get reminder settings
-                val reminderMinutes = sessionRepository.getReminderMinutes()
                 val reminderEnabled = sessionRepository.getReminderEnabled()
+                val reminderTimes = sessionRepository.getReminderTimes()
                 
                 val values = ContentValues().apply {
                     put(CalendarContract.Events.DTSTART, training.startTime*1000)
@@ -670,7 +670,7 @@ class WebScraper(
                     )
                     put(CalendarContract.Events.CALENDAR_ID, selectedCalendarId)
                     put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
-                    if (reminderEnabled && reminderMinutes > 0) {
+                    if (reminderEnabled && reminderTimes.isNotEmpty()) {
                         put(Events.HAS_ALARM, true);
                     }
                 }
@@ -686,14 +686,18 @@ class WebScraper(
                 )
                 dao.insertTraining(updatedTraining)
 
-                // Add reminder if enabled
-                if (reminderEnabled && reminderMinutes > 0) {
-                    val reminderValues = ContentValues().apply {
-                        put(CalendarContract.Reminders.EVENT_ID, eventId.toLong())
-                        put(CalendarContract.Reminders.MINUTES, reminderMinutes)
-                        put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+                // Add reminders for each configured time
+                if (reminderEnabled && reminderTimes.isNotEmpty()) {
+                    for (minutes in reminderTimes) {
+                        if (minutes > 0) {
+                            val reminderValues = ContentValues().apply {
+                                put(CalendarContract.Reminders.EVENT_ID, eventId.toLong())
+                                put(CalendarContract.Reminders.MINUTES, minutes)
+                                put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+                            }
+                            context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
+                        }
                     }
-                    context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
                 }
 
             return eventId
