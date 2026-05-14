@@ -552,7 +552,7 @@ fun SettingsScreen(
                         )
 
                         LazyColumn(
-                            modifier = Modifier.height(300.dp),
+                            modifier = Modifier.height(350.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             items(days) { (dayName, dayIndex) ->
@@ -565,7 +565,15 @@ fun SettingsScreen(
                                     5 -> uiState.workTimeConfig.saturday
                                     else -> uiState.workTimeConfig.sunday
                                 }
-                                var timePickerVisible by remember { mutableStateOf(false) }
+                                val isEnabled = when (dayIndex) {
+                                    0 -> uiState.workTimeConfig.mondayEnabled
+                                    1 -> uiState.workTimeConfig.tuesdayEnabled
+                                    2 -> uiState.workTimeConfig.wednesdayEnabled
+                                    3 -> uiState.workTimeConfig.thursdayEnabled
+                                    4 -> uiState.workTimeConfig.fridayEnabled
+                                    5 -> uiState.workTimeConfig.saturdayEnabled
+                                    else -> uiState.workTimeConfig.sundayEnabled
+                                }
                                 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -578,7 +586,8 @@ fun SettingsScreen(
                                     )
                                     
                                     Row(
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         OutlinedTextField(
                                             value = times.first,
@@ -587,10 +596,14 @@ fun SettingsScreen(
                                                     viewModel.setWorkTimeForDay(dayIndex, it, times.second)
                                                 }
                                             },
-                                            modifier = Modifier.width(80.dp),
+                                            modifier = Modifier.width(70.dp),
                                             singleLine = true,
                                             placeholder = { Text("08:00") },
-                                            enabled = true
+                                            enabled = isEnabled,
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                disabledBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                            )
                                         )
                                         Text("to")
                                         OutlinedTextField(
@@ -600,10 +613,27 @@ fun SettingsScreen(
                                                     viewModel.setWorkTimeForDay(dayIndex, times.first, it)
                                                 }
                                             },
-                                            modifier = Modifier.width(80.dp),
+                                            modifier = Modifier.width(70.dp),
                                             singleLine = true,
                                             placeholder = { Text("18:00") },
-                                            enabled = true
+                                            enabled = isEnabled,
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                disabledBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                                disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                            )
+                                        )
+                                        
+                                        Switch(
+                                            checked = isEnabled,
+                                            onCheckedChange = { 
+                                                viewModel.setWorkTimeEnabledForDay(dayIndex, it)
+                                            },
+                                            colors = SwitchDefaults.colors(
+                                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
+                                                uncheckedThumbColor = MaterialTheme.colorScheme.error,
+                                                uncheckedTrackColor = MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
+                                            )
                                         )
                                     }
                                 }

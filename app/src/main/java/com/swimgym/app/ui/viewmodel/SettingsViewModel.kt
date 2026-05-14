@@ -18,12 +18,19 @@ data class ReminderConfig(
 data class WorkTimeConfig(
     val enabled: Boolean = false,
     val monday: Pair<String, String> = Pair("08:00", "18:00"),
+    val mondayEnabled: Boolean = true,
     val tuesday: Pair<String, String> = Pair("08:00", "18:00"),
+    val tuesdayEnabled: Boolean = true,
     val wednesday: Pair<String, String> = Pair("08:00", "18:00"),
+    val wednesdayEnabled: Boolean = true,
     val thursday: Pair<String, String> = Pair("08:00", "18:00"),
+    val thursdayEnabled: Boolean = true,
     val friday: Pair<String, String> = Pair("08:00", "18:00"),
+    val fridayEnabled: Boolean = true,
     val saturday: Pair<String, String> = Pair("08:00", "18:00"),
-    val sunday: Pair<String, String> = Pair("08:00", "18:00")
+    val saturdayEnabled: Boolean = false,
+    val sunday: Pair<String, String> = Pair("08:00", "18:00"),
+    val sundayEnabled: Boolean = false
 )
 
 data class SettingsUiState(
@@ -96,23 +103,37 @@ class SettingsViewModel(
         viewModelScope.launch {
             val enabled = sessionRepository.getWorkTimeFilterEnabled()
             val monday = sessionRepository.getWorkTimeForDay(0)
+            val mondayEnabled = sessionRepository.getWorkTimeEnabledForDay(0)
             val tuesday = sessionRepository.getWorkTimeForDay(1)
+            val tuesdayEnabled = sessionRepository.getWorkTimeEnabledForDay(1)
             val wednesday = sessionRepository.getWorkTimeForDay(2)
+            val wednesdayEnabled = sessionRepository.getWorkTimeEnabledForDay(2)
             val thursday = sessionRepository.getWorkTimeForDay(3)
+            val thursdayEnabled = sessionRepository.getWorkTimeEnabledForDay(3)
             val friday = sessionRepository.getWorkTimeForDay(4)
+            val fridayEnabled = sessionRepository.getWorkTimeEnabledForDay(4)
             val saturday = sessionRepository.getWorkTimeForDay(5)
+            val saturdayEnabled = sessionRepository.getWorkTimeEnabledForDay(5)
             val sunday = sessionRepository.getWorkTimeForDay(6)
+            val sundayEnabled = sessionRepository.getWorkTimeEnabledForDay(6)
             _uiState.update {
                 it.copy(
                     workTimeConfig = WorkTimeConfig(
                         enabled = enabled,
                         monday = monday,
+                        mondayEnabled = mondayEnabled,
                         tuesday = tuesday,
+                        tuesdayEnabled = tuesdayEnabled,
                         wednesday = wednesday,
+                        wednesdayEnabled = wednesdayEnabled,
                         thursday = thursday,
+                        thursdayEnabled = thursdayEnabled,
                         friday = friday,
+                        fridayEnabled = fridayEnabled,
                         saturday = saturday,
-                        sunday = sunday
+                        saturdayEnabled = saturdayEnabled,
+                        sunday = sunday,
+                        sundayEnabled = sundayEnabled
                     )
                 )
             }
@@ -149,6 +170,24 @@ class SettingsViewModel(
                 4 -> currentConfig.copy(friday = Pair(startTime, endTime))
                 5 -> currentConfig.copy(saturday = Pair(startTime, endTime))
                 6 -> currentConfig.copy(sunday = Pair(startTime, endTime))
+                else -> currentConfig
+            }
+            _uiState.update { it.copy(workTimeConfig = newConfig) }
+        }
+    }
+
+    fun setWorkTimeEnabledForDay(day: Int, enabled: Boolean) {
+        viewModelScope.launch {
+            sessionRepository.saveWorkTimeEnabledForDay(day, enabled)
+            val currentConfig = _uiState.value.workTimeConfig
+            val newConfig = when (day) {
+                0 -> currentConfig.copy(mondayEnabled = enabled)
+                1 -> currentConfig.copy(tuesdayEnabled = enabled)
+                2 -> currentConfig.copy(wednesdayEnabled = enabled)
+                3 -> currentConfig.copy(thursdayEnabled = enabled)
+                4 -> currentConfig.copy(fridayEnabled = enabled)
+                5 -> currentConfig.copy(saturdayEnabled = enabled)
+                6 -> currentConfig.copy(sundayEnabled = enabled)
                 else -> currentConfig
             }
             _uiState.update { it.copy(workTimeConfig = newConfig) }

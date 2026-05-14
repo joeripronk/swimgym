@@ -29,12 +29,19 @@ class SessionRepository(
         private val HIDE_FULLY_BOOKED = stringPreferencesKey("hide_fully_booked")
         private val WORK_TIME_FILTER_ENABLED = stringPreferencesKey("work_time_filter_enabled")
         private val WORK_TIME_MONDAY = stringPreferencesKey("work_time_monday")
+        private val WORK_TIME_MONDAY_ENABLED = stringPreferencesKey("work_time_monday_enabled")
         private val WORK_TIME_TUESDAY = stringPreferencesKey("work_time_tuesday")
+        private val WORK_TIME_TUESDAY_ENABLED = stringPreferencesKey("work_time_tuesday_enabled")
         private val WORK_TIME_WEDNESDAY = stringPreferencesKey("work_time_wednesday")
+        private val WORK_TIME_WEDNESDAY_ENABLED = stringPreferencesKey("work_time_wednesday_enabled")
         private val WORK_TIME_THURSDAY = stringPreferencesKey("work_time_thursday")
+        private val WORK_TIME_THURSDAY_ENABLED = stringPreferencesKey("work_time_thursday_enabled")
         private val WORK_TIME_FRIDAY = stringPreferencesKey("work_time_friday")
+        private val WORK_TIME_FRIDAY_ENABLED = stringPreferencesKey("work_time_friday_enabled")
         private val WORK_TIME_SATURDAY = stringPreferencesKey("work_time_saturday")
+        private val WORK_TIME_SATURDAY_ENABLED = stringPreferencesKey("work_time_saturday_enabled")
         private val WORK_TIME_SUNDAY = stringPreferencesKey("work_time_sunday")
+        private val WORK_TIME_SUNDAY_ENABLED = stringPreferencesKey("work_time_sunday_enabled")
         private val COOKIES = stringPreferencesKey("cookies")
         private val USER_AGENT = stringPreferencesKey("user_agent")
     }
@@ -161,6 +168,38 @@ class SessionRepository(
                 val parts = timeStr.split("|")
                 if (parts.size == 2) Pair(parts[0], parts[1]) else Pair("08:00", "18:00")
             } ?: Pair("08:00", "18:00")
+    }
+
+    suspend fun saveWorkTimeEnabledForDay(day: Int, enabled: Boolean) {
+        val key = when (day) {
+            0 -> WORK_TIME_MONDAY_ENABLED
+            1 -> WORK_TIME_TUESDAY_ENABLED
+            2 -> WORK_TIME_WEDNESDAY_ENABLED
+            3 -> WORK_TIME_THURSDAY_ENABLED
+            4 -> WORK_TIME_FRIDAY_ENABLED
+            5 -> WORK_TIME_SATURDAY_ENABLED
+            6 -> WORK_TIME_SUNDAY_ENABLED
+            else -> WORK_TIME_MONDAY_ENABLED
+        }
+        context.dataStore.edit { prefs ->
+            prefs[key] = enabled.toString()
+        }
+    }
+
+    suspend fun getWorkTimeEnabledForDay(day: Int): Boolean {
+        val key = when (day) {
+            0 -> WORK_TIME_MONDAY_ENABLED
+            1 -> WORK_TIME_TUESDAY_ENABLED
+            2 -> WORK_TIME_WEDNESDAY_ENABLED
+            3 -> WORK_TIME_THURSDAY_ENABLED
+            4 -> WORK_TIME_FRIDAY_ENABLED
+            5 -> WORK_TIME_SATURDAY_ENABLED
+            6 -> WORK_TIME_SUNDAY_ENABLED
+            else -> WORK_TIME_MONDAY_ENABLED
+        }
+        return context.dataStore.data
+            .map { it[key]?.toBoolean() ?: (day < 5) } // Monday-Friday enabled by default
+            .first()
     }
 
     suspend fun clearSession() {
