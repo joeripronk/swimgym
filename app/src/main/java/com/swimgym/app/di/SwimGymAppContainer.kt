@@ -25,12 +25,12 @@ class SwimGymAppContainer private constructor() {
             scheduledBookingRepo = scheduledBookingRepository,
             notificationManager = bookingNotificationManager,
             context = context
-        ).apply {
+        )/*.apply {
             // Load cached User-Agent and cookies on initialization
             runBlocking {
                 loadFromCache()
             }
-        }
+        }*/
     }
     
     val trainingRepository: TrainingRepository by lazy {

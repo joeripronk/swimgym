@@ -51,7 +51,6 @@ class WebScraper(
         .readTimeout(30, TimeUnit.SECONDS)
         .followRedirects(true)
         .build()
-    private var logintime: Long = 0
     private val baseUrl = "https://swimgym.virtuagym.com"
     private var mobileuserAgent: String = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Mobile Safari/537.36"
     private var userAgent: String = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -59,6 +58,8 @@ class WebScraper(
     companion object {
         @Volatile
         var cookies: Map<String, String> = emptyMap()
+        @Volatile
+        var logintime: Long = 0
     }
 
     suspend fun loadFromCache() {
@@ -71,8 +72,6 @@ class WebScraper(
         if (logintime>0 && now-logintime<60) return
         logintime = now
 
-       // Companion.cookies = emptyMap()
-       // saveCookiesToCache()
         val intent = Intent(context, com.swimgym.app.receiver.LoginRequiredReceiver::class.java).apply {
             action = com.swimgym.app.receiver.LoginActivity.ACTION_LOGIN_REQUIRED
         }
@@ -85,7 +84,7 @@ class WebScraper(
     }
 
     suspend fun setCookiesAndSave(cookieMap: Map<String, String>) {
-        Companion.cookies = cookieMap
+        cookies = cookieMap
         saveCookiesToCache()
     }
 
@@ -95,15 +94,11 @@ class WebScraper(
     }
 
      suspend fun loadCookiesFromCache() {
-        Companion.cookies = sessionRepository.loadCookies()
-        val cachedUserAgent = sessionRepository.loadUserAgent()
-        if (cachedUserAgent != null) {
-            userAgent = cachedUserAgent
-        }
+        cookies = sessionRepository.loadCookies()
     }
 
     suspend fun saveCookiesToCache() {
-        sessionRepository.saveCookies(Companion.cookies)
+        sessionRepository.saveCookies(cookies)
     }
 
     suspend fun saveUserAgentToCache() {
@@ -119,9 +114,9 @@ class WebScraper(
 
     private suspend fun buildRequest(url: String): Request.Builder {
         val builder = Request.Builder().url(url)
-        loadCookiesFromCache()
+
         var cookieheader= ""
-        for ((name, value) in Companion.cookies) {
+        for ((name, value) in cookies) {
             //if (name.contains("virtuagym")) {
                 if (cookieheader.isNotBlank()) cookieheader+="; "
                 cookieheader+= "$name=$value"
@@ -147,10 +142,13 @@ class WebScraper(
         return false
     }
     private suspend fun fetchHtml(url: String): org.jsoup.nodes.Document {
-      //  if (!loggedin()) {
-      //      throw Exception("not logged in")
-      //      //return Jsoup.parse("")
-      //  }
+        if (cookies.isNullOrEmpty()) {
+            loadCookiesFromCache()
+        }
+        if (!loggedin()) {
+            throw Exception("not logged in")
+            //return Jsoup.parse("")
+        }
         val request = buildRequest(url)
             .method("GET", null)
             .build()
@@ -181,16 +179,15 @@ class WebScraper(
           .map { parseCookie(it.value) }
           .toMap()
       */
+        cookies += newCookies
+        saveCookiesToCache()
+
         if (newCookies.contains("virtuagym_u")) {
             val uid = newCookies.get("virtuagym_u")
             if (uid?.toLongOrDefault(0L)==1L) {
                triggerLoginRequired()
                throw Exception("you are logged out")
             }
-        } else {
-            Companion.cookies += newCookies
-            saveCookiesToCache()
-
         }
     }
 

@@ -46,7 +46,7 @@ fun LoginScreen(
     LaunchedEffect(cookiesToSave) {
         cookiesToSave?.let { cookies ->
             // Update the global companion object directly
-            WebScraper.cookies = cookies
+            //WebScraper.cookies = cookies
             // Also save to cache via the webScraper instance
             webScraper.setCookiesAndSave(cookies)
         }
@@ -83,7 +83,7 @@ fun LoginScreen(
                             cookiesToSave = cookieMap
                             
                             // Save User-Agent from WebView
-                            userAgentToSave = settings.userAgentString
+                            //userAgentToSave = settings.userAgentString
                             
                             hasNavigated = true
                             onLoginSuccess()
