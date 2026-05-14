@@ -646,8 +646,9 @@ fun SettingsScreen(
                                 5 -> uiState.workTimeConfig.saturday
                                 else -> uiState.workTimeConfig.sunday
                             }
-                            val initialHour = currentTimes.first.split(":").getOrNull(0)?.toIntOrNull() ?: 9
-                            val initialMinute = currentTimes.first.split(":").getOrNull(1)?.toIntOrNull() ?: 0
+                            val timeToUse = if (selectedTimeType == "end") currentTimes.second else currentTimes.first
+                            val initialHour = timeToUse.split(":").getOrNull(0)?.toIntOrNull() ?: 9
+                            val initialMinute = timeToUse.split(":").getOrNull(1)?.toIntOrNull() ?: 0
                             
                             TimePickerDialog(
                                 onDismissRequest = { showTimePicker = false },
@@ -661,7 +662,7 @@ fun SettingsScreen(
                                     showTimePicker = false
                                 },
                                 initialHour = initialHour,
-                                initialMinute = if (selectedTimeType == "end") currentTimes.second.split(":").getOrNull(1)?.toIntOrNull() ?: 0 else initialMinute
+                                initialMinute = initialMinute
                             )
                         }
                     }
@@ -689,8 +690,13 @@ fun TimePickerDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                Text(
+                    text = "Hours",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     for (h in 0..23) {
@@ -708,6 +714,11 @@ fun TimePickerDialog(
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Minutes",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.fillMaxWidth()
