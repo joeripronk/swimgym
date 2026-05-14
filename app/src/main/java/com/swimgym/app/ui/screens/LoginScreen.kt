@@ -45,6 +45,9 @@ fun LoginScreen(
     // Save cookies to cache when they change
     LaunchedEffect(cookiesToSave) {
         cookiesToSave?.let { cookies ->
+            // Update the global companion object directly
+            WebScraper.cookies = cookies
+            // Also save to cache via the webScraper instance
             webScraper.setCookiesAndSave(cookies)
         }
     }
