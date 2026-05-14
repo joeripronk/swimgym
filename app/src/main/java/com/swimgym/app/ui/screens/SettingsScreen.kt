@@ -3,6 +3,8 @@ package com.swimgym.app.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
@@ -78,7 +80,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .padding(padding)
                 .padding(16.dp)
-                .verticalScroll(MutableStateFlow(0).asStateFlow().stateIn(viewModelScope) ?: MutableScrollState())
+                .verticalScroll(rememberScrollState())
         ) {
             Text(
                 text = "Default Calendar",
