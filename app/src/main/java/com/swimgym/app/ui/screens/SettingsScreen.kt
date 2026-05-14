@@ -43,7 +43,6 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
 
     val calendarPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -480,6 +479,136 @@ fun SettingsScreen(
                             checked = uiState.hideFullyBooked,
                             onCheckedChange = { viewModel.setHideFullyBooked(it) }
                         )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Work Time Filter",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(8.dp)
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Filter trainings by your work hours",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Enable work time filter",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "Only show trainings during your work hours",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Switch(
+                            checked = uiState.workTimeConfig.enabled,
+                            onCheckedChange = { viewModel.setWorkTimeFilterEnabled(it) }
+                        )
+                    }
+
+                    if (uiState.workTimeConfig.enabled) {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = "Set work hours for each day",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        val days = listOf(
+                            "Monday" to 0,
+                            "Tuesday" to 1,
+                            "Wednesday" to 2,
+                            "Thursday" to 3,
+                            "Friday" to 4,
+                            "Saturday" to 5,
+                            "Sunday" to 6
+                        )
+
+                        LazyColumn(
+                            modifier = Modifier.height(300.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items(days) { (dayName, dayIndex) ->
+                                val times = when (dayIndex) {
+                                    0 -> uiState.workTimeConfig.monday
+                                    1 -> uiState.workTimeConfig.tuesday
+                                    2 -> uiState.workTimeConfig.wednesday
+                                    3 -> uiState.workTimeConfig.thursday
+                                    4 -> uiState.workTimeConfig.friday
+                                    5 -> uiState.workTimeConfig.saturday
+                                    else -> uiState.workTimeConfig.sunday
+                                }
+                                var timePickerVisible by remember { mutableStateOf(false) }
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = dayName,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        OutlinedTextField(
+                                            value = times.first,
+                                            onValueChange = { 
+                                                if (it.matches(Regex("\\d{2}:\\d{2}"))) {
+                                                    viewModel.setWorkTimeForDay(dayIndex, it, times.second)
+                                                }
+                                            },
+                                            modifier = Modifier.width(80.dp),
+                                            singleLine = true,
+                                            placeholder = { Text("08:00") },
+                                            enabled = true
+                                        )
+                                        Text("to")
+                                        OutlinedTextField(
+                                            value = times.second,
+                                            onValueChange = { 
+                                                if (it.matches(Regex("\\d{2}:\\d{2}"))) {
+                                                    viewModel.setWorkTimeForDay(dayIndex, times.first, it)
+                                                }
+                                            },
+                                            modifier = Modifier.width(80.dp),
+                                            singleLine = true,
+                                            placeholder = { Text("18:00") },
+                                            enabled = true
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

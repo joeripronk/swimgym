@@ -27,6 +27,14 @@ class SessionRepository(
         private val REMINDER_ENABLED = stringPreferencesKey("reminder_enabled")
         private val REMINDER_TIMES = stringPreferencesKey("reminder_times")
         private val HIDE_FULLY_BOOKED = stringPreferencesKey("hide_fully_booked")
+        private val WORK_TIME_FILTER_ENABLED = stringPreferencesKey("work_time_filter_enabled")
+        private val WORK_TIME_MONDAY = stringPreferencesKey("work_time_monday")
+        private val WORK_TIME_TUESDAY = stringPreferencesKey("work_time_tuesday")
+        private val WORK_TIME_WEDNESDAY = stringPreferencesKey("work_time_wednesday")
+        private val WORK_TIME_THURSDAY = stringPreferencesKey("work_time_thursday")
+        private val WORK_TIME_FRIDAY = stringPreferencesKey("work_time_friday")
+        private val WORK_TIME_SATURDAY = stringPreferencesKey("work_time_saturday")
+        private val WORK_TIME_SUNDAY = stringPreferencesKey("work_time_sunday")
         private val COOKIES = stringPreferencesKey("cookies")
         private val USER_AGENT = stringPreferencesKey("user_agent")
     }
@@ -106,6 +114,53 @@ class SessionRepository(
         return context.dataStore.data
             .map { it[HIDE_FULLY_BOOKED]?.toBoolean() ?: false }
             .first()
+    }
+
+    suspend fun saveWorkTimeFilterEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[WORK_TIME_FILTER_ENABLED] = enabled.toString()
+        }
+    }
+
+    suspend fun getWorkTimeFilterEnabled(): Boolean {
+        return context.dataStore.data
+            .map { it[WORK_TIME_FILTER_ENABLED]?.toBoolean() ?: false }
+            .first()
+    }
+
+    suspend fun saveWorkTimeForDay(day: Int, startTime: String, endTime: String) {
+        val key = when (day) {
+            0 -> WORK_TIME_MONDAY
+            1 -> WORK_TIME_TUESDAY
+            2 -> WORK_TIME_WEDNESDAY
+            3 -> WORK_TIME_THURSDAY
+            4 -> WORK_TIME_FRIDAY
+            5 -> WORK_TIME_SATURDAY
+            6 -> WORK_TIME_SUNDAY
+            else -> WORK_TIME_MONDAY
+        }
+        context.dataStore.edit { prefs ->
+            prefs[key] = "$startTime|$endTime"
+        }
+    }
+
+    suspend fun getWorkTimeForDay(day: Int): Pair<String, String> {
+        val key = when (day) {
+            0 -> WORK_TIME_MONDAY
+            1 -> WORK_TIME_TUESDAY
+            2 -> WORK_TIME_WEDNESDAY
+            3 -> WORK_TIME_THURSDAY
+            4 -> WORK_TIME_FRIDAY
+            5 -> WORK_TIME_SATURDAY
+            6 -> WORK_TIME_SUNDAY
+            else -> WORK_TIME_MONDAY
+        }
+        return context.dataStore.data
+            .map { it[key] }
+            .first()?.let { timeStr ->
+                val parts = timeStr.split("|")
+                if (parts.size == 2) Pair(parts[0], parts[1]) else Pair("08:00", "18:00")
+            } ?: Pair("08:00", "18:00")
     }
 
     suspend fun clearSession() {

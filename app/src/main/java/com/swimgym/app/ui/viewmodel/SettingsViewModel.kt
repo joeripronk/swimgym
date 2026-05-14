@@ -15,6 +15,17 @@ data class ReminderConfig(
     val customTimeEnabled: Boolean = false
 )
 
+data class WorkTimeConfig(
+    val enabled: Boolean = false,
+    val monday: Pair<String, String> = Pair("08:00", "18:00"),
+    val tuesday: Pair<String, String> = Pair("08:00", "18:00"),
+    val wednesday: Pair<String, String> = Pair("08:00", "18:00"),
+    val thursday: Pair<String, String> = Pair("08:00", "18:00"),
+    val friday: Pair<String, String> = Pair("08:00", "18:00"),
+    val saturday: Pair<String, String> = Pair("08:00", "18:00"),
+    val sunday: Pair<String, String> = Pair("08:00", "18:00")
+)
+
 data class SettingsUiState(
     val selectedCalendar: String = "",
     val selectedCalendarId: Long = -1,
@@ -23,7 +34,8 @@ data class SettingsUiState(
     val error: String? = null,
     val reminderConfig: ReminderConfig = ReminderConfig(),
     val calendarPermissionDenied: Boolean = false,
-    val hideFullyBooked: Boolean = false
+    val hideFullyBooked: Boolean = false,
+    val workTimeConfig: WorkTimeConfig = WorkTimeConfig()
 )
 
 class SettingsViewModel(
@@ -38,6 +50,7 @@ class SettingsViewModel(
         loadCalendars()
         loadReminderSettings()
         loadHideFullyBookedSetting()
+        loadWorkTimeSettings()
         viewModelScope.launch {
             sessionRepository.selectedCalendar.collect { calendar ->
                 if (calendar != null) {
@@ -79,10 +92,66 @@ class SettingsViewModel(
         }
     }
 
+    private fun loadWorkTimeSettings() {
+        viewModelScope.launch {
+            val enabled = sessionRepository.getWorkTimeFilterEnabled()
+            val monday = sessionRepository.getWorkTimeForDay(0)
+            val tuesday = sessionRepository.getWorkTimeForDay(1)
+            val wednesday = sessionRepository.getWorkTimeForDay(2)
+            val thursday = sessionRepository.getWorkTimeForDay(3)
+            val friday = sessionRepository.getWorkTimeForDay(4)
+            val saturday = sessionRepository.getWorkTimeForDay(5)
+            val sunday = sessionRepository.getWorkTimeForDay(6)
+            _uiState.update {
+                it.copy(
+                    workTimeConfig = WorkTimeConfig(
+                        enabled = enabled,
+                        monday = monday,
+                        tuesday = tuesday,
+                        wednesday = wednesday,
+                        thursday = thursday,
+                        friday = friday,
+                        saturday = saturday,
+                        sunday = sunday
+                    )
+                )
+            }
+        }
+    }
+
     fun setHideFullyBooked(hide: Boolean) {
         viewModelScope.launch {
             sessionRepository.saveHideFullyBooked(hide)
             _uiState.update { it.copy(hideFullyBooked = hide) }
+        }
+    }
+
+    fun setWorkTimeFilterEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            sessionRepository.saveWorkTimeFilterEnabled(enabled)
+            _uiState.update { 
+                it.copy(
+                    workTimeConfig = it.workTimeConfig.copy(enabled = enabled)
+                )
+            }
+        }
+    }
+
+    fun setWorkTimeForDay(day: Int, startTime: String, endTime: String) {
+        viewModelScope.launch {
+            sessionRepository.saveWorkTimeForDay(day, startTime, endTime)
+            val currentConfig = _uiState.value.workTimeConfig
+            val newConfig = when (day) {
+                0 -> currentConfig.copy(monday = Pair(startTime, endTime))
+                1 -> currentConfig.copy(tuesday = Pair(startTime, endTime))
+                2 -> currentConfig.copy(wednesday = Pair(startTime, endTime))
+                3 -> currentConfig.copy(thursday = Pair(startTime, endTime))
+                4 -> currentConfig.copy(friday = Pair(startTime, endTime))
+                5 -> currentConfig.copy(saturday = Pair(startTime, endTime))
+                6 -> currentConfig.copy(sunday = Pair(startTime, endTime))
+                else -> currentConfig
+            }
+            _uiState.update { it.copy(workTimeConfig = newConfig) }
         }
     }
 

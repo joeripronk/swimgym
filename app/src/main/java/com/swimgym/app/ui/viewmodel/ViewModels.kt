@@ -40,7 +40,15 @@ data class ScheduleUiState(
     val isBookingInProgress: Boolean = false,
     val isCancellingInProgress: Boolean = false,
     val bookingError: String? = null,
-    val cancelError: String? = null
+    val cancelError: String? = null,
+    val workTimeFilterEnabled: Boolean = false,
+    val workTimeMonday: Pair<String, String> = Pair("08:00", "18:00"),
+    val workTimeTuesday: Pair<String, String> = Pair("08:00", "18:00"),
+    val workTimeWednesday: Pair<String, String> = Pair("08:00", "18:00"),
+    val workTimeThursday: Pair<String, String> = Pair("08:00", "18:00"),
+    val workTimeFriday: Pair<String, String> = Pair("08:00", "18:00"),
+    val workTimeSaturday: Pair<String, String> = Pair("08:00", "18:00"),
+    val workTimeSunday: Pair<String, String> = Pair("08:00", "18:00")
 )
 
 class ScheduleViewModel(
@@ -88,6 +96,7 @@ class ScheduleViewModel(
         observeBookings()
         observeSyncStatus()
         observeHideFullyBooked()
+        observeWorkTimeFilter()
     }
 
     private fun observeSyncStatus() {
@@ -114,6 +123,23 @@ class ScheduleViewModel(
             }
         }
     }
+    
+    private fun observeWorkTimeFilter() {
+        viewModelScope.launch {
+            // Create a flow that periodically checks for changes
+            kotlinx.coroutines.flow.flow {
+                while (true) {
+                    emit(sessionRepository.getWorkTimeFilterEnabled())
+                    kotlinx.coroutines.delay(2000)
+                }
+            }.distinctUntilChanged().collect { enabled ->
+                if (enabled != _uiState.value.workTimeFilterEnabled) {
+                    _uiState.update { it.copy(workTimeFilterEnabled = enabled) }
+                    loadSchedule(_uiState.value.selectedLevel, _uiState.value.hideFullyBooked)
+                }
+            }
+        }
+    }
 
     private fun observeBookings() {
         viewModelScope.launch {
@@ -131,12 +157,67 @@ class ScheduleViewModel(
             _uiState.update { it.copy(isLoading = true, error = null, currentStartDate = null, weeksLoaded = 1) }
             getScheduleUseCase(level, hideFullyBooked, null)
                 .onSuccess { trainings ->
-                    val filteredTrainings = trainings.filter { it.startTime > System.currentTimeMillis()/1000 }
+                    var filteredTrainings = trainings.filter { it.startTime > System.currentTimeMillis()/1000 }
+                    
+                    // Apply work time filter if enabled
+                    if (_uiState.value.workTimeFilterEnabled) {
+                        filteredTrainings = filterByWorkTime(filteredTrainings)
+                    }
+                    
                     _uiState.update { it.copy(isLoading = false, trainings = filteredTrainings, selectedLevel = level, hideFullyBooked = hideFullyBooked, currentStartDate = null, weeksLoaded = 1) }
                 }
                 .onFailure { e ->
                     _uiState.update { it.copy(isLoading = false, error = e.message) }
                 }
+        }
+    }
+
+    private fun filterByWorkTime(trainings: List<Training>): List<Training> {
+        return trainings.filter { training ->
+            val calendar = java.util.Calendar.getInstance()
+            calendar.time = java.util.Date(training.startTime * 1000)
+            val dayOfWeek = calendar.get(java.util.Calendar.DAY_OF_WEEK)
+            // Calendar.SUNDAY = 1, Calendar.MONDAY = 2, ..., Calendar.SATURDAY = 7
+            // We need to map to 0=Monday, 1=Tuesday, ..., 6=Sunday
+            val dayIndex = when (dayOfWeek) {
+                java.util.Calendar.SUNDAY -> 6
+                java.util.Calendar.MONDAY -> 0
+                java.util.Calendar.TUESDAY -> 1
+                java.util.Calendar.WEDNESDAY -> 2
+                java.util.Calendar.THURSDAY -> 3
+                java.util.Calendar.FRIDAY -> 4
+                java.util.Calendar.SATURDAY -> 5
+                else -> 0
+            }
+            
+            val workTimes = when (dayIndex) {
+                0 -> _uiState.value.workTimeMonday
+                1 -> _uiState.value.workTimeTuesday
+                2 -> _uiState.value.workTimeWednesday
+                3 -> _uiState.value.workTimeThursday
+                4 -> _uiState.value.workTimeFriday
+                5 -> _uiState.value.workTimeSaturday
+                else -> _uiState.value.workTimeSunday
+            }
+            
+            val startTime = training.startTime
+            val startHour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+            val startMinute = calendar.get(java.util.Calendar.MINUTE)
+            val startMinutes = startHour * 60 + startMinute
+            
+            val (workStart, workEnd) = workTimes
+            val workStartParts = workStart.split(":")
+            val workEndParts = workEnd.split(":")
+            
+            val workStartHours = workStartParts.getOrNull(0)?.toIntOrNull() ?: 8
+            val workStartMins = workStartParts.getOrNull(1)?.toIntOrNull() ?: 0
+            val workStartMinutes = workStartHours * 60 + workStartMins
+            
+            val workEndHours = workEndParts.getOrNull(0)?.toIntOrNull() ?: 18
+            val workEndMins = workEndParts.getOrNull(1)?.toIntOrNull() ?: 0
+            val workEndMinutes = workEndHours * 60 + workEndMins
+            
+            startMinutes >= workStartMinutes && startMinutes <= workEndMinutes
         }
     }
 
