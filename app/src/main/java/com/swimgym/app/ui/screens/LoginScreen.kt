@@ -48,7 +48,7 @@ fun LoginScreen(
             // Update the global companion object directly
             //WebScraper.cookies = cookies
             // Also save to cache via the webScraper instance
-            webScraper.setCookiesAndSave(cookies)
+            webScraper.saveCookiesToCache(cookies)
         }
     }
 

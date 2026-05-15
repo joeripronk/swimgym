@@ -207,19 +207,20 @@ class ScheduleViewModel(
 
     private fun filterByWorkTime(trainings: List<Training>): List<Training> {
         return trainings.filter { training ->
+            if (training.isJoined) return@filter true
             val calendar = java.util.Calendar.getInstance()
             calendar.time = java.util.Date(training.startTime * 1000)
             val dayOfWeek = calendar.get(java.util.Calendar.DAY_OF_WEEK)
             // Calendar.SUNDAY = 1, Calendar.MONDAY = 2, ..., Calendar.SATURDAY = 7
             // We need to map to 0=Monday, 1=Tuesday, ..., 6=Sunday
             val dayIndex = when (dayOfWeek) {
-                java.util.Calendar.SUNDAY -> 6
                 java.util.Calendar.MONDAY -> 0
                 java.util.Calendar.TUESDAY -> 1
                 java.util.Calendar.WEDNESDAY -> 2
                 java.util.Calendar.THURSDAY -> 3
                 java.util.Calendar.FRIDAY -> 4
                 java.util.Calendar.SATURDAY -> 5
+                java.util.Calendar.SUNDAY -> 6
                 else -> 0
             }
             

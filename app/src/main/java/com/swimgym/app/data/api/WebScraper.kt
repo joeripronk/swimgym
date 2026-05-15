@@ -84,21 +84,22 @@ class WebScraper(
     }
 
     suspend fun setCookiesAndSave(cookieMap: Map<String, String>) {
-        cookies = cookieMap
-        saveCookiesToCache()
-    }
-
-    suspend fun setCookiesAndUserAgent(cookieMap: Map<String, String>, userAgent: String) {
-        setCookiesAndSave(cookieMap)
-        setUserAgent(userAgent)
+     //   cookies = cookieMap
+        saveCookiesToCache(cookieMap)
     }
 
      suspend fun loadCookiesFromCache() {
-        cookies = sessionRepository.loadCookies()
+         val newcookies = sessionRepository.loadCookies()
+         if (cookiesloggedin(newcookies)) {
+             cookies = newcookies
+         }
     }
 
-    suspend fun saveCookiesToCache() {
-        sessionRepository.saveCookies(cookies)
+    suspend fun saveCookiesToCache(cookieMap: Map<String, String>) {
+        if (cookiesloggedin(cookieMap)) {
+            sessionRepository.saveCookies(cookieMap)
+            cookies = cookieMap
+        }
     }
 
     suspend fun saveUserAgentToCache() {
@@ -114,7 +115,7 @@ class WebScraper(
 
     private suspend fun buildRequest(url: String): Request.Builder {
         val builder = Request.Builder().url(url)
-
+        loadCookiesFromCache()
         var cookieheader= ""
         for ((name, value) in cookies) {
             //if (name.contains("virtuagym")) {
@@ -127,13 +128,16 @@ class WebScraper(
         return builder
     }
     fun loggedin(): Boolean {
+        return cookiesloggedin(cookies)
+    }
+    fun cookiesloggedin(cookieMap: Map<String, String>): Boolean {
         //if(Companion.cookies.isNullOrEmpty()) {
             //loadFromCache()
         //}
         try {
             var lid: Long = 0
-            if (Companion.cookies.contains("virtuagym_u")) {
-                val uid = Companion.cookies.get("virtuagym_u")
+            if (cookieMap.contains("virtuagym_u")) {
+                val uid = cookieMap.get("virtuagym_u")
                 lid = uid?.toLongOrDefault(1L)!!
             }
             return lid>1
@@ -166,7 +170,7 @@ class WebScraper(
     }
 
     private suspend fun extractCookiesFromResponse(response: okhttp3.Response) {
-        var nextiscookie = false
+        var cookieMap = cookies
         val newCookies: Map<String, String> = response.headers.filter {
             it.first.lowercase().equals("set-cookie")
         }.associate {
@@ -178,7 +182,7 @@ class WebScraper(
           .mapValues { it.value.firstOrNull() ?: "" }
           .map { parseCookie(it.value) }
           .toMap()
-      */
+
         if (newCookies.contains("virtuagym_u")) {
             val uid = newCookies.get("virtuagym_u")
             if (uid?.toLongOrDefault(0L)==1L) {
@@ -186,10 +190,14 @@ class WebScraper(
                 throw Exception("you are logged out")
             }
         }
-        cookies += newCookies
-        saveCookiesToCache()
 
-
+         */
+        cookieMap += newCookies
+        if (!cookiesloggedin(cookieMap)) {
+            triggerLoginRequired()
+            throw Exception("you are logged out")
+        }
+        saveCookiesToCache(cookieMap)
     }
 
    suspend fun getSchedule(
@@ -511,13 +519,13 @@ class WebScraper(
 
 
     suspend fun logout(): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            Companion.cookies = emptyMap()
-            saveCookiesToCache()
+        try { // TODO: disabled for now
+            //Companion.cookies = emptyMap()
+           // saveCookiesToCache()
             Result.success(Unit)
         } catch (e: Exception) {
-            Companion.cookies = emptyMap()
-            saveCookiesToCache()
+            //Companion.cookies = emptyMap()
+            //saveCookiesToCache()
             Result.success(Unit)
         }
     }
