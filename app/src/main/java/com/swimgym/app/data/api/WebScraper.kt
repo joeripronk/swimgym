@@ -1,10 +1,8 @@
 package com.swimgym.app.data.api
 
-import android.content.BroadcastReceiver
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.provider.CalendarContract
 import android.provider.CalendarContract.Events
 
@@ -16,7 +14,6 @@ import com.swimgym.app.data.model.Mappers.toDomain
 import com.swimgym.app.data.model.Mappers.toDto
 import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.data.model.TrainingDto
-import com.swimgym.app.data.model.UserDto
 import com.swimgym.app.data.repository.ScheduledBookingRepository
 import com.swimgym.app.data.repository.ScheduledBookingStatus
 import com.swimgym.app.data.repository.SessionRepository
@@ -56,7 +53,7 @@ class WebScraper(
         .followRedirects(true)
         .build()
     private val baseUrl = "https://swimgym.virtuagym.com"
-    private var mobileuserAgent: String = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Mobile Safari/537.36"
+    // private var mobileuserAgent: String = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Mobile Safari/537.36"
     private var userAgent: String = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
     companion object {
@@ -66,10 +63,6 @@ class WebScraper(
         var logintime: Long = 0
     }
 
-    suspend fun loadFromCache() {
-        loadCookiesFromCache()
-        loadUserAgentFromCache()
-    }
 
     private fun triggerLoginRequired() {
         val now = System.currentTimeMillis()/1000
@@ -82,15 +75,6 @@ class WebScraper(
         context.sendBroadcast(intent)
     }
 
-    suspend fun setUserAgent(agent: String) {
-        userAgent = agent
-        saveUserAgentToCache()
-    }
-
-    suspend fun setCookiesAndSave(cookieMap: Map<String, String>) {
-     //   cookies = cookieMap
-        saveCookiesToCache(cookieMap)
-    }
 
      suspend fun loadCookiesFromCache() {
          val newcookies = sessionRepository.loadCookies()
@@ -103,17 +87,6 @@ class WebScraper(
         if (cookiesloggedin(cookieMap)) {
             sessionRepository.saveCookies(cookieMap)
             cookies = cookieMap
-        }
-    }
-
-    suspend fun saveUserAgentToCache() {
-        sessionRepository.saveUserAgent(userAgent)
-    }
-
-    private suspend fun loadUserAgentFromCache() {
-        val cachedUserAgent = sessionRepository.loadUserAgent()
-        if (cachedUserAgent != null) {
-            userAgent = cachedUserAgent
         }
     }
 

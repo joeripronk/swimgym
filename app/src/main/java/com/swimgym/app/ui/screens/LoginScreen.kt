@@ -38,8 +38,6 @@ fun LoginScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var hasNavigated by remember { mutableStateOf(false) }
     var cookiesToSave by remember { mutableStateOf<Map<String, String>?>(null) }
-    var userAgentToSave by remember { mutableStateOf<String?>(null) }
-
     val cookieManager = CookieManager.getInstance()
 
     // Save cookies to cache when they change
@@ -53,11 +51,6 @@ fun LoginScreen(
     }
 
     // Save User-Agent to cache when it changes
-    LaunchedEffect(userAgentToSave) {
-        userAgentToSave?.let { agent ->
-            webScraper.setUserAgent(agent)
-        }
-    }
 
     AndroidView(
         factory = { ctx ->
