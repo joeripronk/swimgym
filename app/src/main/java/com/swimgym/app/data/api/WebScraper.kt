@@ -24,6 +24,8 @@ import com.swimgym.app.domain.model.Training
 import com.swimgym.app.util.BookingNotificationManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -46,6 +48,8 @@ class WebScraper(
     private val notificationManager: BookingNotificationManager,
     private val context: Context
 ) {
+    private val fetchHtmlLock = Mutex()
+    private val getScheduleLock = Mutex()
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -131,9 +135,6 @@ class WebScraper(
         return cookiesloggedin(cookies)
     }
     fun cookiesloggedin(cookieMap: Map<String, String>): Boolean {
-        //if(Companion.cookies.isNullOrEmpty()) {
-            //loadFromCache()
-        //}
         try {
             var lid: Long = 0
             if (cookieMap.contains("virtuagym_u")) {
@@ -145,7 +146,7 @@ class WebScraper(
         }
         return false
     }
-    private suspend fun fetchHtml(url: String): org.jsoup.nodes.Document {
+    private suspend fun fetchHtml(url: String): org.jsoup.nodes.Document = fetchHtmlLock.withLock {
         if (cookies.isNullOrEmpty()) {
             loadCookiesFromCache()
         }
@@ -170,7 +171,7 @@ class WebScraper(
     }
 
     private suspend fun extractCookiesFromResponse(response: okhttp3.Response) {
-        var cookieMap = cookies
+        val cookieMap = cookies.toMutableMap()
         val newCookies: Map<String, String> = response.headers.filter {
             it.first.lowercase().equals("set-cookie")
         }.associate {
@@ -178,20 +179,6 @@ class WebScraper(
 
         }
 
-        /*  .filter { it.key.lowercase().startsWith("set-cookie") }
-          .mapValues { it.value.firstOrNull() ?: "" }
-          .map { parseCookie(it.value) }
-          .toMap()
-
-        if (newCookies.contains("virtuagym_u")) {
-            val uid = newCookies.get("virtuagym_u")
-            if (uid?.toLongOrDefault(0L)==1L) {
-                triggerLoginRequired()
-                throw Exception("you are logged out")
-            }
-        }
-
-         */
         cookieMap += newCookies
         if (!cookiesloggedin(cookieMap)) {
             triggerLoginRequired()
@@ -202,7 +189,8 @@ class WebScraper(
 
    suspend fun getSchedule(
         weeks: Int = 3
-    ): Result<List<TrainingDto>> = withContext(Dispatchers.IO) {
+    ): Result<List<TrainingDto>> = getScheduleLock.withLock {
+        withContext(Dispatchers.IO) {
         try {
             val trainings = mutableListOf<TrainingDto>()
             val date = java.util.Calendar.getInstance()
@@ -306,6 +294,7 @@ class WebScraper(
             Result.failure(e)
         }
     }
+        }
 
 
     suspend fun bookTraining(
