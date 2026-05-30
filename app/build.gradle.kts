@@ -4,9 +4,15 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+configurations.all {
+    resolutionStrategy {
+        force("androidx.work:work-runtime-ktx:2.9.1")
+    }
+}
+
 android {
     namespace = "com.swimgym.app"
-    compileSdk = 34
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.swimgym.app"
@@ -74,7 +80,7 @@ dependencies {
     implementation("androidx.room:room-ktx:2.7.0")
     ksp("androidx.room:room-compiler:2.7.0")
 
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 

@@ -42,6 +42,7 @@ class SessionRepository(
         private val WORK_TIME_SATURDAY_ENABLED = stringPreferencesKey("work_time_saturday_enabled")
         private val WORK_TIME_SUNDAY = stringPreferencesKey("work_time_sunday")
         private val WORK_TIME_SUNDAY_ENABLED = stringPreferencesKey("work_time_sunday_enabled")
+        private val FOREGROUND_SERVICE_ENABLED = stringPreferencesKey("foreground_service_enabled")
         private val COOKIES = stringPreferencesKey("cookies")
         private val USER_AGENT = stringPreferencesKey("user_agent")
     }
@@ -199,6 +200,18 @@ class SessionRepository(
         }
         return context.dataStore.data
             .map { it[key]?.toBoolean() ?: (day < 5) } // Monday-Friday enabled by default
+            .first()
+    }
+
+    suspend fun saveForegroundServiceEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[FOREGROUND_SERVICE_ENABLED] = enabled.toString()
+        }
+    }
+
+    suspend fun getForegroundServiceEnabled(): Boolean {
+        return context.dataStore.data
+            .map { it[FOREGROUND_SERVICE_ENABLED]?.toBoolean() ?: false }
             .first()
     }
 

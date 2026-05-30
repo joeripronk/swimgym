@@ -42,7 +42,9 @@ data class SettingsUiState(
     val reminderConfig: ReminderConfig = ReminderConfig(),
     val calendarPermissionDenied: Boolean = false,
     val hideFullyBooked: Boolean = false,
-    val workTimeConfig: WorkTimeConfig = WorkTimeConfig()
+    val workTimeConfig: WorkTimeConfig = WorkTimeConfig(),
+    val foregroundServiceEnabled: Boolean = false,
+    val requestForegroundPermission: Boolean = false
 )
 
 class SettingsViewModel(
@@ -58,6 +60,7 @@ class SettingsViewModel(
         loadReminderSettings()
         loadHideFullyBookedSetting()
         loadWorkTimeSettings()
+        loadForegroundServiceSetting()
         viewModelScope.launch {
             sessionRepository.selectedCalendar.collect { calendar ->
                 if (calendar != null) {
@@ -71,6 +74,20 @@ class SettingsViewModel(
                     _uiState.update { it.copy(selectedCalendarId = calendarId) }
                 }
             }
+        }
+    }
+
+    private fun loadForegroundServiceSetting() {
+        viewModelScope.launch {
+            val enabled = sessionRepository.getForegroundServiceEnabled()
+            _uiState.update { it.copy(foregroundServiceEnabled = enabled) }
+        }
+    }
+
+    fun setForegroundServiceEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            sessionRepository.saveForegroundServiceEnabled(enabled)
+            _uiState.update { it.copy(foregroundServiceEnabled = enabled) }
         }
     }
 
