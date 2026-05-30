@@ -1,5 +1,6 @@
 package com.swimgym.app.ui.navigation
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.*
@@ -46,7 +47,14 @@ fun SwimGymNavigation(
 
     }
     
-  
+    LaunchedEffect(Unit) {
+        if ((context as? Activity)?.intent?.action == LoginActivity.ACTION_LOGIN_REQUIRED) {
+            navController.navigate(Screen.Login.route) {
+                popUpTo(Screen.Schedule.route) { inclusive = true }
+            }
+        }
+    }
+    
     val scheduleViewModel = ScheduleViewModel(
         getScheduleUseCase = container.getScheduleUseCase,
         getTrainingDetailsUseCase = container.getTrainingDetailsUseCase,

@@ -2,6 +2,7 @@
 
 package com.swimgym.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,6 +12,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import com.swimgym.app.di.SwimGymAppContainer
+import com.swimgym.app.receiver.LoginActivity
 import com.swimgym.app.ui.navigation.SwimGymNavigation
 import com.swimgym.app.ui.theme.SwimGymTheme
 
@@ -26,6 +28,21 @@ class MainActivity : ComponentActivity() {
                     SwimGymNavigation(context = this, webScraper = webScraper)
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        if (intent?.action == LoginActivity.ACTION_LOGIN_REQUIRED) {
+            // Intent action handled by NavHost
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Check if login is required from notification
+        if (intent?.action == LoginActivity.ACTION_LOGIN_REQUIRED) {
+            // The NavHost will handle navigation to login screen
         }
     }
 }

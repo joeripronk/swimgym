@@ -21,6 +21,7 @@ class BookingNotificationManager(
         private const val BOOKING_CHANNEL_NAME = "Booking Confirmations"
         private const val BOOKING_CHANNEL_DESCRIPTION = "Notifications for training booking confirmations"
         const val NOTIFICATION_ID_BASE = 1000
+        const val LOGIN_REQUIRED_ID = 9999
     }
 
     fun showBookingConfirmation(
@@ -122,5 +123,35 @@ class BookingNotificationManager(
 
     private fun hasNotificationPermission(context: Context): Boolean {
         return PermissionHelper.hasNotificationPermission(context)
+    }
+
+    fun showLoginRequired() {
+        if (!hasNotificationPermission(context)) return
+
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        createNotificationChannel(notificationManager)
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            setAction(com.swimgym.app.receiver.LoginActivity.ACTION_LOGIN_REQUIRED)
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, BOOKING_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("Login Required")
+            .setContentText("Please log in to continue using SwimGym")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+
+        notificationManager.notify(LOGIN_REQUIRED_ID, builder.build())
     }
 }

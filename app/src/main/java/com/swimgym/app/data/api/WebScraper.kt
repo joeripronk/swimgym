@@ -64,10 +64,12 @@ class WebScraper(
     }
 
 
-    private fun triggerLoginRequired() {
+    private suspend fun triggerLoginRequired() {
         val now = System.currentTimeMillis()/1000
         if (logintime>0 && now-logintime<60) return
         logintime = now
+
+        notificationManager.showLoginRequired()
 
         val intent = Intent(context, com.swimgym.app.receiver.LoginRequiredReceiver::class.java).apply {
             action = com.swimgym.app.receiver.LoginActivity.ACTION_LOGIN_REQUIRED
