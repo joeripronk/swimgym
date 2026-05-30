@@ -56,6 +56,12 @@ fun SettingsScreen(
         // Permission result handled
     }
 
+    val foregroundPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        viewModel.onForegroundPermissionResult(isGranted)
+    }
+
     val context = LocalContext.current
     val hasNotificationPermission by remember {
         derivedStateOf {
@@ -65,6 +71,12 @@ fun SettingsScreen(
 
     LaunchedEffect(Unit) {
         calendarPermissionLauncher.launch(Manifest.permission.READ_CALENDAR)
+    }
+
+    LaunchedEffect(uiState.requestForegroundPermission) {
+        if (uiState.requestForegroundPermission) {
+            foregroundPermissionLauncher.launch(android.Manifest.permission.FOREGROUND_SERVICE)
+        }
     }
 
     Scaffold(

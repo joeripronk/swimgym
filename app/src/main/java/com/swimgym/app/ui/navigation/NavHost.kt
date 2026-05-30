@@ -72,7 +72,8 @@ fun SwimGymNavigation(
     
     val settingsViewModel = SettingsViewModel(
         sessionRepository = container.sessionRepository,
-        calendarRepository = container.calendarRepository
+        calendarRepository = container.calendarRepository,
+        context = context
     )
 
     NavHost(

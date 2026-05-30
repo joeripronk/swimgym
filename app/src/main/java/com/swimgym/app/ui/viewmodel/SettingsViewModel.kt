@@ -1,12 +1,15 @@
 package com.swimgym.app.ui.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swimgym.app.data.repository.SessionRepository
 import com.swimgym.app.domain.model.CalendarInfo
 import com.swimgym.app.domain.repository.CalendarRepository
+import com.swimgym.app.worker.ScheduledBookingCheckWorker
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import androidx.work.WorkManager
 
 data class ReminderConfig(
     val reminderMinutesBefore: Int = 30,
@@ -49,7 +52,8 @@ data class SettingsUiState(
 
 class SettingsViewModel(
     private val sessionRepository: SessionRepository,
-    private val calendarRepository: CalendarRepository
+    private val calendarRepository: CalendarRepository,
+    private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -84,11 +88,57 @@ class SettingsViewModel(
         }
     }
 
+    private var _requestForegroundPermission: ((Boolean) -> Unit)? = null
+
     fun setForegroundServiceEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            sessionRepository.saveForegroundServiceEnabled(enabled)
-            _uiState.update { it.copy(foregroundServiceEnabled = enabled) }
+        if (enabled && !foregroundPermissionGranted()) {
+            _uiState.update { it.copy(requestForegroundPermission = true) }
+            _requestForegroundPermission = { granted ->
+                _uiState.update { 
+                    it.copy(
+                        requestForegroundPermission = false,
+                        foregroundServiceEnabled = granted
+                    ) 
+                }
+                if (granted) {
+                    viewModelScope.launch {
+                        sessionRepository.saveForegroundServiceEnabled(true)
+                        reloadWorkManager()
+                    }
+                }
+            }
+        } else {
+            viewModelScope.launch {
+                sessionRepository.saveForegroundServiceEnabled(enabled)
+                _uiState.update { it.copy(foregroundServiceEnabled = enabled) }
+            }
         }
+    }
+
+    private fun foregroundPermissionGranted(): Boolean {
+        return android.os.Build.VERSION.SDK_INT >= 29 &&
+            android.os.Build.VERSION.SDK_INT < 33
+    }
+
+    fun onForegroundPermissionResult(granted: Boolean) {
+        _requestForegroundPermission?.let { callback ->
+            callback(granted)
+        }
+        if (granted) {
+            reloadWorkManager()
+        }
+    }
+
+    private fun reloadWorkManager() {
+        WorkManager.getInstance(context).cancelAllWork()
+        val bookingCheckRequest = androidx.work.PeriodicWorkRequestBuilder<ScheduledBookingCheckWorker>(
+            15, java.util.concurrent.TimeUnit.MINUTES
+        ).build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            ScheduledBookingCheckWorker.WORK_NAME,
+            androidx.work.ExistingPeriodicWorkPolicy.REPLACE,
+            bookingCheckRequest
+        )
     }
 
     private fun loadReminderSettings() {
