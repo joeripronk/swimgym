@@ -62,7 +62,9 @@ fun ScheduleScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        if (permissions[Manifest.permission.WRITE_CALENDAR] == true && trainingToAddToCalendar != null) {
+        if (permissions[Manifest.permission.WRITE_CALENDAR] == true &&
+            permissions[Manifest.permission.READ_CALENDAR] == true &&
+            trainingToAddToCalendar != null) {
             val training = trainingToAddToCalendar!!
             trainingToAddToCalendar = null
             coroutineScope.launch {
@@ -166,7 +168,12 @@ fun ScheduleScreen(
                             onClick = { onTrainingClick(training) },
                             onAddToCalendar = {
                                 trainingToAddToCalendar = training
-                                permissionLauncher.launch(arrayOf(Manifest.permission.WRITE_CALENDAR))
+                                permissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.WRITE_CALENDAR,
+                                        Manifest.permission.READ_CALENDAR
+                                    )
+                                )
                             }
                         )
                     }

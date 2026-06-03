@@ -128,11 +128,11 @@ class ScheduledBookingRepository(
                     ScheduledBookingStatus.ACTIVE
                 }
 
-                if (id != null && trainingId != null) {
+                //if (id != null && trainingId != null) {
                     result.add(
                         ScheduledBooking(
                             id = id,
-                            trainingId = trainingId,
+                            trainingId = trainingId!!,
                             className = className ?: "",
                             startTime = startTime,
                             instructor = instructor,
@@ -142,7 +142,7 @@ class ScheduledBookingRepository(
                             createdAt = createdAt
                         )
                     )
-                }
+                //}
             } catch (e: Exception) {
                 // Skip malformed entries
             }

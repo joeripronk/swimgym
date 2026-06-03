@@ -1,5 +1,9 @@
 package com.swimgym.app.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.swimgym.app.data.api.WebScraper
 import com.swimgym.app.di.SwimGymAppContainer
@@ -53,6 +58,21 @@ import java.util.*
     ) {
     val dateFormat = remember { SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    var trainingToAddToCalendar by remember { mutableStateOf<Training?>(null) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[Manifest.permission.WRITE_CALENDAR] == true && trainingToAddToCalendar != null) {
+            val training = trainingToAddToCalendar!!
+            trainingToAddToCalendar = null
+            CoroutineScope(Dispatchers.IO).launch {
+                SwimGymAppContainer.getInstance().webScraper.addTrainingToCalendar(training)
+            }
+        }
+    }
 
     val displayImageUrl = training?.imageUrl
     if (training == null) {
@@ -220,20 +240,19 @@ import java.util.*
                         color = MaterialTheme.colorScheme.primary
                     )
 
-                    Button(
-                        onClick = {
-                            onAddToCalendar(training)
-                            CoroutineScope(Dispatchers.IO).launch {
-                                SwimGymAppContainer.getInstance().webScraper.addTrainingToCalendar(training)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary
-                        )
-                    ) {
-                        Text("+ Add to Calendar")
-                    }
+                  Button(
+                         onClick = {
+                             onAddToCalendar(training)
+                             trainingToAddToCalendar = training
+                             permissionLauncher.launch(arrayOf(Manifest.permission.WRITE_CALENDAR))
+                         },
+                         modifier = Modifier.fillMaxWidth().height(50.dp),
+                         colors = ButtonDefaults.buttonColors(
+                             containerColor = MaterialTheme.colorScheme.secondary
+                         )
+                     ) {
+                         Text("+ Add to Calendar")
+                     }
 
               Button(
                           onClick = {

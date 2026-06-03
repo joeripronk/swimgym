@@ -1,10 +1,13 @@
 package com.swimgym.app.data.api
 
+import android.Manifest
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.provider.CalendarContract
 import android.provider.CalendarContract.Events
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
 
 import com.swimgym.app.data.local.SwimGymDao
 import com.swimgym.app.data.local.entity.InstructorEntity
@@ -311,11 +314,12 @@ class WebScraper(
             var t = r.getOrThrow()
 
             if (t.isJoined && (response.isSuccessful || response.code == 302)) {
-                    try {
-                        addTrainingToCalendar(training.toDomain())
-                    } catch (e: Exception) {
-                        // warn user about calendar
-                    }
+                try {
+                    addTrainingToCalendar(training.toDomain())
+                } catch (e: Exception) {
+                    // warn user about calendar
+                }
+                addTrainingToCalendar(training.toDomain())
                     Result.success(
                         BookingResponse(
                             id = 0,
@@ -617,6 +621,14 @@ class WebScraper(
 
     suspend fun addTrainingToCalendar(training: Training): String? {
             try {
+                // Check if WRITE_CALENDAR permission is granted
+                if (ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.WRITE_CALENDAR
+                ) != PackageManager.PERMISSION_GRANTED) {
+                    return null
+                }
+                
                 // Get the selected calendar ID from SessionRepository
                 val sessionRepository = SessionRepository(context)
                 val selectedCalendarId = sessionRepository.selectedCalendarId.first() ?: 1L
