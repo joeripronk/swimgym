@@ -16,12 +16,10 @@ class ScheduledBookingCheckWorker(
     private val container = SwimGymAppContainer.getInstance()
     private val webScraper = container.webScraper
     private val sessionRepository = SessionRepository(appContext)
-    private var foregroundEnabled = false
 
     override fun doWork(): Result {
         return try {
             runBlocking {
-                foregroundEnabled = sessionRepository.getForegroundServiceEnabled()
                 webScraper.checkBookings()
             }
             Result.success()
@@ -31,13 +29,14 @@ class ScheduledBookingCheckWorker(
     }
 
     override fun getForegroundInfo(): ForegroundInfo {
+        val foregroundEnabled = runBlocking { sessionRepository.getForegroundServiceEnabled() }
         return ForegroundInfo(
             1,
             NotificationCompat.Builder(appContext, "swimgym_notifications")
                 .setContentTitle("Checking Bookings")
                 .setContentText("Automatically checking for available trainings")
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setOngoing(true)
+                .setOngoing(foregroundEnabled)
                 .build(),
             1
         )

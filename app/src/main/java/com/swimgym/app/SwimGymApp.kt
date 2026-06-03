@@ -1,10 +1,9 @@
 package com.swimgym.app
 
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import com.swimgym.app.di.SwimGymAppContainer
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -23,8 +22,11 @@ class SwimGymApp : Application() {
         super.onCreate()
         instance = this
         SwimGymAppContainer.getInstance()
+        
+        // Create notification channel for foreground service
+        createNotificationChannel()
 
-        // Schedule periodic booking check every 30 minutes
+        // Schedule periodic booking check every 15 minutes
         val bookingCheckRequest = PeriodicWorkRequestBuilder<ScheduledBookingCheckWorker>(
             15, TimeUnit.MINUTES
         )
@@ -35,7 +37,7 @@ class SwimGymApp : Application() {
             bookingCheckRequest
         )
 
-        // Schedule periodic schedule sync every 30 minutes
+        // Schedule periodic schedule sync every 24 hours
         val scheduleSyncRequest = PeriodicWorkRequestBuilder<ScheduleSyncWorker>(
             1440, TimeUnit.MINUTES
         ).build()
@@ -45,6 +47,20 @@ class SwimGymApp : Application() {
             ExistingPeriodicWorkPolicy.KEEP,
             scheduleSyncRequest
         )
+    }
+    
+    private fun createNotificationChannel() {
+        val channel = NotificationChannel(
+            "swimgym_notifications",
+            "SwimGym Notifications",
+            android.app.NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Notifications for booking checks"
+            enableVibration(false)
+            lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
+        }
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager.createNotificationChannel(channel)
     }
 
     fun getContainer(): SwimGymAppContainer = SwimGymAppContainer.getInstance()

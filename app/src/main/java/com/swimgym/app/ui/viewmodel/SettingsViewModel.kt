@@ -9,7 +9,10 @@ import com.swimgym.app.domain.repository.CalendarRepository
 import com.swimgym.app.worker.ScheduledBookingCheckWorker
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 
 data class ReminderConfig(
     val reminderMinutesBefore: Int = 30,
@@ -130,13 +133,14 @@ class SettingsViewModel(
     }
 
     private fun reloadWorkManager() {
-        WorkManager.getInstance(context).cancelAllWork()
-        val bookingCheckRequest = androidx.work.PeriodicWorkRequestBuilder<ScheduledBookingCheckWorker>(
-            15, java.util.concurrent.TimeUnit.MINUTES
+        val workManager = WorkManager.getInstance(context)
+        workManager.cancelAllWork()
+        val bookingCheckRequest = PeriodicWorkRequestBuilder<ScheduledBookingCheckWorker>(
+            15, TimeUnit.MINUTES
         ).build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+        workManager.enqueueUniquePeriodicWork(
             ScheduledBookingCheckWorker.WORK_NAME,
-            androidx.work.ExistingPeriodicWorkPolicy.REPLACE,
+            ExistingPeriodicWorkPolicy.REPLACE,
             bookingCheckRequest
         )
     }
