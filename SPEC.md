@@ -9,8 +9,8 @@
 - Language: Kotlin
 - UI: Jetpack Compose + Material 3
 - Architecture: Clean Architecture (MVVM)
-- DI: Hilt
-- Networking: Retrofit + OkHttp
+- DI: Manual singleton container
+- Networking: OkHttp + Jsoup (HTML scraping)
 - Async: Kotlin Coroutines + Flow
 - Local Storage: DataStore (session)
 - Calendar Integration: Android CalendarProvider API
