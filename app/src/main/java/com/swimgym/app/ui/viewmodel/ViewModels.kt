@@ -55,7 +55,8 @@ data class ScheduleUiState(
     val workTimeSaturday: Pair<String, String> = Pair("08:00", "18:00"),
     val workTimeSaturdayEnabled: Boolean = false,
     val workTimeSunday: Pair<String, String> = Pair("08:00", "18:00"),
-    val workTimeSundayEnabled: Boolean = false
+    val workTimeSundayEnabled: Boolean = false,
+    val calendarError: String? = null
 )
 
 class ScheduleViewModel(
@@ -386,6 +387,10 @@ class ScheduleViewModel(
 
     fun clearCancelError() {
         _uiState.update { it.copy(cancelError = null) }
+    }
+
+    fun clearCalendarError() {
+        _uiState.update { it.copy(calendarError = null) }
     }
 
     fun scheduleRecurringBooking(

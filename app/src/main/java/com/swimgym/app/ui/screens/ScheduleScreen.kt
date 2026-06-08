@@ -59,6 +59,8 @@ fun ScheduleScreen(
 
 
 
+    var calendarAddError by remember { mutableStateOf<String?>(null) }
+    var retryTraining by remember { mutableStateOf<Training?>(null) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -68,7 +70,11 @@ fun ScheduleScreen(
             val training = trainingToAddToCalendar!!
             trainingToAddToCalendar = null
             coroutineScope.launch {
-                SwimGymAppContainer.getInstance().webScraper.addTrainingToCalendar(training)
+                val result = SwimGymAppContainer.getInstance().webScraper.addTrainingToCalendar(training)
+                if (result == null) {
+                    calendarAddError = "Failed to add training to calendar"
+                    retryTraining = training
+                }
             }
         }
     }
@@ -87,16 +93,16 @@ fun ScheduleScreen(
                             onDismissRequest = { showLevelMenu = false }
                         ) {
                             SwodLevel.values().forEach { level ->
-                                DropdownMenuItem(
-                                    text = { Text(level.name) },
-                                    onClick = {
-                                        viewModel.setLevel(level)
-                                        showLevelMenu = false
-                                    }
-                                )
-                            }
-                        }
-                    }
+                                 DropdownMenuItem(
+                                     text = { Text(level.name) },
+                                     onClick = {
+                                         viewModel.setLevel(level)
+                                         showLevelMenu = false
+                                     }
+                                 )
+                             }
+                         }
+                     }
                     IconButton(onClick = onMyBookingsClick) {
                         Icon(Icons.Default.List, contentDescription = "My Bookings")
                     }
@@ -180,6 +186,35 @@ fun ScheduleScreen(
                 }
             }
         }
+    }
+
+    if (calendarAddError != null) {
+        AlertDialog(
+            onDismissRequest = { calendarAddError = null },
+            title = { Text("Calendar Error") },
+            text = { Text(calendarAddError!!) },
+            confirmButton = {
+                Button(onClick = {
+                    calendarAddError = null
+                    retryTraining?.let { training ->
+                        trainingToAddToCalendar = training
+                        permissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.WRITE_CALENDAR,
+                                Manifest.permission.READ_CALENDAR
+                            )
+                        )
+                    }
+                }) {
+                    Text("Retry")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { calendarAddError = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

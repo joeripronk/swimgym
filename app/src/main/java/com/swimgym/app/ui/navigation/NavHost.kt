@@ -203,6 +203,9 @@ fun SwimGymNavigation(
                 },
                 onClearCancelError = {
                     scheduleViewModel.clearCancelError()
+                },
+                onClearCalendarError = {
+                    scheduleViewModel.clearCalendarError()
                 }
             )
         }

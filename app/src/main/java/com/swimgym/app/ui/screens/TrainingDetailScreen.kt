@@ -54,14 +54,17 @@ import java.util.*
         bookingError: String? = null,
         cancelError: String? = null,
         onClearBookingError: () -> Unit = {},
-        onClearCancelError: () -> Unit = {}
-    ) {
+         onClearCancelError: () -> Unit = {},
+         onClearCalendarError: () -> Unit = {}
+     ) {
     val dateFormat = remember { SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     var trainingToAddToCalendar by remember { mutableStateOf<Training?>(null) }
+    var calendarAddError by remember { mutableStateOf<String?>(null) }
+    var retryTraining by remember { mutableStateOf<Training?>(null) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -69,7 +72,11 @@ import java.util.*
             val training = trainingToAddToCalendar!!
             trainingToAddToCalendar = null
             CoroutineScope(Dispatchers.IO).launch {
-                SwimGymAppContainer.getInstance().webScraper.addTrainingToCalendar(training)
+                val result = SwimGymAppContainer.getInstance().webScraper.addTrainingToCalendar(training)
+                if (result == null) {
+                    calendarAddError = "Failed to add training to calendar"
+                    retryTraining = training
+                }
             }
         }
     }
@@ -388,6 +395,30 @@ import java.util.*
             confirmButton = {
                 Button(onClick = { onClearCancelError() }) {
                     Text("OK")
+                }
+            }
+        )
+    }
+
+    if (calendarAddError != null) {
+        AlertDialog(
+            onDismissRequest = { onClearCalendarError() },
+            title = { Text("Calendar Error") },
+            text = { Text(calendarAddError!!) },
+            confirmButton = {
+                Button(onClick = {
+                    onClearCalendarError()
+                    retryTraining?.let { training ->
+                        trainingToAddToCalendar = training
+                        permissionLauncher.launch(arrayOf(Manifest.permission.WRITE_CALENDAR))
+                    }
+                }) {
+                    Text("Retry")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { onClearCalendarError() }) {
+                    Text("Cancel")
                 }
             }
         )
