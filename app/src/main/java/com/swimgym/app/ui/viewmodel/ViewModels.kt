@@ -117,13 +117,7 @@ class ScheduleViewModel(
     
     private fun observeHideFullyBooked() {
         viewModelScope.launch {
-            // Create a flow that periodically checks for changes
-            kotlinx.coroutines.flow.flow {
-                while (true) {
-                    emit(sessionRepository.getHideFullyBooked())
-                    kotlinx.coroutines.delay(2000)
-                }
-            }.distinctUntilChanged().collect { hideFullyBooked ->
+            sessionRepository.hideFullyBooked.distinctUntilChanged().collect { hideFullyBooked ->
                 if (hideFullyBooked != _uiState.value.hideFullyBooked) {
                     _uiState.update { it.copy(hideFullyBooked = hideFullyBooked) }
                     loadSchedule(_uiState.value.selectedLevel, hideFullyBooked)
@@ -134,31 +128,31 @@ class ScheduleViewModel(
     
     private fun observeWorkTimeFilter() {
         viewModelScope.launch {
-            // Create a flow that periodically checks for changes
-            kotlinx.coroutines.flow.flow {
-                while (true) {
-                    val enabled = sessionRepository.getWorkTimeFilterEnabled()
-                    val mondayEnabled = sessionRepository.getWorkTimeEnabledForDay(0)
-                    val tuesdayEnabled = sessionRepository.getWorkTimeEnabledForDay(1)
-                    val wednesdayEnabled = sessionRepository.getWorkTimeEnabledForDay(2)
-                    val thursdayEnabled = sessionRepository.getWorkTimeEnabledForDay(3)
-                    val fridayEnabled = sessionRepository.getWorkTimeEnabledForDay(4)
-                    val saturdayEnabled = sessionRepository.getWorkTimeEnabledForDay(5)
-                    val sundayEnabled = sessionRepository.getWorkTimeEnabledForDay(6)
-                    emit(Pair(enabled, listOf(mondayEnabled, tuesdayEnabled, wednesdayEnabled, thursdayEnabled, fridayEnabled, saturdayEnabled, sundayEnabled)))
-                    kotlinx.coroutines.delay(2000)
-                }
-            }.distinctUntilChanged().collect { (enabled, dayEnableds) ->
-                val currentDayEnableds = listOf(
-                    _uiState.value.workTimeMondayEnabled,
-                    _uiState.value.workTimeTuesdayEnabled,
-                    _uiState.value.workTimeWednesdayEnabled,
-                    _uiState.value.workTimeThursdayEnabled,
-                    _uiState.value.workTimeFridayEnabled,
-                    _uiState.value.workTimeSaturdayEnabled,
-                    _uiState.value.workTimeSundayEnabled
-                )
-                if (enabled != _uiState.value.workTimeFilterEnabled || dayEnableds != currentDayEnableds) {
+            combine(
+                sessionRepository.workTimeFilterEnabled,
+                sessionRepository.workTimeEnabledDays,
+                sessionRepository.workTimeRanges
+            ) { enabled, dayEnableds, ranges ->
+                Triple(enabled, dayEnableds, ranges)
+            }.distinctUntilChanged().collect { (enabled, dayEnableds, ranges) ->
+                if (enabled != _uiState.value.workTimeFilterEnabled || 
+                    dayEnableds != listOf(
+                        _uiState.value.workTimeMondayEnabled,
+                        _uiState.value.workTimeTuesdayEnabled,
+                        _uiState.value.workTimeWednesdayEnabled,
+                        _uiState.value.workTimeThursdayEnabled,
+                        _uiState.value.workTimeFridayEnabled,
+                        _uiState.value.workTimeSaturdayEnabled,
+                        _uiState.value.workTimeSundayEnabled
+                    ) || ranges != listOf(
+                        _uiState.value.workTimeMonday,
+                        _uiState.value.workTimeTuesday,
+                        _uiState.value.workTimeWednesday,
+                        _uiState.value.workTimeThursday,
+                        _uiState.value.workTimeFriday,
+                        _uiState.value.workTimeSaturday,
+                        _uiState.value.workTimeSunday
+                    )) {
                     _uiState.update { it.copy(
                         workTimeFilterEnabled = enabled,
                         workTimeMondayEnabled = dayEnableds[0],
@@ -167,7 +161,14 @@ class ScheduleViewModel(
                         workTimeThursdayEnabled = dayEnableds[3],
                         workTimeFridayEnabled = dayEnableds[4],
                         workTimeSaturdayEnabled = dayEnableds[5],
-                        workTimeSundayEnabled = dayEnableds[6]
+                        workTimeSundayEnabled = dayEnableds[6],
+                        workTimeMonday = ranges[0],
+                        workTimeTuesday = ranges[1],
+                        workTimeWednesday = ranges[2],
+                        workTimeThursday = ranges[3],
+                        workTimeFriday = ranges[4],
+                        workTimeSaturday = ranges[5],
+                        workTimeSunday = ranges[6]
                     ) }
                     loadSchedule(_uiState.value.selectedLevel, _uiState.value.hideFullyBooked)
                 }
@@ -340,7 +341,7 @@ class ScheduleViewModel(
                                 currentTrainings.add(training)
                             }
                             if (training.isJoined) {
-                                Toast.makeText(applicationContext,"Successfully booked",5)
+                                Toast.makeText(applicationContext, "Successfully booked", Toast.LENGTH_SHORT).show()
                             } else {
                                 _uiState.update { it.copy(bookingError = "Cannot book this training") }
                             }

@@ -61,6 +61,39 @@ class SessionRepository(
 
     val selectedCalendarId: Flow<Long?> = context.dataStore.data.map { it[SELECTED_CALENDAR_ID]?.toLongOrNull() }
 
+    private val _hideFullyBooked = context.dataStore.data.map { it[HIDE_FULLY_BOOKED]?.toBoolean() ?: false }
+    val hideFullyBooked: Flow<Boolean> = _hideFullyBooked
+
+    private val _workTimeFilterEnabled = context.dataStore.data.map { it[WORK_TIME_FILTER_ENABLED]?.toBoolean() ?: false }
+    val workTimeFilterEnabled: Flow<Boolean> = _workTimeFilterEnabled
+
+    private val _workTimeEnabledDays = context.dataStore.data.map { prefs ->
+        listOf(
+            prefs[WORK_TIME_MONDAY_ENABLED]?.toBoolean() ?: true,
+            prefs[WORK_TIME_TUESDAY_ENABLED]?.toBoolean() ?: true,
+            prefs[WORK_TIME_WEDNESDAY_ENABLED]?.toBoolean() ?: true,
+            prefs[WORK_TIME_THURSDAY_ENABLED]?.toBoolean() ?: true,
+            prefs[WORK_TIME_FRIDAY_ENABLED]?.toBoolean() ?: true,
+            prefs[WORK_TIME_SATURDAY_ENABLED]?.toBoolean() ?: false,
+            prefs[WORK_TIME_SUNDAY_ENABLED]?.toBoolean() ?: false
+        )
+    }
+    val workTimeEnabledDays: Flow<List<Boolean>> = _workTimeEnabledDays
+
+    private val _workTimeRanges = context.dataStore.data.map { prefs ->
+        val keyList = listOf(
+            WORK_TIME_MONDAY, WORK_TIME_TUESDAY, WORK_TIME_WEDNESDAY,
+            WORK_TIME_THURSDAY, WORK_TIME_FRIDAY, WORK_TIME_SATURDAY, WORK_TIME_SUNDAY
+        )
+        keyList.map { key ->
+            prefs[key]?.let { timeStr ->
+                val parts = timeStr.split("|")
+                if (parts.size == 2) Pair(parts[0], parts[1]) else Pair("08:00", "18:00")
+            } ?: Pair("08:00", "18:00")
+        }
+    }
+    val workTimeRanges: Flow<List<Pair<String, String>>> = _workTimeRanges
+
     suspend fun saveSession(token: String, userId: Int, name: String, email: String) {
         context.dataStore.edit { prefs ->
             prefs[AUTH_TOKEN] = token

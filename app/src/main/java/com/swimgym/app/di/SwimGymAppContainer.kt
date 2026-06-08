@@ -4,7 +4,7 @@ import android.content.Context
 import com.swimgym.app.SwimGymApp
 import com.swimgym.app.data.api.WebScraper
 import com.swimgym.app.data.local.SwimGymDao
-import com.swimgym.app.data.local.database
+import com.swimgym.app.data.local.SwimGymDatabase
 import com.swimgym.app.data.repository.*
 import com.swimgym.app.domain.repository.CalendarRepository
 import com.swimgym.app.domain.repository.TrainingRepository
@@ -14,7 +14,7 @@ import kotlinx.coroutines.runBlocking
 
 class SwimGymAppContainer private constructor() {
     private val context: Context by lazy { (SwimGymApp.instance as Context) }
-    val dao: SwimGymDao by lazy { context.database() }
+    val dao: SwimGymDao by lazy { SwimGymDatabase.getDatabase(context) }
     val sessionRepository: SessionRepository by lazy { SessionRepository(context) }
     val bookingNotificationManager: BookingNotificationManager by lazy { BookingNotificationManager(context) }
     val scheduledBookingRepository: ScheduledBookingRepository by lazy { ScheduledBookingRepository(context) }

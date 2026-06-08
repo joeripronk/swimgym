@@ -55,8 +55,6 @@ class CalendarRepositoryImpl(
             }
         } catch (e: SecurityException) {
             throw e
-        } catch (e: Exception) {
-            throw e
         }
 
         return calendars.sortedByDescending { it.isPrimary }

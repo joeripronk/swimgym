@@ -48,10 +48,12 @@ class ScheduledBookingRepository(
         return getAllBookings().find { it.id == id }
     }
 
-    suspend fun incrementBookingCount(bookingId: Long,training: TrainingEntity) {
+    suspend fun incrementBookingCount(bookingId: Long, training: TrainingEntity) {
         val booking = getBooking(bookingId) ?: return
-        saveBooking(booking.copy(bookedCount = booking.bookedCount + 1,
-            startTime = training.startTime+7*86400,
+        saveBooking(booking.copy(
+            bookedCount = booking.bookedCount + 1,
+	    // the only verified source for starttime is from training
+	    startTime = training.startTime + 7 * 86400,
             instructor = training.instructor,
             trainingId = training.id
         ))

@@ -4,12 +4,6 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-configurations.all {
-    resolutionStrategy {
-        force("androidx.work:work-runtime-ktx:2.9.1")
-    }
-}
-
 android {
     namespace = "com.swimgym.app"
     compileSdk = 37

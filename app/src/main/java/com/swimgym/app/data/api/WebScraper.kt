@@ -319,7 +319,7 @@ class WebScraper(
                 } catch (e: Exception) {
                     // warn user about calendar
                 }
-                addTrainingToCalendar(training.toDomain())
+
                     Result.success(
                         BookingResponse(
                             id = 0,
@@ -577,10 +577,14 @@ class WebScraper(
 
         activeBookings.forEach { booking ->
             // make sure the startTime is in the future
-            while(booking.startTime<now) {
-                booking.startTime+=7*86400
+            var adjustedStartTime = booking.startTime
+            while(adjustedStartTime < now) {
+                adjustedStartTime += 7*86400
             }
-            processBooking(booking, trainings)
+            if (adjustedStartTime != booking.startTime) {
+                scheduledBookingRepo.saveBooking(booking.copy(startTime = adjustedStartTime))
+            }
+            processBooking(booking.copy(startTime = adjustedStartTime), trainings)
         }
 
     //    ListenableWorker.Result.success()

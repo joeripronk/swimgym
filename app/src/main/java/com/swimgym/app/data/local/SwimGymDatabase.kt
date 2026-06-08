@@ -16,8 +16,23 @@ import com.swimgym.app.data.local.entity.CacheControlEntity
 )
 abstract class SwimGymDatabase : RoomDatabase() {
     abstract fun dao(): SwimGymDao
-}
 
-fun Context.database(): SwimGymDao {
-    return Room.databaseBuilder(this, SwimGymDatabase::class.java, "swimgym_database").build().dao()
+    companion object {
+        @Volatile
+        private var INSTANCE: SwimGymDatabase? = null
+
+        fun getDatabase(context: Context): SwimGymDao {
+            return INSTANCE?.let {
+                return it.dao()
+            } ?: synchronized(this) {
+                val instance = Room.databaseBuilder(
+                    context.applicationContext,
+                    SwimGymDatabase::class.java,
+                    "swimgym_database"
+                ).build()
+                INSTANCE = instance
+                instance.dao()
+            }
+        }
+    }
 }
