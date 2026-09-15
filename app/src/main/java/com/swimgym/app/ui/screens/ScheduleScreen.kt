@@ -231,6 +231,9 @@ private fun TrainingCard(
 
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
+    // Cache image URL per card to avoid redundant AsyncImage instances
+    val cachedImageUrl = remember { mutableStateOf(training.imageUrl) }
+
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -314,7 +317,7 @@ private fun TrainingCard(
             }
             if (training.imageUrl.isNotEmpty()) {
                 AsyncImage(
-                    model = training.imageUrl,
+                    model = cachedImageUrl.value,
                     contentDescription = "Instructor image",
 
                     modifier = Modifier

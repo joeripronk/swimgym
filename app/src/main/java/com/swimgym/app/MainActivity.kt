@@ -41,8 +41,18 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         // Check if login is required from notification
-        if (intent?.action == LoginActivity.ACTION_LOGIN_REQUIRED) {
+        if (localIntent?.action == LoginActivity.ACTION_LOGIN_REQUIRED) {
             // The NavHost will handle navigation to login screen
+        }
+    }
+
+    private var localIntent: Intent? = null
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        localIntent = intent
+        if (intent?.action == LoginActivity.ACTION_LOGIN_REQUIRED) {
+            // Intent action handled by NavHost
         }
     }
 }

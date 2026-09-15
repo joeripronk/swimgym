@@ -9,6 +9,7 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_WORKER" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
         android:name=".SwimGymApp"
@@ -32,6 +33,9 @@
         </activity>
         <receiver
             android:name=".receiver.LoginRequiredReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".receiver.ScheduledBookingReceiver"
             android:exported="false" />
     </application>
 

@@ -69,6 +69,7 @@ class ScheduleViewModel(
     private val getSyncStatusUseCase: GetSyncStatusUseCase,
     private val sessionRepository: com.swimgym.app.data.repository.SessionRepository,
     private val scheduledBookingRepo: ScheduledBookingRepository,
+    private val alarmScheduler: com.swimgym.app.util.AlarmScheduler,
     private val trainerImageCache: TrainerImageCache,
     private val dao: com.swimgym.app.data.local.SwimGymDao,
     private val applicationContext: android.content.Context
@@ -426,7 +427,13 @@ class ScheduleViewModel(
                 maxRepeatCount = maxRepeatCount
             )
             scheduledBookingRepo.saveBooking(scheduledBooking)
-            // Periodic worker will pick up and process this booking
+            
+            val bookingWindowOpens = scheduledBooking.startTime - 7 * 86400
+            val alarmTimeMillis = bookingWindowOpens + 5 * 60 * 1000
+            val nowMillis = System.currentTimeMillis()
+            if (alarmTimeMillis > nowMillis) {
+                alarmScheduler.scheduleBooking(bookingId, alarmTimeMillis)
+            }
         }
     }
 
@@ -437,17 +444,28 @@ class ScheduleViewModel(
     fun pauseScheduledBooking(bookingId: Long) {
         viewModelScope.launch {
             scheduledBookingRepo.pauseBooking(bookingId)
+            alarmScheduler.cancelBooking(bookingId)
         }
     }
 
     fun resumeScheduledBooking(bookingId: Long) {
         viewModelScope.launch {
-            scheduledBookingRepo.resumeBooking(bookingId)
+            val booking = scheduledBookingRepo.getBooking(bookingId)
+            if (booking != null) {
+                scheduledBookingRepo.resumeBooking(bookingId)
+                val bookingWindowOpens = booking.startTime - 7 * 86400
+                val alarmTimeMillis = bookingWindowOpens + 5 * 60 * 1000
+                val nowMillis = System.currentTimeMillis()
+                if (alarmTimeMillis > nowMillis) {
+                    alarmScheduler.scheduleBooking(bookingId, alarmTimeMillis)
+                }
+            }
         }
     }
 
     fun deleteScheduledBooking(bookingId: Long) {
         viewModelScope.launch {
+            alarmScheduler.cancelBooking(bookingId)
             scheduledBookingRepo.deleteBooking(bookingId)
         }
     }

@@ -18,9 +18,7 @@ class ScheduleSyncWorker(
     private val webScraper = container.webScraper
     override fun doWork(): Result {
         return try {
-            runBlocking {
-                syncSchedule()
-            }
+            syncSchedule()
             Result.success()
         } catch (e: Exception) {
             Result.retry()

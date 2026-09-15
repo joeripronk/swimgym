@@ -19,9 +19,7 @@ class ScheduledBookingCheckWorker(
 
     override fun doWork(): Result {
         return try {
-            runBlocking {
-                webScraper.checkBookings()
-            }
+            webScraper.checkBookings()
             Result.success()
         } catch (e: Exception) {
             Result.retry()

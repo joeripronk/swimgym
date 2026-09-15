@@ -9,6 +9,7 @@ import com.swimgym.app.data.repository.*
 import com.swimgym.app.domain.repository.CalendarRepository
 import com.swimgym.app.domain.repository.TrainingRepository
 import com.swimgym.app.domain.usecase.*
+import com.swimgym.app.util.AlarmScheduler
 import com.swimgym.app.util.BookingNotificationManager
 import kotlinx.coroutines.runBlocking
 
@@ -24,6 +25,7 @@ class SwimGymAppContainer private constructor() {
             dao = dao,
             scheduledBookingRepo = scheduledBookingRepository,
             notificationManager = bookingNotificationManager,
+            alarmScheduler = alarmScheduler,
             context = context
         )/*.apply {
             // Load cached User-Agent and cookies on initialization
@@ -44,6 +46,7 @@ class SwimGymAppContainer private constructor() {
     val calendarRepository: CalendarRepository by lazy { CalendarRepositoryImpl(context) }
     val trainingRepositoryInterface: TrainingRepository by lazy { trainingRepository }
     val trainerImageCache: TrainerImageCache by lazy { TrainerImageCache(context, dao) }
+    val alarmScheduler: AlarmScheduler by lazy { AlarmScheduler(context) }
     
     // Use cases
     val getScheduleUseCase: GetScheduleUseCase by lazy { GetScheduleUseCase(trainingRepositoryInterface) }

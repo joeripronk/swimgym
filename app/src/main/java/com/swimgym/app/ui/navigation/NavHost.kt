@@ -65,6 +65,7 @@ fun SwimGymNavigation(
         getSyncStatusUseCase = container.getSyncStatusUseCase,
         sessionRepository = container.sessionRepository,
         scheduledBookingRepo = container.scheduledBookingRepository,
+        alarmScheduler = container.alarmScheduler,
         trainerImageCache = container.trainerImageCache,
         dao = container.dao,
         applicationContext = context

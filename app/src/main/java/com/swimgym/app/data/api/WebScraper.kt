@@ -21,6 +21,7 @@ import com.swimgym.app.data.repository.ScheduledBookingRepository
 import com.swimgym.app.data.repository.ScheduledBookingStatus
 import com.swimgym.app.data.repository.SessionRepository
 import com.swimgym.app.domain.model.Training
+import com.swimgym.app.util.AlarmScheduler
 import com.swimgym.app.util.BookingNotificationManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -46,6 +47,7 @@ class WebScraper(
     private val dao: SwimGymDao,
     private val scheduledBookingRepo: ScheduledBookingRepository,
     private val notificationManager: BookingNotificationManager,
+    private val alarmScheduler: AlarmScheduler,
     private val context: Context
 ) {
     private val fetchHtmlLock = Mutex()
@@ -562,6 +564,77 @@ class WebScraper(
         }
     }
 
+
+    suspend fun processSingleBooking(bookingId: Long): Boolean = withContext(Dispatchers.IO) {
+        val booking = scheduledBookingRepo.getBooking(bookingId) ?: return@withContext false
+        if (booking.status != ScheduledBookingStatus.ACTIVE) return@withContext false
+
+        val trainings = dao.getAllTrainingsList() ?: return@withContext false
+        if (trainings.isEmpty()) return@withContext false
+
+        val now = System.currentTimeMillis() / 1000
+        var adjustedStartTime = booking.startTime
+        while (adjustedStartTime < now) {
+            adjustedStartTime += 7 * 86400
+        }
+
+        val updatedBooking = booking.copy(startTime = adjustedStartTime)
+        scheduledBookingRepo.saveBooking(updatedBooking)
+
+        if (!shouldBookForAlarm(updatedBooking.startTime, now)) {
+            return@withContext false
+        }
+
+        val training = getNextTraining(adjustedStartTime, booking.className, trainings) ?: return@withContext false
+        val res = getTrainingDetails(training)
+        val updtraining = res.getOrThrow()
+
+        if (updtraining.isJoined) {
+            scheduledBookingRepo.incrementBookingCount(bookingId, training)
+            return@withContext true
+        }
+
+        if (updtraining.isFull) {
+            return@withContext false
+        }
+
+        val result = bookTraining(training)
+        result.fold(
+            onSuccess = {
+                scheduledBookingRepo.incrementBookingCount(bookingId, training)
+
+                val updatedBooking = scheduledBookingRepo.getBooking(bookingId)
+                if (updatedBooking != null && updatedBooking.status == ScheduledBookingStatus.ACTIVE) {
+                    val nextAlarmTime = updatedBooking.startTime - 7 * 86400 + 5 * 60
+                    val now = System.currentTimeMillis() / 1000
+                    if (nextAlarmTime > now) {
+                        alarmScheduler.scheduleBooking(bookingId, (nextAlarmTime * 1000))
+                    } else {
+                        alarmScheduler.scheduleBooking(bookingId, System.currentTimeMillis() + 5 * 60 * 1000)
+                    }
+                }
+
+                val maxRepeat = booking.maxRepeatCount
+                if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
+                    scheduledBookingRepo.completeBooking(bookingId)
+                }
+
+                notificationManager.showBookingConfirmation(
+                    trainingName = training.title,
+                    classTime = training.classTime,
+                    classDate = training.classDate,
+                    isScheduledBooking = true
+                )
+            },
+            onFailure = {
+            }
+        )
+        true
+    }
+
+    private fun shouldBookForAlarm(trainingStart: Long, now: Long): Boolean {
+        return trainingStart < now + 7 * 86400 && trainingStart > now + 86400
+    }
 
     suspend fun checkBookings() {
         val calendar = Calendar.getInstance()
