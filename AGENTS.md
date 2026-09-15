@@ -21,9 +21,8 @@ app/src/main/java/com/swimgym/app/
 
 ### Notes
 - Android SDK at `/home/joeri/android-sdk`
-- Java 17 at `/home/joeri/java/jdk-17.0.19+10`
-- Run with: `JAVA_HOME=/home/joeri/java/jdk-17.0.19+10 ANDROID_SDK_ROOT=/home/joeri/android-sdk ./gradlew ...`
-- Use standard Android architecture: MVVM, Hilt DI, Coroutines
+- Run with: `ANDROID_SDK_ROOT=/home/joeri/android-sdk ./gradlew ...`
+- Use standard Android architecture: MVVM, Coroutines
 - API endpoints in `data/api/VirtuagymApi.kt` - verify actual Virtuagym API via network inspection
 
 ## HTML Analysis Tool
