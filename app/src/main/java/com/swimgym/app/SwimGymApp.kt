@@ -1,8 +1,10 @@
 package com.swimgym.app
 
+import android.app.Activity
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.os.Bundle
 import com.swimgym.app.di.SwimGymAppContainer
 import java.util.concurrent.TimeUnit
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -10,6 +12,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import com.swimgym.app.worker.ScheduledBookingCheckWorker
 import com.swimgym.app.worker.ScheduleSyncWorker
 import androidx.work.WorkManager
+import kotlinx.coroutines.runBlocking
 
 class SwimGymApp : Application() {
     
@@ -28,6 +31,22 @@ class SwimGymApp : Application() {
 
         // Arm the 12h schedule sync alarm
         SwimGymAppContainer.getInstance().alarmScheduler.scheduleSyncAlarm()
+
+        // Reschedule booking alarms on app start
+        rescheduleAllAlarms()
+
+        // Register lifecycle callback to reschedule alarms on resume
+        registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityStarted(activity: Activity) {}
+            override fun onActivityResumed(activity: Activity) {
+                rescheduleAllAlarms()
+            }
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityStopped(activity: Activity) {}
+        })
 
         // Schedule periodic booking check every 15 minutes
         val bookingCheckRequest = PeriodicWorkRequestBuilder<ScheduledBookingCheckWorker>(
@@ -64,6 +83,13 @@ class SwimGymApp : Application() {
         }
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager.createNotificationChannel(channel)
+    }
+
+    private fun rescheduleAllAlarms() {
+        runBlocking {
+            val bookings = SwimGymAppContainer.getInstance().scheduledBookingRepository.getAllBookings()
+            SwimGymAppContainer.getInstance().alarmScheduler.rescheduleBookingAlarms(bookings)
+        }
     }
 
     fun getContainer(): SwimGymAppContainer = SwimGymAppContainer.getInstance()

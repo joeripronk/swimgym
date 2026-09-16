@@ -48,11 +48,17 @@ class BookingSchedulerImpl(
     }
 
     override suspend fun processSingleBooking(bookingId: Long): Boolean = withContext(Dispatchers.IO) {
-        val booking = scheduledBookingRepo.getBooking(bookingId) ?: return@withContext false
+        var booking = scheduledBookingRepo.getBooking(bookingId) ?: return@withContext false
         if (booking.status != ScheduledBookingStatus.ACTIVE) return@withContext false
 
-        val trainings = dao.getAllTrainingsList() ?: return@withContext false
-        if (trainings.isEmpty()) return@withContext false
+        val trainings = dao.getAllTrainingsList() ?: run {
+            rescheduleAlarmForRetry(booking)
+            return@withContext false
+        }
+        if (trainings.isEmpty()) {
+            rescheduleAlarmForRetry(booking)
+            return@withContext false
+        }
 
         val now = System.currentTimeMillis() / 1000
         var adjustedStartTime = booking.startTime
@@ -64,19 +70,36 @@ class BookingSchedulerImpl(
         scheduledBookingRepo.saveBooking(updatedBooking)
 
         if (!shouldBookForAlarm(updatedBooking.startTime, now)) {
+            rescheduleAlarmForRetry(updatedBooking)
             return@withContext false
         }
 
-        val training = getNextTraining(adjustedStartTime, booking.className, trainings) ?: return@withContext false
+        val training = getNextTraining(adjustedStartTime, booking.className, trainings) ?: run {
+            rescheduleAlarmForRetry(updatedBooking)
+            return@withContext false
+        }
         val res = getTrainingDetails(training)
+        
+        if (!res.isSuccess) {
+            rescheduleAlarmForRetry(updatedBooking)
+            return@withContext false
+        }
+
         val updtraining = res.getOrThrow()
 
         if (updtraining.isJoined) {
             scheduledBookingRepo.incrementBookingCount(bookingId, training)
+            val maxRepeat = booking.maxRepeatCount
+            if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
+                scheduledBookingRepo.completeBooking(bookingId)
+            } else {
+                rescheduleAlarmForRetry(updatedBooking)
+            }
             return@withContext true
         }
 
         if (updtraining.isFull) {
+            rescheduleAlarmForRetry(updatedBooking)
             return@withContext false
         }
 
@@ -105,9 +128,16 @@ class BookingSchedulerImpl(
                     isScheduledBooking = true
                 )
             },
-            onFailure = { }
+            onFailure = {
+                rescheduleAlarmForRetry(updatedBooking)
+            }
         )
         return@withContext true
+    }
+
+    private fun rescheduleAlarmForRetry(booking: ScheduledBooking) {
+        val retryTime = System.currentTimeMillis() + 15 * 60 * 1000L
+        alarmScheduler.scheduleBooking(booking.id, retryTime)
     }
 
     private suspend fun getTrainingDetails(training: TrainingEntity): Result<TrainingEntity> = withContext(Dispatchers.IO) {
