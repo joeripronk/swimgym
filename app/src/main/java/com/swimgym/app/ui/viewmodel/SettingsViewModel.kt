@@ -50,7 +50,8 @@ data class SettingsUiState(
     val hideFullyBooked: Boolean = false,
     val workTimeConfig: WorkTimeConfig = WorkTimeConfig(),
     val foregroundServiceEnabled: Boolean = false,
-    val requestForegroundPermission: Boolean = false
+    val requestForegroundPermission: Boolean = false,
+    val alarmNotificationEnabled: Boolean = true
 )
 
 class SettingsViewModel(
@@ -68,6 +69,7 @@ class SettingsViewModel(
         loadHideFullyBookedSetting()
         loadWorkTimeSettings()
         loadForegroundServiceSetting()
+        loadAlarmNotificationSetting()
         viewModelScope.launch {
             sessionRepository.selectedCalendar.collect { calendar ->
                 if (calendar != null) {
@@ -143,6 +145,20 @@ class SettingsViewModel(
             ExistingPeriodicWorkPolicy.REPLACE,
             bookingCheckRequest
         )
+    }
+
+    private fun loadAlarmNotificationSetting() {
+        viewModelScope.launch {
+            val enabled = sessionRepository.getAlarmNotificationEnabled()
+            _uiState.update { it.copy(alarmNotificationEnabled = enabled) }
+        }
+    }
+
+    fun setAlarmNotificationEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            sessionRepository.saveAlarmNotificationEnabled(enabled)
+            _uiState.update { it.copy(alarmNotificationEnabled = enabled) }
+        }
     }
 
     private fun loadReminderSettings() {

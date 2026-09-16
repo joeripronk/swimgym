@@ -428,8 +428,7 @@ class ScheduleViewModel(
             )
             scheduledBookingRepo.saveBooking(scheduledBooking)
             
-            val bookingWindowOpens = scheduledBooking.startTime - 7 * 86400
-            val alarmTimeMillis = bookingWindowOpens + 5 * 60 * 1000
+            val alarmTimeMillis = alarmScheduler.bookingAlarmTimeMillis(scheduledBooking)
             val nowMillis = System.currentTimeMillis()
             if (alarmTimeMillis > nowMillis) {
                 alarmScheduler.scheduleBooking(bookingId, alarmTimeMillis)
@@ -453,8 +452,7 @@ class ScheduleViewModel(
             val booking = scheduledBookingRepo.getBooking(bookingId)
             if (booking != null) {
                 scheduledBookingRepo.resumeBooking(bookingId)
-                val bookingWindowOpens = booking.startTime - 7 * 86400
-                val alarmTimeMillis = bookingWindowOpens + 5 * 60 * 1000
+                val alarmTimeMillis = alarmScheduler.bookingAlarmTimeMillis(booking)
                 val nowMillis = System.currentTimeMillis()
                 if (alarmTimeMillis > nowMillis) {
                     alarmScheduler.scheduleBooking(bookingId, alarmTimeMillis)

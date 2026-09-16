@@ -22,6 +22,8 @@ class BookingNotificationManager(
         private const val BOOKING_CHANNEL_DESCRIPTION = "Notifications for training booking confirmations"
         const val NOTIFICATION_ID_BASE = 1000
         const val LOGIN_REQUIRED_ID = 9999
+        const val SYNC_ID = 5000
+        private const val SYNC_CHANNEL_ID = "swimgym_notifications"
     }
 
     fun showBookingConfirmation(
@@ -68,6 +70,43 @@ class BookingNotificationManager(
             .setContentIntent(pendingIntent)
 
         notificationManager.notify(NOTIFICATION_ID_BASE, builder.build())
+    }
+
+    fun showSyncNotification(success: Boolean) {
+        if (!hasNotificationPermission(context)) return
+
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(System.currentTimeMillis())
+        val builder = NotificationCompat.Builder(context, SYNC_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(
+                if (success) "Schedule synced ✓" else "Schedule sync failed"
+            )
+            .setContentText(
+                if (success) {
+                    "Your schedule has been updated ($time)"
+                } else {
+                    "SwimGym could not sync your schedule ($time). It will retry in 12 hours."
+                }
+            )
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+
+        notificationManager.notify(SYNC_ID, builder.build())
     }
 
     private fun formatTrainingDetails(

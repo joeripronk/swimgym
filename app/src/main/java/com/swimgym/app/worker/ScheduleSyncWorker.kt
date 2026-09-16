@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import com.swimgym.app.di.SwimGymAppContainer
 import com.swimgym.app.data.local.entity.CacheControlEntity
 import com.swimgym.app.data.model.Mappers.toEntity
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 class ScheduleSyncWorker(
@@ -18,7 +19,7 @@ class ScheduleSyncWorker(
     private val webScraper = container.webScraper
     override fun doWork(): Result {
         return try {
-            syncSchedule()
+            runBlocking { syncSchedule() }
             Result.success()
         } catch (e: Exception) {
             Result.retry()

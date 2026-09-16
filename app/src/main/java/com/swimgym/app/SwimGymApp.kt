@@ -26,6 +26,9 @@ class SwimGymApp : Application() {
         // Create notification channel for foreground service
         createNotificationChannel()
 
+        // Arm the 12h schedule sync alarm
+        SwimGymAppContainer.getInstance().alarmScheduler.scheduleSyncAlarm()
+
         // Schedule periodic booking check every 15 minutes
         val bookingCheckRequest = PeriodicWorkRequestBuilder<ScheduledBookingCheckWorker>(
             15, TimeUnit.MINUTES

@@ -45,6 +45,7 @@ class SessionRepository(
         private val FOREGROUND_SERVICE_ENABLED = stringPreferencesKey("foreground_service_enabled")
         private val COOKIES = stringPreferencesKey("cookies")
         private val USER_AGENT = stringPreferencesKey("user_agent")
+        private val ALARM_NOTIFICATION_ENABLED = stringPreferencesKey("alarm_notification_enabled")
     }
 
     val authToken: Flow<String?> = context.dataStore.data.map { it[AUTH_TOKEN] }
@@ -245,6 +246,18 @@ class SessionRepository(
     suspend fun getForegroundServiceEnabled(): Boolean {
         return context.dataStore.data
             .map { it[FOREGROUND_SERVICE_ENABLED]?.toBoolean() ?: false }
+            .first()
+    }
+
+    suspend fun saveAlarmNotificationEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[ALARM_NOTIFICATION_ENABLED] = enabled.toString()
+        }
+    }
+
+    suspend fun getAlarmNotificationEnabled(): Boolean {
+        return context.dataStore.data
+            .map { it[ALARM_NOTIFICATION_ENABLED]?.toBoolean() ?: true }
             .first()
     }
 

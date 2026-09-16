@@ -31,12 +31,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
-        if (intent?.action == LoginActivity.ACTION_LOGIN_REQUIRED) {
-            // Intent action handled by NavHost
-        }
-    }
+
 
     override fun onResume() {
         super.onResume()
