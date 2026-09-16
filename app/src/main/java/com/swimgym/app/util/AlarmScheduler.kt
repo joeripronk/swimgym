@@ -22,7 +22,9 @@ class AlarmScheduler(private val context: Context) {
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     fun scheduleBooking(bookingId: Long, alarmTimeMillis: Long) {
-        if (alarmTimeMillis <= System.currentTimeMillis()) {
+        val nowMillis = System.currentTimeMillis()
+        if (alarmTimeMillis <= nowMillis) {
+            Log.d(TAG, "Firing booking alarm $bookingId immediately (alarmTime=$alarmTimeMillis <= now=$nowMillis)")
             fireImmediately(bookingId)
             return
         }
@@ -40,24 +42,30 @@ class AlarmScheduler(private val context: Context) {
                 alarmTimeMillis,
                 pendingIntent
             )
+            Log.d(TAG, "Scheduled booking alarm $bookingId for ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(alarmTimeMillis)} (in ${alarmTimeMillis - nowMillis}ms, exact=true)")
         } else {
             alarmManager.setAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 alarmTimeMillis,
                 pendingIntent
             )
+            Log.d(TAG, "Scheduled booking alarm $bookingId for ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(alarmTimeMillis)} (in ${alarmTimeMillis - nowMillis}ms, exact=false)")
         }
     }
 
     private fun nextSyncTimeMillis(): Long {
         val now = System.currentTimeMillis()
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
         for (hour in listOf(9, 21)) {
             val cal = java.util.Calendar.getInstance()
             cal.set(java.util.Calendar.HOUR_OF_DAY, hour)
             cal.set(java.util.Calendar.MINUTE, 0)
             cal.set(java.util.Calendar.SECOND, 0)
             cal.set(java.util.Calendar.MILLISECOND, 0)
-            if (cal.timeInMillis > now) return cal.timeInMillis
+            if (cal.timeInMillis > now) {
+                Log.d(TAG, "Next sync alarm at ${sdf.format(cal.timeInMillis)} (next ${if (hour == 9) "09:00" else "21:00"}, in ${cal.timeInMillis - now}ms)")
+                return cal.timeInMillis
+            }
         }
         val cal = java.util.Calendar.getInstance()
         cal.set(java.util.Calendar.HOUR_OF_DAY, 9)
@@ -65,10 +73,12 @@ class AlarmScheduler(private val context: Context) {
         cal.set(java.util.Calendar.SECOND, 0)
         cal.set(java.util.Calendar.MILLISECOND, 0)
         cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        Log.d(TAG, "Next sync alarm at ${sdf.format(cal.timeInMillis)} (tomorrow 09:00, in ${cal.timeInMillis - now}ms)")
         return cal.timeInMillis
     }
 
     fun cancelBooking(bookingId: Long) {
+        Log.d(TAG, "Cancelling booking alarm $bookingId (reason=booking cancelled or completed)")
         val pendingIntent = createPendingIntent(bookingId)
         alarmManager.cancel(pendingIntent)
     }
@@ -100,7 +110,7 @@ class AlarmScheduler(private val context: Context) {
                 pendingIntent
             )
         }
-        Log.d(TAG, "Sync alarm scheduled for $alarmTimeMillis")
+        Log.d(TAG, "Sync alarm scheduled for ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(alarmTimeMillis)} (reason=daily schedule sync, exact=$exactSupported)")
     }
 
     /**
@@ -113,7 +123,7 @@ class AlarmScheduler(private val context: Context) {
             .filter { it.status == ScheduledBookingStatus.ACTIVE }
             .forEach { booking ->
                 val alarmTimeMillis = bookingAlarmTimeMillis(booking)
-                Log.d(TAG, "Rescheduling booking alarm ${booking.id} for $alarmTimeMillis")
+                Log.d(TAG, "Rescheduling booking alarm ${booking.id} for ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(alarmTimeMillis)} (reason=booking window open for class on ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(booking.startTime * 1000)}, status=${booking.status})")
                 scheduleBooking(booking.id, alarmTimeMillis)
             }
     }
@@ -160,6 +170,7 @@ class AlarmScheduler(private val context: Context) {
     }
 
     private fun fireImmediately(bookingId: Long) {
+        Log.d(TAG, "Booking alarm $bookingId fired immediately (pendingIntent cancelled or alarm time already passed)")
         val intent = Intent(context, ScheduledBookingReceiver::class.java).apply {
             putExtra("booking_id", bookingId)
         }
