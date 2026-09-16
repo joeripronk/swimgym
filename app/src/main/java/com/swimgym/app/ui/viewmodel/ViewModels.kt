@@ -339,7 +339,15 @@ class ScheduleViewModel(
                             android.util.Log.d("BookTraining", "Updated training details fetched: isJoined=${trainingResult.isJoined}, spotsAvailable=${trainingResult.spotsAvailable}")
                             _justBookedTrainingId.value = trainingResult.id
                             _selectedTraining.value = trainingResult
-                            // update training data with new data
+                            
+                            if (trainingResult.isJoined) {
+                                android.util.Log.d("BookTraining", "Booking verified - user is joined")
+                                Toast.makeText(applicationContext, "Successfully booked", Toast.LENGTH_SHORT).show()
+                            } else {
+                                android.util.Log.e("BookTraining", "Booking verification failed - user not joined after booking")
+                            }
+                            
+                            // update training data with new data and set final state
                             val currentTrainings = _uiState.value.trainings.toMutableList()
                             val index = currentTrainings.indexOfFirst { it.id == trainingResult.id }
                             if (index >= 0) {
@@ -347,14 +355,9 @@ class ScheduleViewModel(
                             } else {
                                 currentTrainings.add(trainingResult)
                             }
-                            if (trainingResult.isJoined) {
-                                android.util.Log.d("BookTraining", "Booking verified - user is joined")
-                                Toast.makeText(applicationContext, "Successfully booked", Toast.LENGTH_SHORT).show()
-                            } else {
-                                android.util.Log.e("BookTraining", "Booking verification failed - user not joined after booking")
-                                _uiState.update { it.copy(bookingError = "Cannot book this training") }
-                            }
-                            _uiState.update { it.copy(trainings = currentTrainings, isLoading = false, isBookingInProgress = false) }
+                            
+                            val bookingError = if (!trainingResult.isJoined) "Cannot book this training" else null
+                            _uiState.update { it.copy(trainings = currentTrainings, isLoading = false, isBookingInProgress = false, bookingError = bookingError) }
                         }
                         .onFailure { e ->
                             android.util.Log.e("BookTraining", "Failed to verify booking details: ${e.message}")
