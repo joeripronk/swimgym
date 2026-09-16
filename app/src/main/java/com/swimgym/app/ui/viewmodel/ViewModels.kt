@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swimgym.app.data.local.entity.TrainingEntity
+import com.swimgym.app.data.model.Mappers.toDomain
 import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.data.repository.ScheduledBooking
 import com.swimgym.app.data.repository.ScheduledBookingRepository
@@ -318,9 +319,12 @@ class ScheduleViewModel(
 
     fun bookTraining(training: TrainingEntity) {
         viewModelScope.launch {
+            android.util.Log.d("BookTraining", "Starting booking for trainingId: ${training.id}, title: ${training.title}")
             _uiState.update { it.copy(isBookingInProgress = true, bookingError = null) }
+            android.util.Log.d("BookTraining", "Calling bookTrainingUseCase for: ${training.id}")
             bookTrainingUseCase(training)
                 .onSuccess { booking ->
+                    android.util.Log.d("BookTraining", "Booking use case succeeded for: ${booking.trainingId}")
                     val current = _uiState.value.bookings.toMutableList()
                     val bookingWithDetails = booking.copy(
                         instructor = training.instructor,
@@ -329,30 +333,36 @@ class ScheduleViewModel(
                     current.add(bookingWithDetails)
                     _uiState.update { it.copy(bookings = current) }
                     // Verify booking by refreshing training details
+                    android.util.Log.d("BookTraining", "Verifying booking by fetching updated training details for: ${training.id}")
                     getTrainingDetailsUseCase(training.id)
-                        .onSuccess { training ->
-                            _justBookedTrainingId.value = training.id
-                            _selectedTraining.value = training
+                        .onSuccess { trainingResult ->
+                            android.util.Log.d("BookTraining", "Updated training details fetched: isJoined=${trainingResult.isJoined}, spotsAvailable=${trainingResult.spotsAvailable}")
+                            _justBookedTrainingId.value = trainingResult.id
+                            _selectedTraining.value = trainingResult
                             // update training data with new data
                             val currentTrainings = _uiState.value.trainings.toMutableList()
-                            val index = currentTrainings.indexOfFirst { it.id == training.id }
+                            val index = currentTrainings.indexOfFirst { it.id == trainingResult.id }
                             if (index >= 0) {
-                                currentTrainings[index] = training
+                                currentTrainings[index] = trainingResult
                             } else {
-                                currentTrainings.add(training)
+                                currentTrainings.add(trainingResult)
                             }
-                            if (training.isJoined) {
+                            if (trainingResult.isJoined) {
+                                android.util.Log.d("BookTraining", "Booking verified - user is joined")
                                 Toast.makeText(applicationContext, "Successfully booked", Toast.LENGTH_SHORT).show()
                             } else {
+                                android.util.Log.e("BookTraining", "Booking verification failed - user not joined after booking")
                                 _uiState.update { it.copy(bookingError = "Cannot book this training") }
                             }
                             _uiState.update { it.copy(trainings = currentTrainings, isLoading = false, isBookingInProgress = false) }
                         }
                         .onFailure { e ->
+                            android.util.Log.e("BookTraining", "Failed to verify booking details: ${e.message}")
                             _uiState.update { it.copy(isBookingInProgress = false, bookingError = e.message ?: "Booking failed") }
                         }
                 }
                 .onFailure { e ->
+                    android.util.Log.e("BookTraining", "Booking use case failed for ${training.id}: ${e.message}", e)
                     _uiState.update { it.copy(bookingError = e.message ?: "Booking failed", isBookingInProgress = false) }
                 }
         }
@@ -360,6 +370,7 @@ class ScheduleViewModel(
 
     fun cancelBooking(booking: Booking) {
         viewModelScope.launch {
+            android.util.Log.d("CancelBooking", "Starting cancellation for trainingId: ${booking.trainingId}")
             _uiState.update { it.copy(isCancellingInProgress = true, cancelError = null) }
             val training = Training(
                 id = booking.trainingId,
@@ -371,13 +382,45 @@ class ScheduleViewModel(
                 spotsAvailable = 0,
                 imageUrl = booking.imageUrl
             )
+            android.util.Log.d("CancelBooking", "Calling cancelBookingUseCase for: ${booking.trainingId}")
             cancelBookingUseCase(training.toEntity())
                 .onSuccess {
+                    android.util.Log.d("CancelBooking", "Cancellation use case succeeded for: ${booking.trainingId}")
                     val current = _uiState.value.bookings.toMutableList()
                     current.removeAll { it.trainingId == booking.trainingId }
-                    _uiState.update { it.copy(bookings = current, cancelError = null, isCancellingInProgress = false) }
+                    _uiState.update { it.copy(bookings = current) }
+                    
+                    // Verify cancellation by refreshing training details
+                    android.util.Log.d("CancelBooking", "Verifying cancellation by fetching updated training details for: ${booking.trainingId}")
+                    getTrainingDetailsUseCase(booking.trainingId)
+                        .onSuccess { trainingResult ->
+                            android.util.Log.d("CancelBooking", "Updated training details fetched: isJoined=${trainingResult.isJoined}, spotsAvailable=${trainingResult.spotsAvailable}")
+                            _selectedTraining.value = trainingResult
+                            if (!trainingResult.isJoined) {
+                                android.util.Log.d("CancelBooking", "Cancellation verified - user is no longer joined")
+                                // Update the training list with fresh data
+                                val currentTrainings = _uiState.value.trainings.toMutableList()
+                                val index = currentTrainings.indexOfFirst { it.id == booking.trainingId }
+                                if (index >= 0) {
+                                    currentTrainings[index] = trainingResult
+                                } else {
+                                    currentTrainings.add(trainingResult)
+                                }
+                                _uiState.update { it.copy(bookings = current, trainings = currentTrainings, isCancellingInProgress = false, cancelError = null) }
+                            } else {
+                                android.util.Log.e("CancelBooking", "Cancellation verification failed - user still joined after cancellation")
+                                val updatedCurrent = _uiState.value.bookings.toMutableList()
+                                updatedCurrent.add(booking)
+                                _uiState.update { it.copy(bookings = updatedCurrent, cancelError = "Cancellation failed", isCancellingInProgress = false) }
+                            }
+                        }
+                        .onFailure { e ->
+                            android.util.Log.e("CancelBooking", "Failed to verify cancellation details: ${e.message}")
+                            _uiState.update { it.copy(isCancellingInProgress = false, cancelError = e.message ?: "Cancellation verification failed") }
+                        }
                 }
                 .onFailure { e ->
+                    android.util.Log.e("CancelBooking", "Cancellation use case failed for ${booking.trainingId}: ${e.message}")
                     _uiState.update { it.copy(cancelError = e.message ?: "Cancellation failed", isCancellingInProgress = false) }
                 }
         }
@@ -480,9 +523,21 @@ class ScheduleViewModel(
 
     fun loadTrainingDetails(trainingId: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null, bookingError = null, cancelError = null) }
+            android.util.Log.d("ScheduleViewModel", "loadTrainingDetails called with trainingId: $trainingId")
+            
+            // First, load from cache immediately to show data right away
+            val cachedTraining = dao.getTrainingById(trainingId)?.toDomain()
+            if (cachedTraining != null) {
+                android.util.Log.d("ScheduleViewModel", "Loaded cached training details: ${cachedTraining.id} - ${cachedTraining.title}")
+                _selectedTraining.value = cachedTraining
+            } else {
+                android.util.Log.w("ScheduleViewModel", "No cached training found for: $trainingId")
+            }
+            
+            // Now fetch fresh data from API and update
             getTrainingDetailsUseCase(trainingId)
                 .onSuccess { training ->
+                    android.util.Log.d("ScheduleViewModel", "Successfully fetched updated training details: ${training.id} - ${training.title}")
                     _selectedTraining.value = training
                     // update training data with new data
                     val currentTrainings = _uiState.value.trainings.toMutableList()
@@ -495,6 +550,7 @@ class ScheduleViewModel(
                     _uiState.update { it.copy(trainings = currentTrainings, isLoading = false) }
                 }
                 .onFailure { e ->
+                    android.util.Log.e("ScheduleViewModel", "Failed to fetch updated training details: $trainingId - ${e.message}")
                     _uiState.update { it.copy(isLoading = false, error = e.message) }
                 }
         }

@@ -2,16 +2,16 @@ package com.swimgym.app.di
 
 import android.content.Context
 import com.swimgym.app.SwimGymApp
-import com.swimgym.app.data.api.WebScraper
+import com.swimgym.app.data.api.VirtuagymApiClientImpl
 import com.swimgym.app.data.local.SwimGymDao
 import com.swimgym.app.data.local.SwimGymDatabase
+import com.swimgym.app.data.parser.ScheduleParserImpl
 import com.swimgym.app.data.repository.*
 import com.swimgym.app.domain.repository.CalendarRepository
 import com.swimgym.app.domain.repository.TrainingRepository
 import com.swimgym.app.domain.usecase.*
 import com.swimgym.app.util.AlarmScheduler
 import com.swimgym.app.util.BookingNotificationManager
-import kotlinx.coroutines.runBlocking
 
 class SwimGymAppContainer private constructor() {
     private val context: Context by lazy { (SwimGymApp.instance as Context) }
@@ -19,27 +19,45 @@ class SwimGymAppContainer private constructor() {
     val sessionRepository: SessionRepository by lazy { SessionRepository(context) }
     val bookingNotificationManager: BookingNotificationManager by lazy { BookingNotificationManager(context) }
     val scheduledBookingRepository: ScheduledBookingRepository by lazy { ScheduledBookingRepository(context) }
-    val webScraper: WebScraper by lazy {
-        WebScraper(
+    
+    val apiClient: VirtuagymApiClientImpl by lazy {
+        VirtuagymApiClientImpl(
             sessionRepository = sessionRepository,
+            notificationManager = bookingNotificationManager,
+            context = context
+        )
+    }
+    
+    val parser: ScheduleParserImpl by lazy {
+        ScheduleParserImpl(dao = dao)
+    }
+    
+    val calendarService: CalendarServiceImpl by lazy {
+        CalendarServiceImpl(
+            context = context,
+            sessionRepository = sessionRepository,
+            dao = dao
+        )
+    }
+    
+    val bookingScheduler: BookingSchedulerImpl by lazy {
+        BookingSchedulerImpl(
             dao = dao,
             scheduledBookingRepo = scheduledBookingRepository,
             notificationManager = bookingNotificationManager,
             alarmScheduler = alarmScheduler,
+            apiClient = apiClient,
             context = context
-        )/*.apply {
-            // Load cached User-Agent and cookies on initialization
-            runBlocking {
-                loadFromCache()
-            }
-        }*/
+        )
     }
-    
+
     val trainingRepository: TrainingRepository by lazy {
         TrainingRepositoryImpl(
             context = context,
-            webScraper = webScraper,
+            apiClient = apiClient,
             dao = dao,
+            parser = parser,
+            calendarService = calendarService,
             notificationManager = bookingNotificationManager
         )
     }

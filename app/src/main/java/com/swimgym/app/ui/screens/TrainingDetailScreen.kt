@@ -27,7 +27,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
-import com.swimgym.app.data.api.WebScraper
 import com.swimgym.app.di.SwimGymAppContainer
 import com.swimgym.app.domain.model.Training
 import kotlinx.coroutines.CoroutineScope
@@ -72,7 +71,8 @@ import java.util.*
             val training = trainingToAddToCalendar!!
             trainingToAddToCalendar = null
             CoroutineScope(Dispatchers.IO).launch {
-                val result = SwimGymAppContainer.getInstance().webScraper.addTrainingToCalendar(training)
+                val calendarService = SwimGymAppContainer.getInstance().calendarService
+                val result = calendarService.addTrainingToCalendar(training)
                 if (result == null) {
                     calendarAddError = "Failed to add training to calendar"
                     retryTraining = training

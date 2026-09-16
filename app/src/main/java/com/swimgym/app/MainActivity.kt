@@ -21,11 +21,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val webScraper = SwimGymAppContainer.getInstance().webScraper
         setContent {
             SwimGymTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    SwimGymNavigation(context = this, webScraper = webScraper)
+                    SwimGymNavigation(context = this)
                 }
             }
         }

@@ -11,7 +11,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.swimgym.app.di.SwimGymAppContainer
-import com.swimgym.app.data.api.WebScraper
 import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.domain.model.BookingStatus
 import com.swimgym.app.receiver.LoginActivity
@@ -22,14 +21,12 @@ import com.swimgym.app.ui.screens.TrainingDetailScreen
 import com.swimgym.app.ui.screens.SettingsScreen
 import com.swimgym.app.ui.viewmodel.ScheduleViewModel
 import com.swimgym.app.ui.viewmodel.SettingsViewModel
-import kotlinx.coroutines.runBlocking
 import okhttp3.internal.toLongOrDefault
 
 @ExperimentalComposeUiApi
 @Composable
 fun SwimGymNavigation(
     context: Context,
-    webScraper: WebScraper
 ) {
     val navController = rememberNavController()
     val container = SwimGymAppContainer.getInstance()
@@ -83,7 +80,7 @@ fun SwimGymNavigation(
     ) {
         composable(Screen.Login.route) {
             LoginScreen(
-                webScraper = webScraper,
+                sessionRepository = container.sessionRepository,
                 onLoginSuccess = {
                     scheduleViewModel.refreshSchedule()
                     navController.navigate(Screen.Schedule.route) {
@@ -110,9 +107,6 @@ fun SwimGymNavigation(
                     navController.navigate(Screen.Settings.route)
                 },
                 onLogout = {
-                    runBlocking {
-                        webScraper.logout()
-                    }
                     hasCookies = false
                     val intent = Intent(LoginActivity.ACTION_LOGIN_REQUIRED)
                     context.sendBroadcast(intent)
@@ -132,26 +126,27 @@ fun SwimGymNavigation(
          ) { backStackEntry ->
             val encodedId = backStackEntry.arguments?.getString("id") ?: return@composable
             val id = Screen.decodeId(encodedId)
+            android.util.Log.d("NavHost", "Navigating to training details: $id")
             LaunchedEffect(id) {
+                android.util.Log.d("NavHost", "Calling loadTrainingDetails for: $id")
                 scheduleViewModel.loadTrainingDetails(id)
             }
-            //val selectedTraining by scheduleViewModel.selectedTraining.collectAsState(initial = null)
-            var selectedTraining = scheduleViewModel.getTrainingById(trainingId = id)
+            val selectedTraining by scheduleViewModel.selectedTraining.collectAsState(initial = null)
 
             val uiState by scheduleViewModel.uiState.collectAsState()
             val isLoading = uiState.isLoading
             val justBookedTrainingId by scheduleViewModel.justBookedTrainingId.collectAsState()
-            val trainerImageUrl = selectedTraining?.let { training ->
-                scheduleViewModel.resolveTrainerImage(training.instructor, training.imageUrl)
+            val trainerImageUrl = selectedTraining?.let { t ->
+                scheduleViewModel.resolveTrainerImage(t.instructor, t.imageUrl)
             }
-            if (selectedTraining!=null && trainerImageUrl!=null) {
-                selectedTraining.imageUrl = trainerImageUrl
+            if (selectedTraining != null && trainerImageUrl != null) {
+                selectedTraining!!.imageUrl = trainerImageUrl
             }
             // Close view if booking was just verified
             LaunchedEffect(justBookedTrainingId) {
                 if (justBookedTrainingId == id) {
                     scheduleViewModel.clearJustBookedTrainingId()
-                   // navController.popBackStack()
+                    // navController.popBackStack()
                 }
             }
 
@@ -159,55 +154,55 @@ fun SwimGymNavigation(
                  training = selectedTraining,
                  onBack = { navController.popBackStack() },
                  onBook = { training ->
-                    scheduleViewModel.bookTraining(training.toEntity())
-                },
-                onCancel = { training ->
-                    val booking = com.swimgym.app.domain.model.Booking(
-                        id = 0,
-                        trainingId = training.id,
-                        className = training.title,
-                        startTime = training.startTime,
-                        endTime = training.endTime,
-                        status = BookingStatus.BOOKED
-                    )
-                    scheduleViewModel.cancelBooking(booking)
-                },
-                onSchedule = { trainingId, title, instructor, maxRepeat ->
-                    scheduleViewModel.scheduleRecurringBooking(
-                        trainingId = trainingId,
-                        title = title,
-                        startTime = selectedTraining?.startTime ?: 0L,
-                        instructor = instructor,
-                        maxRepeatCount = maxRepeat
-                    )
-                },
-                onAddToCalendar = { training ->
-                },
-                onNavigateToMyBookings = {
-                    navController.navigate(Screen.MyBookings.route)
-                },
-                onRefresh = { trainingId ->
-                    scheduleViewModel.loadTrainingDetails(trainingId)
-                },
-                onBookingSuccess = { trainingId ->
-                    scheduleViewModel.loadTrainingDetails(trainingId)
-                },
-                onCancellationSuccess = { trainingId ->
-                    scheduleViewModel.loadTrainingDetails(trainingId)
-                },
-                isBookingInProgress = uiState.isBookingInProgress,
-                isCancellingInProgress = uiState.isCancellingInProgress,
-                bookingError = uiState.bookingError,
-                cancelError = uiState.cancelError,
-                onClearBookingError = {
-                    scheduleViewModel.clearBookingError()
-                },
-                onClearCancelError = {
-                    scheduleViewModel.clearCancelError()
-                },
-                onClearCalendarError = {
-                    scheduleViewModel.clearCalendarError()
-                }
+                     scheduleViewModel.bookTraining(training.toEntity())
+                 },
+                 onCancel = { training ->
+                     val booking = com.swimgym.app.domain.model.Booking(
+                         id = 0,
+                         trainingId = training.id,
+                         className = training.title,
+                         startTime = training.startTime,
+                         endTime = training.endTime,
+                         status = BookingStatus.BOOKED
+                     )
+                     scheduleViewModel.cancelBooking(booking)
+                 },
+                 onSchedule = { trainingId, title, instructor, maxRepeat ->
+                     scheduleViewModel.scheduleRecurringBooking(
+                         trainingId = trainingId,
+                         title = title,
+                         startTime = selectedTraining?.startTime ?: 0L,
+                         instructor = instructor,
+                         maxRepeatCount = maxRepeat
+                     )
+                 },
+                 onAddToCalendar = { training ->
+                 },
+                 onNavigateToMyBookings = {
+                     navController.navigate(Screen.MyBookings.route)
+                 },
+                 onRefresh = { trainingId ->
+                     scheduleViewModel.loadTrainingDetails(trainingId)
+                 },
+                 onBookingSuccess = { trainingId ->
+                     scheduleViewModel.loadTrainingDetails(trainingId)
+                 },
+                 onCancellationSuccess = { trainingId ->
+                     scheduleViewModel.loadTrainingDetails(trainingId)
+                 },
+                 isBookingInProgress = uiState.isBookingInProgress,
+                 isCancellingInProgress = uiState.isCancellingInProgress,
+                 bookingError = uiState.bookingError,
+                 cancelError = uiState.cancelError,
+                 onClearBookingError = {
+                     scheduleViewModel.clearBookingError()
+                 },
+                 onClearCancelError = {
+                     scheduleViewModel.clearCancelError()
+                 },
+                 onClearCalendarError = {
+                     scheduleViewModel.clearCalendarError()
+                 }
             )
         }
 

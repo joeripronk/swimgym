@@ -14,11 +14,10 @@ class ScheduledBookingReceiver : BroadcastReceiver() {
         if (bookingId == -1L) return
 
         val container = SwimGymAppContainer.getInstance()
-        val webScraper = container.webScraper
 
         runBlocking {
             try {
-                webScraper.processSingleBooking(bookingId)
+                container.bookingScheduler.processSingleBooking(bookingId)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

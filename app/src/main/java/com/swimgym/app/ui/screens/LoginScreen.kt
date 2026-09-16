@@ -25,13 +25,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.swimgym.app.data.api.WebScraper
+import com.swimgym.app.data.repository.SessionRepository
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
-    webScraper: WebScraper,
+    sessionRepository: SessionRepository,
     baseUrl: String = "https://swimgym.virtuagym.com"
 ) {
     var isLoading by remember { mutableStateOf(true) }
@@ -40,17 +40,11 @@ fun LoginScreen(
     var cookiesToSave by remember { mutableStateOf<Map<String, String>?>(null) }
     val cookieManager = CookieManager.getInstance()
 
-    // Save cookies to cache when they change
     LaunchedEffect(cookiesToSave) {
         cookiesToSave?.let { cookies ->
-            // Update the global companion object directly
-            //WebScraper.cookies = cookies
-            // Also save to cache via the webScraper instance
-            webScraper.saveCookiesToCache(cookies)
+            sessionRepository.saveCookies(cookies)
         }
     }
-
-    // Save User-Agent to cache when it changes
 
     AndroidView(
         factory = { ctx ->
@@ -74,10 +68,7 @@ fun LoginScreen(
                         if (cookies.contains(regex = Regex("virtuagym_u=[0-9][0-9]+")) && !hasNavigated) {
                             val cookieMap = parseCookiesFromString(cookies)
                             cookiesToSave = cookieMap
-                            
-                            // Save User-Agent from WebView
-                            //userAgentToSave = settings.userAgentString
-                            
+
                             hasNavigated = true
                             onLoginSuccess()
                         }

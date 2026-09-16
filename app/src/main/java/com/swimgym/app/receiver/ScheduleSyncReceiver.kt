@@ -21,7 +21,7 @@ class ScheduleSyncReceiver : BroadcastReceiver() {
             success = runBlocking {
                 val now = System.currentTimeMillis() / 1000
                 container.dao.deleteOldTrainings(now)
-                container.webScraper.getSchedule().isSuccess
+                container.trainingRepository.refreshSchedule().isSuccess
             }
         } catch (e: Exception) {
             Log.e(TAG, "Schedule sync failed", e)

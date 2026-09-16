@@ -32,7 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat.startActivity
-import com.swimgym.app.data.api.WebScraper
+import com.swimgym.app.data.repository.CalendarService
 import com.swimgym.app.di.SwimGymAppContainer
 import com.swimgym.app.domain.model.Training
 import com.swimgym.app.domain.repository.SwodLevel
@@ -70,7 +70,8 @@ fun ScheduleScreen(
             val training = trainingToAddToCalendar!!
             trainingToAddToCalendar = null
             coroutineScope.launch {
-                val result = SwimGymAppContainer.getInstance().webScraper.addTrainingToCalendar(training)
+                val calendarService = SwimGymAppContainer.getInstance().calendarService
+                val result = calendarService.addTrainingToCalendar(training)
                 if (result == null) {
                     calendarAddError = "Failed to add training to calendar"
                     retryTraining = training

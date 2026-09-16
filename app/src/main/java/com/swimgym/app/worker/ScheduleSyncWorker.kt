@@ -16,7 +16,6 @@ class ScheduleSyncWorker(
     private val container = SwimGymAppContainer.getInstance()
     private val dao = container.dao
 
-    private val webScraper = container.webScraper
     override fun doWork(): Result {
         return try {
             runBlocking { syncSchedule() }
@@ -30,7 +29,7 @@ class ScheduleSyncWorker(
         val now = System.currentTimeMillis()/1000
         
         dao.deleteOldTrainings(now)
-        webScraper.getSchedule()
+        container.trainingRepository.refreshSchedule()
     }
 
     companion object {

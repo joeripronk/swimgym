@@ -14,12 +14,11 @@ class ScheduledBookingCheckWorker(
     workerParams: WorkerParameters,
 ) : Worker(appContext, workerParams) {
     private val container = SwimGymAppContainer.getInstance()
-    private val webScraper = container.webScraper
     private val sessionRepository = SessionRepository(appContext)
 
     override fun doWork(): Result {
         return try {
-            runBlocking { webScraper.checkBookings() }
+            runBlocking { container.bookingScheduler.checkBookings() }
             Result.success()
         } catch (e: Exception) {
             Result.retry()
