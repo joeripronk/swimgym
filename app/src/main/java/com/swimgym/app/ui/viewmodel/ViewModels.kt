@@ -482,6 +482,11 @@ class ScheduleViewModel(
                     loctrainingId = training.id
                 }
             }
+            val nowSeconds = System.currentTimeMillis() / 1000
+            if (locstartTime < nowSeconds + 2 * 86400) {
+                android.util.Log.d("ScheduleViewModel", "Cannot schedule booking: class starts at ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(locstartTime * 1000)} (sooner than 2 days ahead, now=$nowSeconds)")
+                return@launch
+            }
             val scheduledBooking = ScheduledBooking(
                 id = bookingId,
                 trainingId = loctrainingId,
