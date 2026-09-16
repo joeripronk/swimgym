@@ -51,7 +51,8 @@ data class SettingsUiState(
     val workTimeConfig: WorkTimeConfig = WorkTimeConfig(),
     val foregroundServiceEnabled: Boolean = false,
     val requestForegroundPermission: Boolean = false,
-    val alarmNotificationEnabled: Boolean = true
+    val alarmNotificationEnabled: Boolean = true,
+    val workManagerEnabled: Boolean = false
 )
 
 class SettingsViewModel(
@@ -70,6 +71,7 @@ class SettingsViewModel(
         loadWorkTimeSettings()
         loadForegroundServiceSetting()
         loadAlarmNotificationSetting()
+        loadWorkManagerSetting()
         viewModelScope.launch {
             sessionRepository.selectedCalendar.collect { calendar ->
                 if (calendar != null) {
@@ -134,6 +136,25 @@ class SettingsViewModel(
         }
     }
 
+    private fun loadWorkManagerSetting() {
+        viewModelScope.launch {
+            val enabled = sessionRepository.getWorkManagerEnabled()
+            _uiState.update { it.copy(workManagerEnabled = enabled) }
+        }
+    }
+
+    fun setWorkManagerEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            sessionRepository.saveWorkManagerEnabled(enabled)
+            _uiState.update { it.copy(workManagerEnabled = enabled) }
+            if (enabled) {
+                reloadWorkManager()
+            } else {
+                cancelAllWorkers()
+            }
+        }
+    }
+
     private fun reloadWorkManager() {
         val workManager = WorkManager.getInstance(context)
         workManager.cancelAllWork()
@@ -145,6 +166,10 @@ class SettingsViewModel(
             ExistingPeriodicWorkPolicy.REPLACE,
             bookingCheckRequest
         )
+    }
+
+    private fun cancelAllWorkers() {
+        WorkManager.getInstance(context).cancelAllWork()
     }
 
     private fun loadAlarmNotificationSetting() {

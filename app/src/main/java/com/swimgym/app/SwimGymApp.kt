@@ -48,27 +48,13 @@ class SwimGymApp : Application() {
             override fun onActivityStopped(activity: Activity) {}
         })
 
-        // Schedule periodic booking check every 15 minutes
-        val bookingCheckRequest = PeriodicWorkRequestBuilder<ScheduledBookingCheckWorker>(
-            15, TimeUnit.MINUTES
-        )
-            .build()
-        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-            ScheduledBookingCheckWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
-            bookingCheckRequest
-        )
-
-        // Schedule periodic schedule sync every 24 hours
-        val scheduleSyncRequest = PeriodicWorkRequestBuilder<ScheduleSyncWorker>(
-            1440, TimeUnit.MINUTES
-        ).build()
-
-        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-            ScheduleSyncWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
-            scheduleSyncRequest
-        )
+        // Schedule periodic workers only if work manager is enabled in settings
+        val workManagerEnabled = runBlocking {
+            SwimGymAppContainer.getInstance().sessionRepository.getWorkManagerEnabled()
+        }
+        if (workManagerEnabled) {
+            schedulePeriodicWorkers()
+        }
     }
     
     private fun createNotificationChannel() {
@@ -83,6 +69,27 @@ class SwimGymApp : Application() {
         }
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager.createNotificationChannel(channel)
+    }
+
+    private fun schedulePeriodicWorkers() {
+        val bookingCheckRequest = PeriodicWorkRequestBuilder<ScheduledBookingCheckWorker>(
+            15, TimeUnit.MINUTES
+        ).build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            ScheduledBookingCheckWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.REPLACE,
+            bookingCheckRequest
+        )
+
+        val scheduleSyncRequest = PeriodicWorkRequestBuilder<ScheduleSyncWorker>(
+            1440, TimeUnit.MINUTES
+        ).build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            ScheduleSyncWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.REPLACE,
+            scheduleSyncRequest
+        )
     }
 
     private fun rescheduleAllAlarms() {

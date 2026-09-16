@@ -56,12 +56,6 @@ fun SettingsScreen(
         // Permission result handled
     }
 
-    val foregroundPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        viewModel.onForegroundPermissionResult(isGranted)
-    }
-
     val context = LocalContext.current
     val hasNotificationPermission by remember {
         derivedStateOf {
@@ -71,12 +65,6 @@ fun SettingsScreen(
 
     LaunchedEffect(Unit) {
         calendarPermissionLauncher.launch(Manifest.permission.READ_CALENDAR)
-    }
-
-    LaunchedEffect(uiState.requestForegroundPermission) {
-        if (uiState.requestForegroundPermission) {
-            foregroundPermissionLauncher.launch(android.Manifest.permission.FOREGROUND_SERVICE)
-        }
     }
 
     Scaffold(
@@ -545,7 +533,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Foreground Service",
+                text = "Work Manager",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(8.dp)
             )
@@ -559,7 +547,7 @@ fun SettingsScreen(
                         .fillMaxWidth()
                 ) {
                     Text(
-                        text = "Enable foreground service for booking checks",
+                        text = "Enable periodic background tasks",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -573,19 +561,19 @@ fun SettingsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Run as foreground service",
+                                text = "Enable Work Manager",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Text(
-                                text = "Shows notification while checking bookings",
+                                text = "Automatically checks bookings every 15 minutes and syncs schedule daily",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
                         Switch(
-                            checked = uiState.foregroundServiceEnabled,
-                            onCheckedChange = { viewModel.setForegroundServiceEnabled(it) }
+                            checked = uiState.workManagerEnabled,
+                            onCheckedChange = { viewModel.setWorkManagerEnabled(it) }
                         )
                     }
                 }
