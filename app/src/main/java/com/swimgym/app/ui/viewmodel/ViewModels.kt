@@ -337,15 +337,27 @@ class ScheduleViewModel(
                     getTrainingDetailsUseCase(training.id)
                         .onSuccess { trainingResult ->
                             android.util.Log.d("BookTraining", "Updated training details fetched: isJoined=${trainingResult.isJoined}, spotsAvailable=${trainingResult.spotsAvailable}")
-                            _justBookedTrainingId.value = trainingResult.id
-                            _selectedTraining.value = trainingResult
                             
                             if (trainingResult.isJoined) {
                                 android.util.Log.d("BookTraining", "Booking verified - user is joined")
                                 Toast.makeText(applicationContext, "Successfully booked", Toast.LENGTH_SHORT).show()
+                                // Persist booking to DB now that we've verified success
+                                val bookingDto = com.swimgym.app.data.model.BookingResponse(
+                                    id = 0,
+                                    trainingId = training.id,
+                                    userId = 0,
+                                    status = "confirmed",
+                                    className = training.title
+                                )
+                                val booking = bookingDto.toDomain()
+                                android.util.Log.d("BookTraining", "Inserting verified booking into DB for: ${training.id}")
+                                dao.insertBooking(booking.toEntity())
                             } else {
                                 android.util.Log.e("BookTraining", "Booking verification failed - user not joined after booking")
                             }
+                            
+                            _justBookedTrainingId.value = trainingResult.id
+                            _selectedTraining.value = trainingResult
                             
                             // update training data with new data and set final state
                             val currentTrainings = _uiState.value.trainings.toMutableList()

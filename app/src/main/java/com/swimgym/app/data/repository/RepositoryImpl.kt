@@ -196,21 +196,11 @@ class TrainingRepositoryImpl(
                         className = training.title
                     )
                     val booking = bookingDto.toDomain()
-                    android.util.Log.d("BookTraining", "Inserting booking into DB for trainingId: ${training.id}")
-                    dao.insertBooking(booking.toEntity())
+                    android.util.Log.d("BookTraining", "HTTP request succeeded for: ${training.id}, waiting for API verification")
                     val current = bookingsFlow.value.toMutableList()
                     current.add(booking)
                     bookingsFlow.value = current
-                    notificationManager.showBookingConfirmation(
-                        trainingName = booking.className,
-                        classTime = formatTimestamp(booking.startTime),
-                        classDate = formatDate(booking.startTime),
-                        isScheduledBooking = false
-                    )
-
-                    calendarService.addTrainingToCalendar(training.toDomain())
-
-                    android.util.Log.d("BookTraining", "Booking successful for: ${training.id}")
+                    
                     Result.success(booking)
                 } else {
                     android.util.Log.e("BookTraining", "Booking failed with code ${result.code} for trainingId: ${training.id}")
