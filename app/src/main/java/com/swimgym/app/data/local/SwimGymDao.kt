@@ -60,6 +60,9 @@ interface SwimGymDao {
     @Delete
     suspend fun deleteBooking(booking: BookingEntity)
 
+    @Query("DELETE FROM trainings WHERE id = :trainingId")
+    suspend fun deleteTrainingById(trainingId: String)
+
     @Query("DELETE FROM bookings WHERE trainingId = :trainingId")
     suspend fun deleteBookingByTrainingId(trainingId: String)
 

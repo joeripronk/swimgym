@@ -64,6 +64,8 @@ import java.util.*
     var trainingToAddToCalendar by remember { mutableStateOf<Training?>(null) }
     var calendarAddError by remember { mutableStateOf<String?>(null) }
     var retryTraining by remember { mutableStateOf<Training?>(null) }
+    var isInCalendar by remember { mutableStateOf(false) }
+    var trainingToRemoveFromCalendar by remember { mutableStateOf<Training?>(null) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -76,8 +78,33 @@ import java.util.*
                 if (result == null) {
                     calendarAddError = "Failed to add training to calendar"
                     retryTraining = training
+                } else {
+                    isInCalendar = true
                 }
             }
+        }
+    }
+
+    val removePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[Manifest.permission.WRITE_CALENDAR] == true && trainingToRemoveFromCalendar != null) {
+            val training = trainingToRemoveFromCalendar!!
+            trainingToRemoveFromCalendar = null
+            CoroutineScope(Dispatchers.IO).launch {
+                val calendarService = SwimGymAppContainer.getInstance().calendarService
+                calendarService.removeTrainingByTimeAndTitle(training.startTime, training.title)
+                isInCalendar = false
+            }
+        }
+    }
+
+    LaunchedEffect(training?.id) {
+        if (training != null) {
+            val calendarService = SwimGymAppContainer.getInstance().calendarService
+            isInCalendar = calendarService.isTrainingInCalendar(training.id, training.startTime, training.title)
+        } else {
+            isInCalendar = false
         }
     }
 
@@ -248,18 +275,27 @@ import java.util.*
                     )
 
                   Button(
-                         onClick = {
-                             onAddToCalendar(training)
-                             trainingToAddToCalendar = training
-                             permissionLauncher.launch(arrayOf(Manifest.permission.WRITE_CALENDAR))
-                         },
-                         modifier = Modifier.fillMaxWidth().height(50.dp),
-                         colors = ButtonDefaults.buttonColors(
-                             containerColor = MaterialTheme.colorScheme.secondary
-                         )
-                     ) {
-                         Text("+ Add to Calendar")
-                     }
+                          onClick = {
+                              if (isInCalendar) {
+                                  trainingToRemoveFromCalendar = training
+                                  removePermissionLauncher.launch(arrayOf(Manifest.permission.WRITE_CALENDAR))
+                              } else {
+                                  onAddToCalendar(training)
+                                  trainingToAddToCalendar = training
+                                  permissionLauncher.launch(arrayOf(Manifest.permission.WRITE_CALENDAR))
+                              }
+                          },
+                          modifier = Modifier.fillMaxWidth().height(50.dp),
+                          colors = ButtonDefaults.buttonColors(
+                              containerColor = MaterialTheme.colorScheme.secondary
+                          )
+                      ) {
+                          if (isInCalendar) {
+                              Text("- Remove from Calendar")
+                          } else {
+                              Text("+ Add to Calendar")
+                          }
+                      }
 
               Button(
                           onClick = {

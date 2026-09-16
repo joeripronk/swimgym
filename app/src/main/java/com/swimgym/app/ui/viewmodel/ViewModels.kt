@@ -9,6 +9,7 @@ import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.data.repository.ScheduledBooking
 import com.swimgym.app.data.repository.ScheduledBookingRepository
 import com.swimgym.app.data.repository.TrainerImageCache
+import com.swimgym.app.di.SwimGymAppContainer
 import com.swimgym.app.domain.model.Booking
 import com.swimgym.app.domain.model.Training
 import com.swimgym.app.domain.repository.SwodLevel
@@ -404,6 +405,11 @@ class ScheduleViewModel(
                     val current = _uiState.value.bookings.toMutableList()
                     current.removeAll { it.trainingId == booking.trainingId }
                     _uiState.update { it.copy(bookings = current) }
+                    
+                    // Remove from calendar
+                    val container = SwimGymAppContainer.getInstance()
+                    container.calendarService.removeTrainingByTimeAndTitle(booking.startTime, booking.className)
+                    android.util.Log.d("CancelBooking", "Removed training from calendar: ${booking.className}")
                     
                     // Verify cancellation by refreshing training details
                     android.util.Log.d("CancelBooking", "Verifying cancellation by fetching updated training details for: ${booking.trainingId}")
