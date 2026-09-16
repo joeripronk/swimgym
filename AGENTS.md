@@ -8,23 +8,36 @@
 - `./gradlew assembleRelease` - Build release APK
 - `./gradlew test` - Run unit tests
 - `./gradlew lint` - Run lint analysis
-- `./gradlew ktlintCheck` - Run Kotlin linter
 
 ### Project Structure
 ```
 app/src/main/java/com/swimgym/app/
     data/           # API, models, repositories
-    di/             # Hilt modules
-    domain/         # Use cases, repository interfaces
-    ui/             # Compose screens, ViewModels, theme
+        api/
+        model/
+        repository/
+        parser/
+        local/          # Room entities and DAO
+    di/
+    domain/             # Use cases, repository interfaces
+        model/
+        repository/
+        usecase/
+    ui/                 # Compose screens, ViewModels, theme
+        screens/
+        navigation/
+        viewmodel/
+        theme/
+    receiver/           # Broadcast receivers
+    util/               # Utilities (permissions, notifications, alarms)
+    worker/             # WorkManager workers
+    MainActivity.kt
+    SwimGymApp.kt
 ```
 
 ### Notes
-- Android SDK at `/home/joeri/android-sdk`
-- Java 17 at `/home/joeri/java/jdk-17.0.19+10`
-- Run with: `JAVA_HOME=/home/joeri/java/jdk-17.0.19+10 ANDROID_SDK_ROOT=/home/joeri/android-sdk ./gradlew ...`
-- Use standard Android architecture: MVVM, Hilt DI, Coroutines
-- API endpoints in `data/api/VirtuagymApi.kt` - verify actual Virtuagym API via network inspection
+- Use standard Android architecture: MVVM, Coroutines
+- API endpoints in `data/api/VirtuagymApiClient.kt` - verify actual Virtuagym API via network inspection
 
 ## HTML Analysis Tool
 
