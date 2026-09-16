@@ -39,20 +39,17 @@ app/src/main/java/com/swimgym/app/
 - Use standard Android architecture: MVVM, Coroutines
 - API endpoints in `data/api/VirtuagymApiClient.kt` - verify actual Virtuagym API via network inspection
 
-## HTML Analysis Tool
+## Curl Debug Tooling
 
-### Setup
-```bash
-pip install -r tools/requirements.txt
-```
+### Scripts
+- `tools/curl_schedule.sh` - Fetch daily schedule page (`/classes/day/{date}`)
+- `tools/booking.sh` - Reserve a class (`action=reserve_class`)
+- `tools/cancel_booking.sh` - Cancel a booking (`action=cancel_reserve_class`)
+- `tools/book_info.sh` - Fetch booking info for a specific class
 
-### Commands
-- `python tools/analyze_swimgym_html.py login --email <email>` - Login and save cookies
-- `python tools/analyze_swimgym_html.py analyze [path]` - Analyze page with saved cookies
+### HTML Dumps
+- `tools/schedule.html` - Saved schedule page response
+- `tools/book_info.html` - Saved booking info response
 
-### Examples
-```bash
-python tools/analyze_swimgym_html.py login --email swimgym@joeri.nu
-python tools/analyze_swimgym_html.py analyze
-python tools/analyze_swimgym_html.py analyze /schedule
-```
+### Usage
+Scripts contain hardcoded cookies/tokens from a prior session. Update the `Cookie:` header with fresh tokens from the browser to use.
