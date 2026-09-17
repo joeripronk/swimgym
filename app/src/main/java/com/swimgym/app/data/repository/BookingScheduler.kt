@@ -80,10 +80,12 @@ class BookingSchedulerImpl(
         if (booking.status != ScheduledBookingStatus.ACTIVE) return@withContext false
 
         val trainings = dao.getAllTrainingsList() ?: run {
+            showRetryNotification(booking)
             rescheduleAlarmForRetry(booking)
             return@withContext false
         }
         if (trainings.isEmpty()) {
+            showRetryNotification(booking)
             rescheduleAlarmForRetry(booking)
             return@withContext false
         }
@@ -103,12 +105,14 @@ class BookingSchedulerImpl(
         }
 
         val training = getNextTraining(adjustedStartTime, booking.className, trainings) ?: run {
+            showRetryNotification(booking)
             rescheduleAlarmForRetry(updatedBooking)
             return@withContext false
         }
         val res = getTrainingDetails(training)
         
         if (!res.isSuccess) {
+            showRetryNotification(booking)
             rescheduleAlarmForRetry(updatedBooking)
             return@withContext false
         }
@@ -127,6 +131,7 @@ class BookingSchedulerImpl(
         }
 
         if (updtraining.isFull) {
+            showRetryNotification(booking)
             rescheduleAlarmForRetry(updatedBooking)
             return@withContext false
         }
@@ -151,6 +156,7 @@ class BookingSchedulerImpl(
                 )
             },
             onFailure = {
+                showRetryNotification(booking)
                 rescheduleAlarmForRetry(updatedBooking)
             }
         )
@@ -174,6 +180,14 @@ class BookingSchedulerImpl(
         }
         val retryTime = System.currentTimeMillis() + 15 * 60 * 1000L
         alarmScheduler.scheduleBooking(booking.id, retryTime)
+    }
+
+    private suspend fun showRetryNotification(booking: ScheduledBooking) = withContext(Dispatchers.IO) {
+        val training = dao.getTrainingById(booking.trainingId)
+        val classDate = training?.classDate ?: ""
+        val classTime = training?.classTime ?: ""
+        val className = training?.title ?: booking.className
+        notificationManager.showBookingRetry(booking.id, className, classDate, classTime)
     }
 
     private suspend fun getTrainingDetails(training: TrainingEntity): Result<TrainingEntity> = withContext(Dispatchers.IO) {

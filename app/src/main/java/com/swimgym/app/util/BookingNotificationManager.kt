@@ -20,9 +20,10 @@ class BookingNotificationManager(
         private const val BOOKING_CHANNEL_ID = "swimgym_booking_channel"
         private const val BOOKING_CHANNEL_NAME = "Booking Confirmations"
         private const val BOOKING_CHANNEL_DESCRIPTION = "Notifications for training booking confirmations"
-        const val NOTIFICATION_ID_BASE = 1000
-        const val LOGIN_REQUIRED_ID = 9999
-        const val SYNC_ID = 5000
+    const val NOTIFICATION_ID_BASE = 1000
+    const val LOGIN_REQUIRED_ID = 9999
+    const val SYNC_ID = 5000
+    const val BOOKING_RETRY_ID = 2000
         private const val SYNC_CHANNEL_ID = "swimgym_notifications"
     }
 
@@ -70,6 +71,51 @@ class BookingNotificationManager(
             .setContentIntent(pendingIntent)
 
         notificationManager.notify(NOTIFICATION_ID_BASE, builder.build())
+    }
+
+    fun showBookingRetry(bookingId: Long, trainingName: String, classDate: String, classTime: String) {
+        if (!hasNotificationPermission(context)) return
+
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        createNotificationChannel(notificationManager)
+
+        val title = "Booking Failed - Retry Available"
+        val trainingDetails = formatTrainingDetails(trainingName, classTime, classDate)
+        val content = "Your booking could not be completed. Tap to retry now or wait for automatic retry in 15 minutes.\n\n$trainingDetails"
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val retryIntent = Intent(context, com.swimgym.app.receiver.ScheduledBookingReceiver::class.java).apply {
+            setAction("com.swimgym.app.RETRY_BOOKING")
+            putExtra("booking_id", bookingId)
+        }
+
+        val retryPendingIntent = PendingIntent.getBroadcast(
+            context,
+            bookingId.toInt(),
+            retryIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, BOOKING_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .addAction(0, "Retry Now", retryPendingIntent)
+
+        notificationManager.notify(BOOKING_RETRY_ID, builder.build())
     }
 
     fun showSyncNotification(success: Boolean) {
