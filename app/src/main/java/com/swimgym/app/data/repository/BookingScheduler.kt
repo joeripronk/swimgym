@@ -43,7 +43,7 @@ class BookingSchedulerImpl(
             if (adjustedStartTime != booking.startTime) {
                 scheduledBookingRepo.saveBooking(booking.copy(startTime = adjustedStartTime))
             }
-            val shouldBook = shouldBookForAlarm(adjustedStartTime, now)
+            val shouldBook = shouldBookForAlarm(booking.startTime, now)
             if (!shouldBook) return@forEach
             val training = getNextTraining(adjustedStartTime, booking.className, trainings) ?: return@forEach
             val res = getTrainingDetails(training)
@@ -97,7 +97,7 @@ class BookingSchedulerImpl(
         val updatedBooking = booking.copy(startTime = adjustedStartTime)
         scheduledBookingRepo.saveBooking(updatedBooking)
 
-        if (!shouldBookForAlarm(updatedBooking.startTime, now)) {
+        if (!shouldBookForAlarm(booking.startTime, now)) {
             rescheduleAlarmForRetry(updatedBooking)
             return@withContext false
         }
@@ -159,15 +159,21 @@ class BookingSchedulerImpl(
 
     private fun rescheduleAlarmForRetry(booking: ScheduledBooking) {
         val now = System.currentTimeMillis() / 1000
-        var startSeconds = booking.startTime
-        while (startSeconds < now + 7 * 86400) {
-            startSeconds += 7 * 86400
+        val windowOpen = booking.startTime > now + 2 * 86400 && booking.startTime < now + 7 * 86400
+        if (!windowOpen) {
+            var startSeconds = booking.startTime
+            while (startSeconds < now + 7 * 86400) {
+                startSeconds += 7 * 86400
+            }
+            val nextAlarmTime = (startSeconds - 7 * 86400 + 5 * 60) * 1000L
+            val nowMillis = System.currentTimeMillis()
+            if (nextAlarmTime > nowMillis) {
+                alarmScheduler.scheduleBooking(booking.id, nextAlarmTime)
+            }
+            return
         }
-        val nextAlarmTime = (startSeconds - 7 * 86400 + 5 * 60) * 1000L
-        val nowMillis = System.currentTimeMillis()
-        if (nextAlarmTime > nowMillis) {
-            alarmScheduler.scheduleBooking(booking.id, nextAlarmTime)
-        }
+        val retryTime = System.currentTimeMillis() + 15 * 60 * 1000L
+        alarmScheduler.scheduleBooking(booking.id, retryTime)
     }
 
     private suspend fun getTrainingDetails(training: TrainingEntity): Result<TrainingEntity> = withContext(Dispatchers.IO) {
@@ -322,6 +328,6 @@ class BookingSchedulerImpl(
     }
 
     private fun shouldBookForAlarm(trainingStart: Long, now: Long): Boolean {
-        return trainingStart < now + 7 * 86400 && trainingStart > now + 86400
+        return trainingStart < now + 7 * 86400 && trainingStart > now + 2 * 86400
     }
 }
