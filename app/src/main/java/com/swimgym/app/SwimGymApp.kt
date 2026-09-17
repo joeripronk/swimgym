@@ -12,7 +12,9 @@ import androidx.work.PeriodicWorkRequestBuilder
 import com.swimgym.app.worker.ScheduledBookingCheckWorker
 import com.swimgym.app.worker.ScheduleSyncWorker
 import androidx.work.WorkManager
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class SwimGymApp : Application() {
     
@@ -20,6 +22,8 @@ class SwimGymApp : Application() {
         lateinit var instance: SwimGymApp
             private set
     }
+
+    private val ioScope = CoroutineScope(Dispatchers.IO)
     
     override fun onCreate() {
         super.onCreate()
@@ -29,32 +33,38 @@ class SwimGymApp : Application() {
         // Create notification channel for foreground service
         createNotificationChannel()
 
-        // Arm the 12h schedule sync alarm
+        // Arm the schedule sync alarm
         SwimGymAppContainer.getInstance().alarmScheduler.scheduleSyncAlarm()
 
+        // Schedule periodic workers only if work manager is enabled in settings
+        ioScope.launch {
+            val workManagerEnabled = SwimGymAppContainer.getInstance().sessionRepository.getWorkManagerEnabled()
+            if (workManagerEnabled) {
+                schedulePeriodicWorkers()
+            }
+        }
+
         // Reschedule booking alarms on app start
-        rescheduleAllAlarms()
+        ioScope.launch {
+            val bookings = SwimGymAppContainer.getInstance().scheduledBookingRepository.getAllBookings()
+            SwimGymAppContainer.getInstance().alarmScheduler.rescheduleBookingAlarms(bookings)
+        }
 
         // Register lifecycle callback to reschedule alarms on resume
         registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
             override fun onActivityStarted(activity: Activity) {}
             override fun onActivityResumed(activity: Activity) {
-                rescheduleAllAlarms()
+                ioScope.launch {
+                    val bookings = SwimGymAppContainer.getInstance().scheduledBookingRepository.getAllBookings()
+                    SwimGymAppContainer.getInstance().alarmScheduler.rescheduleBookingAlarms(bookings)
+                }
             }
             override fun onActivityPaused(activity: Activity) {}
             override fun onActivityDestroyed(activity: Activity) {}
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
             override fun onActivityStopped(activity: Activity) {}
         })
-
-        // Schedule periodic workers only if work manager is enabled in settings
-        val workManagerEnabled = runBlocking {
-            SwimGymAppContainer.getInstance().sessionRepository.getWorkManagerEnabled()
-        }
-        if (workManagerEnabled) {
-            schedulePeriodicWorkers()
-        }
     }
     
     private fun createNotificationChannel() {
@@ -90,13 +100,6 @@ class SwimGymApp : Application() {
             ExistingPeriodicWorkPolicy.REPLACE,
             scheduleSyncRequest
         )
-    }
-
-    private fun rescheduleAllAlarms() {
-        runBlocking {
-            val bookings = SwimGymAppContainer.getInstance().scheduledBookingRepository.getAllBookings()
-            SwimGymAppContainer.getInstance().alarmScheduler.rescheduleBookingAlarms(bookings)
-        }
     }
 
     fun getContainer(): SwimGymAppContainer = SwimGymAppContainer.getInstance()

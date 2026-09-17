@@ -25,7 +25,7 @@ class VirtuagymApiClientImpl(
     private val context: Context
 ) : VirtuagymApiClient {
 
-    private val fetchHtmlLock = Mutex()
+    private val cookieLock = Mutex()
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -37,7 +37,7 @@ class VirtuagymApiClientImpl(
     private val baseUrl = "https://swimgym.virtuagym.com"
     private var userAgent: String = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
-    override suspend fun fetchHtml(url: String): org.jsoup.nodes.Document = fetchHtmlLock.withLock {
+    override suspend fun fetchHtml(url: String): org.jsoup.nodes.Document = cookieLock.withLock {
         loadCookiesFromCache()
         if (!isLoggedIn()) {
             throw Exception("not logged in")
@@ -58,7 +58,7 @@ class VirtuagymApiClientImpl(
         return doc
     }
 
-    override suspend fun fetchPage(url: String): String = fetchHtmlLock.withLock {
+    override suspend fun fetchPage(url: String): String = cookieLock.withLock {
         loadCookiesFromCache()
         if (!isLoggedIn()) {
             throw Exception("not logged in")
@@ -72,7 +72,8 @@ class VirtuagymApiClientImpl(
         return response.body?.string() ?: ""
     }
 
-    override suspend fun postBooking(url: String, body: FormBody): Response {
+    override suspend fun postBooking(url: String, body: FormBody): Response = cookieLock.withLock {
+        loadCookiesFromCache()
         val request = buildRequest(url)
             .post(body)
             .build()
@@ -81,7 +82,8 @@ class VirtuagymApiClientImpl(
         return response
     }
 
-    override suspend fun postCancel(url: String, body: FormBody): Response {
+    override suspend fun postCancel(url: String, body: FormBody): Response = cookieLock.withLock {
+        loadCookiesFromCache()
         val request = buildRequest(url)
             .post(body)
             .build()
