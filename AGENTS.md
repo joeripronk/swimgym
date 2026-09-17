@@ -30,7 +30,6 @@ app/src/main/java/com/swimgym/app/
         theme/
     receiver/           # Broadcast receivers
     util/               # Utilities (permissions, notifications, alarms)
-    worker/             # WorkManager workers
     MainActivity.kt
     SwimGymApp.kt
 ```

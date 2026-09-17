@@ -1,18 +1,12 @@
 package com.swimgym.app.ui.viewmodel
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.swimgym.app.data.repository.SessionRepository
 import com.swimgym.app.domain.model.CalendarInfo
 import com.swimgym.app.domain.repository.CalendarRepository
-import com.swimgym.app.worker.ScheduledBookingCheckWorker
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import java.util.concurrent.TimeUnit
 
 data class ReminderConfig(
     val reminderMinutesBefore: Int = 30,
@@ -51,14 +45,12 @@ data class SettingsUiState(
     val workTimeConfig: WorkTimeConfig = WorkTimeConfig(),
     val foregroundServiceEnabled: Boolean = false,
     val requestForegroundPermission: Boolean = false,
-    val alarmNotificationEnabled: Boolean = true,
-    val workManagerEnabled: Boolean = false
+    val alarmNotificationEnabled: Boolean = true
 )
 
 class SettingsViewModel(
     private val sessionRepository: SessionRepository,
-    private val calendarRepository: CalendarRepository,
-    private val context: Context
+    private val calendarRepository: CalendarRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -71,7 +63,6 @@ class SettingsViewModel(
         loadWorkTimeSettings()
         loadForegroundServiceSetting()
         loadAlarmNotificationSetting()
-        loadWorkManagerSetting()
         viewModelScope.launch {
             sessionRepository.selectedCalendar.collect { calendar ->
                 if (calendar != null) {
@@ -110,7 +101,6 @@ class SettingsViewModel(
                 if (granted) {
                     viewModelScope.launch {
                         sessionRepository.saveForegroundServiceEnabled(true)
-                        reloadWorkManager()
                     }
                 }
             }
@@ -131,45 +121,6 @@ class SettingsViewModel(
         _requestForegroundPermission?.let { callback ->
             callback(granted)
         }
-        if (granted) {
-            reloadWorkManager()
-        }
-    }
-
-    private fun loadWorkManagerSetting() {
-        viewModelScope.launch {
-            val enabled = sessionRepository.getWorkManagerEnabled()
-            _uiState.update { it.copy(workManagerEnabled = enabled) }
-        }
-    }
-
-    fun setWorkManagerEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            sessionRepository.saveWorkManagerEnabled(enabled)
-            _uiState.update { it.copy(workManagerEnabled = enabled) }
-            if (enabled) {
-                reloadWorkManager()
-            } else {
-                cancelAllWorkers()
-            }
-        }
-    }
-
-    private fun reloadWorkManager() {
-        val workManager = WorkManager.getInstance(context)
-        workManager.cancelAllWork()
-        val bookingCheckRequest = PeriodicWorkRequestBuilder<ScheduledBookingCheckWorker>(
-            15, TimeUnit.MINUTES
-        ).build()
-        workManager.enqueueUniquePeriodicWork(
-            ScheduledBookingCheckWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.REPLACE,
-            bookingCheckRequest
-        )
-    }
-
-    private fun cancelAllWorkers() {
-        WorkManager.getInstance(context).cancelAllWork()
     }
 
     private fun loadAlarmNotificationSetting() {

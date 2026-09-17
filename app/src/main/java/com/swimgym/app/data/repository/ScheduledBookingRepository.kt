@@ -83,7 +83,6 @@ class ScheduledBookingRepository(
         val current = getAllBookings().toMutableList()
         current.removeAll { it.id == bookingId }
         saveAllBookings(current)
-        cancelWork(bookingId)
     }
 
     suspend fun updateMaxRepeat(bookingId: Long, newMax: Int?) {
@@ -161,9 +160,5 @@ class ScheduledBookingRepository(
         return if (startsWith("\"") && endsWith("\"")) {
             substring(1, length - 1)
         } else this
-    }
-
-    private fun cancelWork(bookingId: Long) {
-        androidx.work.WorkManager.getInstance(context).cancelUniqueWork("recurring_booking_$bookingId")
     }
 }

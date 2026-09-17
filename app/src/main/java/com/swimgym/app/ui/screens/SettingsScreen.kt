@@ -533,55 +533,6 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Work Manager",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(8.dp)
-            )
-
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Enable periodic background tasks",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Enable Work Manager",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                text = "Automatically checks bookings every 15 minutes and syncs schedule daily",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Switch(
-                            checked = uiState.workManagerEnabled,
-                            onCheckedChange = { viewModel.setWorkManagerEnabled(it) }
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
                 text = "Work Time Filter",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(8.dp)
