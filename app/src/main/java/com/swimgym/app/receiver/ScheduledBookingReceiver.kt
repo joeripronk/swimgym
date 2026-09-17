@@ -4,8 +4,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.swimgym.app.di.SwimGymAppContainer
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 class ScheduledBookingReceiver : BroadcastReceiver() {
@@ -16,7 +17,7 @@ class ScheduledBookingReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         val container = SwimGymAppContainer.getInstance()
 
-        GlobalScope.launch(Dispatchers.IO) {
+        CoroutineScope(Dispatchers.IO).launch {
             try {
                 container.bookingScheduler.processSingleBooking(bookingId)
             } catch (e: Exception) {

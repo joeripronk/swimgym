@@ -132,21 +132,21 @@ class ScheduledBookingRepository(
                     ScheduledBookingStatus.ACTIVE
                 }
 
-                //if (id != null && trainingId != null) {
-                    result.add(
-                        ScheduledBooking(
-                            id = id,
-                            trainingId = trainingId!!,
-                            className = className ?: "",
-                            startTime = startTime,
-                            instructor = instructor,
-                            status = status,
-                            bookedCount = bookedCount,
-                            maxRepeatCount = maxRepeatCount,
-                            createdAt = createdAt
-                        )
+                if (id == 0L) return@forEach
+                if (trainingId == null || className == null) return@forEach
+                result.add(
+                    ScheduledBooking(
+                        id = id,
+                        trainingId = trainingId,
+                        className = className,
+                        startTime = startTime,
+                        instructor = instructor,
+                        status = status,
+                        bookedCount = bookedCount,
+                        maxRepeatCount = maxRepeatCount,
+                        createdAt = createdAt
                     )
-                //}
+                )
             } catch (e: Exception) {
                 // Skip malformed entries
             }

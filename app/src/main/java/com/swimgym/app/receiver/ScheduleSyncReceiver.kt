@@ -5,8 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.swimgym.app.di.SwimGymAppContainer
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
 class ScheduleSyncReceiver : BroadcastReceiver() {
@@ -19,7 +19,7 @@ class ScheduleSyncReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         val container = SwimGymAppContainer.getInstance()
 
-        GlobalScope.launch(Dispatchers.IO) {
+        CoroutineScope(Dispatchers.IO).launch {
             var success = false
             try {
                 success = container.trainingRepository.refreshSchedule().isSuccess

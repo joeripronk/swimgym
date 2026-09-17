@@ -164,17 +164,23 @@ class CalendarServiceImpl(
             )
 
             var removedCount = 0
-            while (cursor?.moveToNext() == true) {
-                val eventId = cursor.getString(cursor.getColumnIndex(CalendarContract.Events._ID))
-                val calendarId = cursor.getString(cursor.getColumnIndex(CalendarContract.Events.CALENDAR_ID))
-                Log.d(TAG, "Found calendar event to remove: id=$eventId, calendar=$calendarId")
+            val eventIdIdx = cursor?.getColumnIndex(CalendarContract.Events._ID) ?: -1
+            val calendarIdIdx = cursor?.getColumnIndex(CalendarContract.Events.CALENDAR_ID) ?: -1
+            if (eventIdIdx < 0 || calendarIdIdx < 0) {
+                Log.w(TAG, "Missing required calendar columns (_ID or CALENDAR_ID)")
+            } else {
+                while (cursor?.moveToNext() == true) {
+                    val eventId = cursor.getString(eventIdIdx)
+                    val calendarId = cursor.getString(calendarIdIdx)
+                    Log.d(TAG, "Found calendar event to remove: id=$eventId, calendar=$calendarId")
 
-                context.contentResolver.delete(
-                    CalendarContract.Events.CONTENT_URI,
-                    "${CalendarContract.Events._ID}=? AND ${CalendarContract.Events.CALENDAR_ID}=?",
-                    arrayOf(eventId, calendarId)
-                )
-                removedCount++
+                    context.contentResolver.delete(
+                        CalendarContract.Events.CONTENT_URI,
+                        "${CalendarContract.Events._ID}=? AND ${CalendarContract.Events.CALENDAR_ID}=?",
+                        arrayOf(eventId, calendarId)
+                    )
+                    removedCount++
+                }
             }
             Log.d(TAG, "Removed $removedCount calendar events")
 

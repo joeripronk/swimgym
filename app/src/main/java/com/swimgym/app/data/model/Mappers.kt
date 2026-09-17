@@ -96,7 +96,7 @@ object Mappers {
         return Booking(
             id = id,
             trainingId = trainingId,
-            status = when (status.lowercase()) {
+            status = when (status?.lowercase()) {
                 "confirmed" -> BookingStatus.CONFIRMED
                 "cancelled" -> BookingStatus.CANCELLED
                 else -> BookingStatus.PENDING

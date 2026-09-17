@@ -5,8 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.swimgym.app.di.SwimGymAppContainer
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
 class BootCompletedReceiver : BroadcastReceiver() {
@@ -22,7 +22,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
         container.alarmScheduler.scheduleSyncAlarm()
 
         val pendingResult = goAsync()
-        GlobalScope.launch(Dispatchers.IO) {
+        CoroutineScope(Dispatchers.IO).launch {
             try {
                 val bookings = container.scheduledBookingRepository.getAllBookings()
                 container.alarmScheduler.rescheduleBookingAlarms(bookings)

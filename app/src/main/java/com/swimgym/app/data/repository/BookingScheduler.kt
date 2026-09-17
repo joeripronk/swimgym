@@ -47,6 +47,11 @@ class BookingSchedulerImpl(
             if (!shouldBook) return@forEach
             val training = getNextTraining(adjustedStartTime, booking.className, trainings) ?: return@forEach
             val res = getTrainingDetails(training)
+            if (!res.isSuccess) {
+                showRetryNotification(booking)
+                rescheduleAlarmForRetry(booking)
+                return@forEach
+            }
             val updtraining = res.getOrThrow()
             if (updtraining.isJoined) {
                 scheduledBookingRepo.incrementBookingCount(booking.id, training)
@@ -110,7 +115,6 @@ class BookingSchedulerImpl(
             return@withContext false
         }
         val res = getTrainingDetails(training)
-        
         if (!res.isSuccess) {
             showRetryNotification(booking)
             rescheduleAlarmForRetry(updatedBooking)
