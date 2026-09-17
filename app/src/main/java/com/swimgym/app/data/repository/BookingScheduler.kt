@@ -43,7 +43,35 @@ class BookingSchedulerImpl(
             if (adjustedStartTime != booking.startTime) {
                 scheduledBookingRepo.saveBooking(booking.copy(startTime = adjustedStartTime))
             }
-            processBooking(booking.copy(startTime = adjustedStartTime), trainings)
+            val shouldBook = shouldBookForAlarm(adjustedStartTime, now)
+            if (!shouldBook) return@forEach
+            val training = getNextTraining(adjustedStartTime, booking.className, trainings) ?: return@forEach
+            val res = getTrainingDetails(training)
+            val updtraining = res.getOrThrow()
+            if (updtraining.isJoined) {
+                scheduledBookingRepo.incrementBookingCount(booking.id, training)
+                return@forEach
+            }
+            if (updtraining.isFull) {
+                return@forEach
+            }
+            val result = bookTraining(training)
+            result.fold(
+                onSuccess = {
+                    scheduledBookingRepo.incrementBookingCount(booking.id, training)
+                    val maxRepeat = booking.maxRepeatCount
+                    if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
+                        scheduledBookingRepo.completeBooking(booking.id)
+                    }
+                    notificationManager.showBookingConfirmation(
+                        trainingName = training.title,
+                        classTime = training.classTime,
+                        classDate = training.classDate,
+                        isScheduledBooking = true
+                    )
+                },
+                onFailure = { }
+            )
         }
     }
 
@@ -108,13 +136,7 @@ class BookingSchedulerImpl(
             onSuccess = {
                 scheduledBookingRepo.incrementBookingCount(bookingId, training)
 
-                val nextAlarmTime = updatedBooking.startTime - 7 * 86400 + 5 * 60
-                val now2 = System.currentTimeMillis() / 1000
-                if (nextAlarmTime > now2) {
-                    alarmScheduler.scheduleBooking(bookingId, (nextAlarmTime * 1000))
-                } else {
-                    alarmScheduler.scheduleBooking(bookingId, System.currentTimeMillis() + 5 * 60 * 1000)
-                }
+                alarmScheduler.scheduleBooking(bookingId, alarmScheduler.bookingAlarmTimeMillis(updatedBooking))
 
                 val maxRepeat = booking.maxRepeatCount
                 if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
@@ -136,8 +158,7 @@ class BookingSchedulerImpl(
     }
 
     private fun rescheduleAlarmForRetry(booking: ScheduledBooking) {
-        val retryTime = System.currentTimeMillis() + 15 * 60 * 1000L
-        alarmScheduler.scheduleBooking(booking.id, retryTime)
+        alarmScheduler.scheduleBooking(booking.id, alarmScheduler.bookingAlarmTimeMillis(booking))
     }
 
     private suspend fun getTrainingDetails(training: TrainingEntity): Result<TrainingEntity> = withContext(Dispatchers.IO) {
@@ -293,50 +314,5 @@ class BookingSchedulerImpl(
 
     private fun shouldBookForAlarm(trainingStart: Long, now: Long): Boolean {
         return trainingStart < now + 7 * 86400 && trainingStart > now + 86400
-    }
-
-    private suspend fun processBooking(booking: ScheduledBooking, trainings: List<TrainingEntity>) = withContext(Dispatchers.IO) {
-        try {
-            val shouldBook = shouldBookNow(booking)
-            if (!shouldBook) return@withContext
-            val training = getNextTraining(booking.startTime, booking.className, trainings) ?: return@withContext
-            val res = getTrainingDetails(training)
-            val updtraining = res.getOrThrow()
-            if (updtraining.isJoined) {
-                scheduledBookingRepo.incrementBookingCount(booking.id, training)
-                return@withContext
-            }
-            if (updtraining.isFull) {
-                return@withContext
-            }
-            val result = bookTraining(training)
-            result.fold(
-                onSuccess = {
-                    scheduledBookingRepo.incrementBookingCount(booking.id, training)
-
-                    val maxRepeat = booking.maxRepeatCount
-                    if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
-                        scheduledBookingRepo.completeBooking(booking.id)
-                        return@fold
-                    }
-                    notificationManager.showBookingConfirmation(
-                        trainingName = training.title,
-                        classTime = training.classTime,
-                        classDate = training.classDate,
-                        isScheduledBooking = true
-                    )
-                },
-                onFailure = { }
-            )
-        } catch (e: Exception) {
-            // Error handled silently, will retry on next periodic run
-        }
-    }
-
-    private fun shouldBookNow(booking: ScheduledBooking): Boolean {
-        val calendar = java.util.Calendar.getInstance()
-        val now = calendar.timeInMillis / 1000
-        val next = booking.startTime
-        return next < now + 7 * 86400 && next > now + 86400
     }
 }

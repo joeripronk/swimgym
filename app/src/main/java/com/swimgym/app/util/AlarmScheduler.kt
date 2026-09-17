@@ -30,6 +30,8 @@ class AlarmScheduler(private val context: Context) {
         }
 
         val pendingIntent = createPendingIntent(bookingId)
+        alarmManager.cancel(pendingIntent)
+
         val exactSupported = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             alarmManager.canScheduleExactAlarms()
         } else {
