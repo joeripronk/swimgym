@@ -146,61 +146,28 @@ class TrainingRepositoryImpl(
     override suspend fun bookTraining(training: TrainingEntity): Result<Booking> {
         return withContext(Dispatchers.IO) {
             try {
-                android.util.Log.d("BookTraining", "Building POST request for trainingId: ${training.id}, title: ${training.title}")
-                val formBody = okhttp3.FormBody.Builder()
-                    .add("action", "reserve_class")
-                    .add("absent_reason", "")
-                    .add("participant_name", "")
-                    .add("participant_email", "")
-                    .add("participant_notes", "")
-                    .add("participant_id", "")
-                    .add("present", "")
-                    .add("participant_member_id", "")
-                    .add("book_recurring", "")
-                    .add("additional_note", "")
-                    .add("class_name", training.title)
-                    .add("class_time", training.classTime)
-                    .add("class_date", training.classDate)
-                    .add("send_email", "1")
-                    .add("instance_of", "")
-                    .add("cancel_recurring", "")
-                    .add("email_participants_subject", "")
-                    .add("email_participants_content", "")
-                    .add("waiting_member_id", "")
-                    .add("activity_id_filter", "")
-                    .add("club_coach_id_filter", "")
-                    .add("attendees", "0")
-                    .build()
-
-                val url = "https://swimgym.virtuagym.com/classes/class/${training.id}?event_type=8"
-                android.util.Log.d("BookTraining", "POST to URL: $url")
-                android.util.Log.d("BookTraining", "Form params: action=reserve_class, class_name=${training.title}, class_date=${training.classDate}, class_time=${training.classTime}")
-
-                val result = apiClient.postBooking(url, formBody)
-                android.util.Log.d("BookTraining", "Response code: ${result.code}, isSuccessful: ${result.isSuccessful}")
-                val responseBody = result.body?.string()
-                if (responseBody != null) {
-                    android.util.Log.d("BookTraining", "Response body: $responseBody")
-                }
-
-                if (result.isSuccessful || result.code == 302) {
-                    val bookingDto = com.swimgym.app.data.model.BookingResponse(
-                        id = 0,
-                        trainingId = training.id,
-                        status = "confirmed",
-                        className = training.title
-                    )
-                    val booking = bookingDto.toDomain()
-                    android.util.Log.d("BookTraining", "HTTP request succeeded for: ${training.id}, waiting for API verification")
-                    val current = bookingsFlow.value.toMutableList()
-                    current.add(booking)
-                    bookingsFlow.value = current
-                    
-                    Result.success(booking)
-                } else {
-                    android.util.Log.e("BookTraining", "Booking failed with code ${result.code} for trainingId: ${training.id}")
-                    Result.failure(Exception("Booking failed: ${result.code}"))
-                }
+                android.util.Log.d("BookTraining", "Booking trainingId: ${training.id}, title: ${training.title}")
+                val bookResult = apiClient.bookTraining(training)
+                bookResult.fold(
+                    onSuccess = {
+                        android.util.Log.d("BookTraining", "Booking succeeded for: ${training.id}")
+                        val bookingDto = com.swimgym.app.data.model.BookingResponse(
+                            id = 0,
+                            trainingId = training.id,
+                            status = "confirmed",
+                            className = training.title
+                        )
+                        val booking = bookingDto.toDomain()
+                        val current = bookingsFlow.value.toMutableList()
+                        current.add(booking)
+                        bookingsFlow.value = current
+                        Result.success(booking)
+                    },
+                    onFailure = { e ->
+                        android.util.Log.e("BookTraining", "Booking failed for ${training.id}", e)
+                        Result.failure<Booking>(e)
+                    }
+                )
             } catch (e: Exception) {
                 android.util.Log.e("BookTraining", "Exception during booking for ${training.id}", e)
                 Result.failure(e)
@@ -211,64 +178,32 @@ class TrainingRepositoryImpl(
     override suspend fun cancelBooking(training: TrainingEntity): Result<Booking> {
         return withContext(Dispatchers.IO) {
             try {
-                android.util.Log.d("CancelBooking", "Building POST request for trainingId: ${training.id}, title: ${training.title}")
-                val formBody = okhttp3.FormBody.Builder()
-                    .add("action", "cancel_reserve_class")
-                    .add("absent_reason", "unknown")
-                    .add("participant_name", "")
-                    .add("participant_email", "")
-                    .add("participant_notes", "")
-                    .add("participant_id", "")
-                    .add("present", "")
-                    .add("participant_member_id", "")
-                    .add("book_recurring", "")
-                    .add("additional_note", "")
-                    .add("class_name", training.title)
-                    .add("class_time", training.classTime)
-                    .add("class_date", training.classDate)
-                    .add("send_email", "1")
-                    .add("instance_of", "")
-                    .add("cancel_recurring", "")
-                    .add("email_participants_subject", "")
-                    .add("email_participants_content", "")
-                    .add("waiting_member_id", "")
-                    .add("activity_id_filter", "")
-                    .add("club_coach_id_filter", "")
-                    .add("attendees", "0")
-                    .build()
-
-                val url = "https://swimgym.virtuagym.com/classes/class/${training.id}?event_type=8"
-                android.util.Log.d("CancelBooking", "POST to URL: $url")
-                android.util.Log.d("CancelBooking", "Form params: action=cancel_reserve_class, class_name=${training.title}, class_date=${training.classDate}")
-
-                val result = apiClient.postCancel(url, formBody)
-                android.util.Log.d("CancelBooking", "Response code: ${result.code}, isSuccessful: ${result.isSuccessful}")
-                val responseBody = result.body?.string()
-                if (responseBody != null) {
-                    android.util.Log.d("CancelBooking", "Response body: $responseBody")
-                }
-
-                if (result.isSuccessful || result.code == 302) {
-                    val bookingDto = com.swimgym.app.data.model.BookingResponse(
-                        id = 0,
-                        trainingId = training.id,
-                        status = "cancelled"
-                    )
-                    val booking = bookingDto.toDomain()
-                    android.util.Log.d("CancelBooking", "Deleting booking from DB for trainingId: ${training.id}")
-                    dao.deleteBookingByTrainingId(training.id)
-                    val current = bookingsFlow.value.toMutableList()
-                    current.removeAll { it.trainingId == training.id }
-                    bookingsFlow.value = current
-
-                    calendarService.removeTrainingFromCalendar(training)
-
-                    android.util.Log.d("CancelBooking", "Cancellation successful for: ${training.id}")
-                    Result.success(booking)
-                } else {
-                    android.util.Log.e("CancelBooking", "Cancellation failed with code ${result.code} for trainingId: ${training.id}")
-                    Result.failure(Exception("Cancel failed: ${result.code}"))
-                }
+                android.util.Log.d("CancelBooking", "Cancelling trainingId: ${training.id}, title: ${training.title}")
+                val cancelResult = apiClient.cancelTraining(training)
+                val booking = Booking(
+                    id = 0,
+                    trainingId = training.id,
+                    className = training.title,
+                    startTime = training.startTime,
+                    endTime = training.endTime,
+                    status = com.swimgym.app.domain.model.BookingStatus.CANCELLED,
+                    instructor = training.instructor
+                )
+                cancelResult.fold(
+                    onSuccess = {
+                        android.util.Log.d("CancelBooking", "Cancellation succeeded for: ${training.id}")
+                        dao.deleteBookingByTrainingId(training.id)
+                        val current = bookingsFlow.value.toMutableList()
+                        current.removeAll { it.trainingId == training.id }
+                        bookingsFlow.value = current
+                        calendarService.removeTrainingFromCalendar(training)
+                        Result.success(booking)
+                    },
+                    onFailure = { e ->
+                        android.util.Log.e("CancelBooking", "Cancellation failed for ${training.id}", e)
+                        Result.failure<Booking>(e)
+                    }
+                )
             } catch (e: Exception) {
                 android.util.Log.e("CancelBooking", "Exception during cancellation for ${training.id}", e)
                 Result.failure(e)

@@ -16,6 +16,8 @@ interface VirtuagymApiClient {
     suspend fun fetchPage(url: String): String
     suspend fun postBooking(url: String, body: FormBody): Response
     suspend fun postCancel(url: String, body: FormBody): Response
+    suspend fun bookTraining(training: com.swimgym.app.data.local.entity.TrainingEntity): Result<Unit>
+    suspend fun cancelTraining(training: com.swimgym.app.data.local.entity.TrainingEntity): Result<Unit>
     fun isLoggedIn(): Boolean
 }
 
@@ -90,6 +92,72 @@ class VirtuagymApiClientImpl(
         val response = client.newCall(request).execute()
         extractCookiesFromResponse(response)
         return response
+    }
+
+    override suspend fun bookTraining(training: com.swimgym.app.data.local.entity.TrainingEntity): Result<Unit> = cookieLock.withLock {
+        loadCookiesFromCache()
+        val url = "https://swimgym.virtuagym.com/classes/class/${training.id}?event_type=8"
+        val formBody = FormBody.Builder()
+            .add("action", "reserve_class")
+            .add("absent_reason", "")
+            .add("participant_name", "")
+            .add("participant_email", "")
+            .add("participant_notes", "")
+            .add("participant_id", "")
+            .add("present", "")
+            .add("participant_member_id", "")
+            .add("book_recurring", "")
+            .add("additional_note", "")
+            .add("class_name", training.title)
+            .add("class_time", training.classTime)
+            .add("class_date", training.classDate)
+            .add("send_email", "1")
+            .add("instance_of", "")
+            .add("cancel_recurring", "")
+            .add("email_participants_subject", "")
+            .add("email_participants_content", "")
+            .add("waiting_member_id", "")
+            .add("activity_id_filter", "")
+            .add("club_coach_id_filter", "")
+            .add("attendees", "0")
+            .build()
+        val request = buildRequest(url).post(formBody).build()
+        val response = client.newCall(request).execute()
+        extractCookiesFromResponse(response)
+        if (response.isSuccessful || response.code == 302) Result.success(Unit) else Result.failure(Exception("Booking failed: ${response.code}"))
+    }
+
+    override suspend fun cancelTraining(training: com.swimgym.app.data.local.entity.TrainingEntity): Result<Unit> = cookieLock.withLock {
+        loadCookiesFromCache()
+        val url = "https://swimgym.virtuagym.com/classes/class/${training.id}?event_type=8"
+        val formBody = FormBody.Builder()
+            .add("action", "cancel_reserve_class")
+            .add("absent_reason", "unknown")
+            .add("participant_name", "")
+            .add("participant_email", "")
+            .add("participant_notes", "")
+            .add("participant_id", "")
+            .add("present", "")
+            .add("participant_member_id", "")
+            .add("book_recurring", "")
+            .add("additional_note", "")
+            .add("class_name", training.title)
+            .add("class_time", training.classTime)
+            .add("class_date", training.classDate)
+            .add("send_email", "1")
+            .add("instance_of", "")
+            .add("cancel_recurring", "")
+            .add("email_participants_subject", "")
+            .add("email_participants_content", "")
+            .add("waiting_member_id", "")
+            .add("activity_id_filter", "")
+            .add("club_coach_id_filter", "")
+            .add("attendees", "0")
+            .build()
+        val request = buildRequest(url).post(formBody).build()
+        val response = client.newCall(request).execute()
+        extractCookiesFromResponse(response)
+        if (response.isSuccessful || response.code == 302) Result.success(Unit) else Result.failure(Exception("Cancel failed: ${response.code}"))
     }
 
     override fun isLoggedIn(): Boolean = cookiesLoggedIn(cookies)

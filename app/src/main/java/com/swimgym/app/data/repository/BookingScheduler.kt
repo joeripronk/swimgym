@@ -62,8 +62,8 @@ class BookingSchedulerImpl(
             if (updtraining.isFull) {
                 return@forEach
             }
-            val result = bookTraining(training)
-            result.fold(
+            val bookResult = apiClient.bookTraining(training)
+            bookResult.fold(
                 onSuccess = {
                     scheduledBookingRepo.incrementBookingCount(booking.id, training)
                     val nextBooking = booking.copy(startTime = adjustedStartTime + 7 * 86400)
@@ -131,8 +131,8 @@ class BookingSchedulerImpl(
             return@withContext false
         }
 
-        val result = bookTraining(training)
-        result.fold(
+        val bookResult = apiClient.bookTraining(training)
+        bookResult.fold(
             onSuccess = {
                 scheduledBookingRepo.incrementBookingCount(bookingId, training)
 
@@ -255,55 +255,6 @@ class BookingSchedulerImpl(
 
             dao.insertTraining(tupdate)
             Result.success(tupdate)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    private suspend fun bookTraining(training: TrainingEntity): Result<com.swimgym.app.data.model.BookingResponse> = withContext(Dispatchers.IO) {
-        try {
-            val formBody = okhttp3.FormBody.Builder()
-                .add("action", "reserve_class")
-                .add("absent_reason", "")
-                .add("participant_name", "")
-                .add("participant_email", "")
-                .add("participant_notes", "")
-                .add("participant_id", "")
-                .add("present", "")
-                .add("participant_member_id", "")
-                .add("book_recurring", "")
-                .add("additional_note", "")
-                .add("class_name", training.title)
-                .add("class_time", training.classTime)
-                .add("class_date", training.classDate)
-                .add("send_email", "1")
-                .add("instance_of", "")
-                .add("cancel_recurring", "")
-                .add("email_participants_subject", "")
-                .add("email_participants_content", "")
-                .add("waiting_member_id", "")
-                .add("activity_id_filter", "")
-                .add("club_coach_id_filter", "")
-                .add("attendees", "0")
-                .build()
-
-            val response = apiClient.postBooking(
-                "https://swimgym.virtuagym.com/classes/class/${training.id}?event_type=8",
-                formBody
-            )
-
-            if (response.isSuccessful || response.code == 302) {
-                Result.success(
-                    com.swimgym.app.data.model.BookingResponse(
-                        id = 0,
-                        trainingId = training.id,
-                        status = "confirmed",
-                        className = training.title
-                    )
-                )
-            } else {
-                Result.failure(Exception("Booking failed: ${response.code}"))
-            }
         } catch (e: Exception) {
             Result.failure(e)
         }
