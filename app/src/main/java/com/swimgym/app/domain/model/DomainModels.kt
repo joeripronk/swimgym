@@ -29,7 +29,6 @@ data class Training(
 data class Booking(
     val id: Long,
     val trainingId: String,
-    val userId: Int = 0,
     val status: BookingStatus,
     val className: String = "",
     val startTime: Long = 0L,

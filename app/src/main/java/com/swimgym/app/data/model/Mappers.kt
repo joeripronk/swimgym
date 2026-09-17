@@ -94,7 +94,6 @@ object Mappers {
         return Booking(
             id = id,
             trainingId = trainingId,
-            userId = userId,
             status = when (status.lowercase()) {
                 "confirmed" -> BookingStatus.CONFIRMED
                 "cancelled" -> BookingStatus.CANCELLED
@@ -109,7 +108,6 @@ object Mappers {
     fun Booking.toEntity() = BookingEntity(
         id = id,
         trainingId = trainingId,
-        userId = userId,
         startTime = startTime,
         endTime = endTime,
         title = className,
@@ -119,7 +117,6 @@ object Mappers {
     fun BookingEntity.toDomain() = Booking(
         id = id,
         trainingId = trainingId,
-        userId = userId,
         status = when (status) {
             "CONFIRMED" -> BookingStatus.CONFIRMED
             "CANCELLED" -> BookingStatus.CANCELLED

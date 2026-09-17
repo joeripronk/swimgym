@@ -33,7 +33,6 @@ data class TrainingDto(
 data class BookingResponse(
     @SerializedName("id") val id: Long,
     @SerializedName("training_id") val trainingId: String,
-    @SerializedName("user_id") val userId: Int,
     @SerializedName("status") val status: String,
     val className: String = "",
     @SerializedName("start_time") val startTime: Long = 0L,

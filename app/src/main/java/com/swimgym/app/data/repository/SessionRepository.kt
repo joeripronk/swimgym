@@ -17,7 +17,6 @@ class SessionRepository(
 ) {
     companion object {
         private val AUTH_TOKEN = stringPreferencesKey("auth_token")
-        private val USER_ID = stringPreferencesKey("user_id")
         private val USER_NAME = stringPreferencesKey("user_name")
         private val USER_EMAIL = stringPreferencesKey("user_email")
         private val SELECTED_LEVEL = stringPreferencesKey("selected_level")
@@ -95,10 +94,9 @@ class SessionRepository(
     }
     val workTimeRanges: Flow<List<Pair<String, String>>> = _workTimeRanges
 
-    suspend fun saveSession(token: String, userId: Int, name: String, email: String) {
+    suspend fun saveSession(token: String, name: String, email: String) {
         context.dataStore.edit { prefs ->
             prefs[AUTH_TOKEN] = token
-            prefs[USER_ID] = userId.toString()
             prefs[USER_NAME] = name
             prefs[USER_EMAIL] = email
         }

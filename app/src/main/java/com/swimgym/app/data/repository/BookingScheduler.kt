@@ -297,7 +297,6 @@ class BookingSchedulerImpl(
                     com.swimgym.app.data.model.BookingResponse(
                         id = 0,
                         trainingId = training.id,
-                        userId = 0,
                         status = "confirmed",
                         className = training.title
                     )

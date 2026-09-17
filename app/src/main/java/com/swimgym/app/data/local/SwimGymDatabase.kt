@@ -11,7 +11,7 @@ import com.swimgym.app.data.local.entity.CacheControlEntity
 
 @Database(
     entities = [TrainingEntity::class, BookingEntity::class, InstructorEntity::class, CacheControlEntity::class],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class SwimGymDatabase : RoomDatabase() {
@@ -29,7 +29,9 @@ abstract class SwimGymDatabase : RoomDatabase() {
                     context.applicationContext,
                     SwimGymDatabase::class.java,
                     "swimgym_database"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance.dao()
             }

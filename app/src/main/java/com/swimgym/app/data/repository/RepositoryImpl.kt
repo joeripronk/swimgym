@@ -191,7 +191,6 @@ class TrainingRepositoryImpl(
                     val bookingDto = com.swimgym.app.data.model.BookingResponse(
                         id = 0,
                         trainingId = training.id,
-                        userId = 0,
                         status = "confirmed",
                         className = training.title
                     )
@@ -257,7 +256,6 @@ class TrainingRepositoryImpl(
                     val bookingDto = com.swimgym.app.data.model.BookingResponse(
                         id = 0,
                         trainingId = training.id,
-                        userId = 1,
                         status = "cancelled"
                     )
                     val booking = bookingDto.toDomain()

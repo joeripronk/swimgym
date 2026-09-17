@@ -8,7 +8,6 @@ data class BookingEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val trainingId: String,
-    val userId: Int,
     val startTime: Long,
     val endTime: Long = 0L,
     val title: String,
