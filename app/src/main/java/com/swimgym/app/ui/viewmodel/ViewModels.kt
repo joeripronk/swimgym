@@ -285,7 +285,7 @@ class ScheduleViewModel(
             val nextStartDate = calculateNextWeekStart(currentState.currentStartDate)
             getScheduleUseCase(currentState.selectedLevel, currentState.hideFullyBooked, nextStartDate)
                 .onSuccess { newTrainings ->
-                    val filteredNew = newTrainings.filter { it.startTime > System.currentTimeMillis() }
+                    val filteredNew = newTrainings.filter { it.startTime > System.currentTimeMillis() / 1000 }
                     val allTrainings = (currentState.trainings + filteredNew).distinctBy { it.id }
                     _uiState.update { it.copy(isLoadingMore = false, trainings = allTrainings, currentStartDate = nextStartDate, weeksLoaded = currentState.weeksLoaded + 1) }
                 }

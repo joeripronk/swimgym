@@ -125,8 +125,10 @@ class AlarmScheduler(private val context: Context) {
             .filter { it.status == ScheduledBookingStatus.ACTIVE }
             .forEach { booking ->
                 val alarmTimeMillis = bookingAlarmTimeMillis(booking)
-                Log.d(TAG, "Rescheduling booking alarm ${booking.id} for ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(alarmTimeMillis)} (reason=booking window open for class on ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(booking.startTime * 1000)}, status=${booking.status})")
-                scheduleBooking(booking.id, alarmTimeMillis)
+                if (alarmTimeMillis > System.currentTimeMillis()) {
+                    Log.d(TAG, "Rescheduling booking alarm ${booking.id} for ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(alarmTimeMillis)}")
+                    scheduleBooking(booking.id, alarmTimeMillis)
+                }
             }
     }
 

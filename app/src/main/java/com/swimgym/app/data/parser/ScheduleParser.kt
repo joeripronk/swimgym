@@ -88,9 +88,13 @@ class ScheduleParserImpl(
                     var cachedTraining = dao.getTrainingById(classId)?.toDto()
                     var imageUrl = dao.getInstructor(instructor)?.instructorImage
                     if (imageUrl == null) {
-                        val detailsResult = parseTrainingDetails(classId, trainingEntity, apiClient)
-                        cachedTraining = detailsResult.toDto()
-                        imageUrl = cachedTraining?.imageUrl
+                        try {
+                            val detailsResult = parseTrainingDetails(classId, trainingEntity, apiClient)
+                            cachedTraining = detailsResult.toDto()
+                            imageUrl = cachedTraining?.imageUrl
+                        } catch (e: Exception) {
+                            android.util.Log.w("ScheduleParser", "Failed to fetch details for $classId: ${e.message}")
+                        }
                     }
                     if (imageUrl == null) {
                         imageUrl = ""

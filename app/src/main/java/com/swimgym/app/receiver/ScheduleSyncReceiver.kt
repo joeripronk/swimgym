@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.swimgym.app.di.SwimGymAppContainer
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 class ScheduleSyncReceiver : BroadcastReceiver() {
     companion object {
@@ -14,26 +16,23 @@ class ScheduleSyncReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         Log.d(TAG, "Alarm fired, syncing schedule")
+        val pendingResult = goAsync()
         val container = SwimGymAppContainer.getInstance()
 
-        var success = false
-        try {
-            success = runBlocking {
-                val now = System.currentTimeMillis() / 1000
-                container.dao.deleteOldTrainings(now)
-                container.trainingRepository.refreshSchedule().isSuccess
+        GlobalScope.launch(Dispatchers.IO) {
+            var success = false
+            try {
+                success = container.trainingRepository.refreshSchedule().isSuccess
+                val notificationsEnabled = container.sessionRepository.getAlarmNotificationEnabled()
+                if (notificationsEnabled) {
+                    container.bookingNotificationManager.showSyncNotification(success)
+                }
+                container.alarmScheduler.scheduleSyncAlarm()
+            } catch (e: Exception) {
+                Log.e(TAG, "Schedule sync failed", e)
+            } finally {
+                pendingResult.finish()
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Schedule sync failed", e)
         }
-
-        val notificationsEnabled = runBlocking {
-            container.sessionRepository.getAlarmNotificationEnabled()
-        }
-        if (notificationsEnabled) {
-            container.bookingNotificationManager.showSyncNotification(success)
-        }
-
-        container.alarmScheduler.scheduleSyncAlarm()
     }
 }

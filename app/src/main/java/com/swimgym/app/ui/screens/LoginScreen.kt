@@ -127,9 +127,9 @@ private fun parseCookiesFromString(cookieString: String): Map<String, String> {
     return cookieString.split("; ")
         .filter { it.contains("=") }
         .map { pair ->
-            val parts = pair.split("=")
-            if (parts.size >= 2) {
-                parts[0] to parts[1]
+            val idx = pair.indexOf('=')
+            if (idx >= 0) {
+                pair.substring(0, idx) to pair.substring(idx + 1)
             } else {
                 "" to ""
             }

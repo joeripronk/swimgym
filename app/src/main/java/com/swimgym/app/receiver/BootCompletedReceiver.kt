@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.swimgym.app.di.SwimGymAppContainer
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 class BootCompletedReceiver : BroadcastReceiver() {
     companion object {
@@ -19,9 +21,16 @@ class BootCompletedReceiver : BroadcastReceiver() {
         val container = SwimGymAppContainer.getInstance()
         container.alarmScheduler.scheduleSyncAlarm()
 
-        val bookings = runBlocking {
-            container.scheduledBookingRepository.getAllBookings()
+        val pendingResult = goAsync()
+        GlobalScope.launch(Dispatchers.IO) {
+            try {
+                val bookings = container.scheduledBookingRepository.getAllBookings()
+                container.alarmScheduler.rescheduleBookingAlarms(bookings)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to reschedule booking alarms", e)
+            } finally {
+                pendingResult.finish()
+            }
         }
-        container.alarmScheduler.rescheduleBookingAlarms(bookings)
     }
 }

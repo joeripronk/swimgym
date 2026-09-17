@@ -47,7 +47,9 @@ object Mappers {
         description = description,
         cost = cost,
         totalSpots = totalSpots,
-        cancelPolicy = cancelPolicy
+        cancelPolicy = cancelPolicy,
+        eventId = eventId,
+        calendarId = calendarId
     )
 
     fun Training.toEntity() = TrainingEntity(

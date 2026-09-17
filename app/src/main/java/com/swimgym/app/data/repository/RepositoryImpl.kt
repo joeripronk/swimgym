@@ -60,12 +60,8 @@ class TrainingRepositoryImpl(
     override suspend fun getSchedule(level: SwodLevel, hideFullyBooked: Boolean, startDate: String?): Result<List<Training>> {
         return try {
             var cachedTrainings = dao.getAllTrainingsList()
-            val cacheControl = dao.getCacheControl()
-            val isDataStale = cacheControl?.let {
-                System.currentTimeMillis() > it.lastSyncTime + it.staleAfterMillis
-            } ?: true
 
-            if (cachedTrainings.isEmpty() && isDataStale) {
+            if (cachedTrainings.isEmpty()) {
                 Log.d("TrainingRepo", "No cached trainings, triggering refresh")
                 val refreshResult = refreshSchedule()
                 if (refreshResult.isSuccess) {
@@ -338,15 +334,7 @@ class TrainingRepositoryImpl(
     }
 
     private suspend fun updateSyncStatus() {
-        val cacheControl = dao.getCacheControl()
-        syncStatusFlow.value = SyncStatus(
-            isSyncing = false,
-            lastSyncTime = cacheControl?.lastSyncTime ?: 0L,
-            nextSyncTime = cacheControl?.nextSyncTime ?: 0L,
-            isDataStale = cacheControl?.let {
-                System.currentTimeMillis() > it.lastSyncTime + it.staleAfterMillis
-            } ?: true
-        )
+        syncStatusFlow.value = SyncStatus(isSyncing = false)
     }
 
     private suspend fun getTrainingDetailsFromApi(training: TrainingEntity): Result<com.swimgym.app.data.local.entity.TrainingEntity> {

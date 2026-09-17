@@ -161,9 +161,10 @@ class VirtuagymApiClientImpl(
     }
 
     private fun parseCookie(cookieValue: String): Pair<String, String> {
-        val parts = cookieValue.split(";")[0].split("=")
-        return if (parts.size >= 2) {
-            Pair(parts[0], parts[1])
+        val part = cookieValue.split(";")[0]
+        val idx = part.indexOf('=')
+        return if (idx >= 0) {
+            Pair(part.substring(0, idx), part.substring(idx + 1))
         } else {
             Pair("", "")
         }

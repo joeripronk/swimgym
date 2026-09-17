@@ -31,7 +31,7 @@ fun SwimGymNavigation(
     val navController = rememberNavController()
     val container = SwimGymAppContainer.getInstance()
     
-    var hasCookies by remember { mutableStateOf(true) }
+    var hasCookies by remember { mutableStateOf(false) }
     
     LaunchedEffect(Unit) {
         val cookies = container.sessionRepository.loadCookies()
@@ -40,8 +40,16 @@ fun SwimGymNavigation(
             val uid = cookies.get("virtuagym_u")
             lid = uid?.toLongOrDefault(1L)!!
         }
-        hasCookies =  lid>1
-
+        hasCookies = lid > 1
+        if (!hasCookies) {
+            navController.navigate(Screen.Login.route) {
+                popUpTo(Screen.Schedule.route) { inclusive = true }
+            }
+        } else if (navController.currentDestination?.route != Screen.Schedule.route) {
+            navController.navigate(Screen.Schedule.route) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
     }
     
     LaunchedEffect(Unit) {

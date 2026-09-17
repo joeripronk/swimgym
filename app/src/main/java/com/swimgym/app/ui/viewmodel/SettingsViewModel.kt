@@ -43,8 +43,6 @@ data class SettingsUiState(
     val calendarPermissionDenied: Boolean = false,
     val hideFullyBooked: Boolean = false,
     val workTimeConfig: WorkTimeConfig = WorkTimeConfig(),
-    val foregroundServiceEnabled: Boolean = false,
-    val requestForegroundPermission: Boolean = false,
     val alarmNotificationEnabled: Boolean = true
 )
 
@@ -61,7 +59,6 @@ class SettingsViewModel(
         loadReminderSettings()
         loadHideFullyBookedSetting()
         loadWorkTimeSettings()
-        loadForegroundServiceSetting()
         loadAlarmNotificationSetting()
         viewModelScope.launch {
             sessionRepository.selectedCalendar.collect { calendar ->
@@ -76,50 +73,6 @@ class SettingsViewModel(
                     _uiState.update { it.copy(selectedCalendarId = calendarId) }
                 }
             }
-        }
-    }
-
-    private fun loadForegroundServiceSetting() {
-        viewModelScope.launch {
-            val enabled = sessionRepository.getForegroundServiceEnabled()
-            _uiState.update { it.copy(foregroundServiceEnabled = enabled) }
-        }
-    }
-
-    private var _requestForegroundPermission: ((Boolean) -> Unit)? = null
-
-    fun setForegroundServiceEnabled(enabled: Boolean) {
-        if (enabled && !foregroundPermissionGranted()) {
-            _uiState.update { it.copy(requestForegroundPermission = true) }
-            _requestForegroundPermission = { granted ->
-                _uiState.update { 
-                    it.copy(
-                        requestForegroundPermission = false,
-                        foregroundServiceEnabled = granted
-                    ) 
-                }
-                if (granted) {
-                    viewModelScope.launch {
-                        sessionRepository.saveForegroundServiceEnabled(true)
-                    }
-                }
-            }
-        } else {
-            viewModelScope.launch {
-                sessionRepository.saveForegroundServiceEnabled(enabled)
-                _uiState.update { it.copy(foregroundServiceEnabled = enabled) }
-            }
-        }
-    }
-
-    private fun foregroundPermissionGranted(): Boolean {
-        return android.os.Build.VERSION.SDK_INT >= 29 &&
-            android.os.Build.VERSION.SDK_INT < 33
-    }
-
-    fun onForegroundPermissionResult(granted: Boolean) {
-        _requestForegroundPermission?.let { callback ->
-            callback(granted)
         }
     }
 

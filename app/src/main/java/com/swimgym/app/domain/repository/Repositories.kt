@@ -26,8 +26,5 @@ interface TrainingRepository {
 }
 
 data class SyncStatus(
-    val isSyncing: Boolean = false,
-    val lastSyncTime: Long = 0L,
-    val nextSyncTime: Long = 0L,
-    val isDataStale: Boolean = false
+    val isSyncing: Boolean = false
 )

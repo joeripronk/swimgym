@@ -9,7 +9,6 @@ import androidx.room.Update
 import com.swimgym.app.data.local.entity.BookingEntity
 import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.data.local.entity.InstructorEntity
-import com.swimgym.app.data.local.entity.CacheControlEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -80,13 +79,4 @@ interface SwimGymDao {
 
     @Query("SELECT * FROM instructors")
     suspend fun getAllInstructors(): List<InstructorEntity>
-
-    @Query("SELECT * FROM cache_control WHERE id = 1")
-    suspend fun getCacheControl(): CacheControlEntity?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCacheControl(cacheControl: CacheControlEntity)
-
-    @Query("DELETE FROM cache_control")
-    suspend fun clearCacheControl()
 }
