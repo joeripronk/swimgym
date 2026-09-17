@@ -69,6 +69,9 @@ interface SwimGymDao {
     @Query("DELETE FROM trainings WHERE startTime < :beforeTime")
     suspend fun deleteOldTrainings(beforeTime: Long)
 
+    @Query("SELECT id FROM trainings")
+    suspend fun getAllTrainingIds(): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertInstructor(instructor: InstructorEntity)
 

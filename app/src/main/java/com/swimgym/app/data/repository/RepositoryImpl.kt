@@ -287,11 +287,20 @@ class TrainingRepositoryImpl(
         return withContext(Dispatchers.IO) {
             try {
                 Log.d("TrainingRepo", "Starting schedule fetch")
+                val existingIds = dao.getAllTrainingIds()
+                Log.d("TrainingRepo", "Found ${existingIds.size} existing trainings")
                 val trainings = fetchAndSaveSchedule()
                 Log.d("TrainingRepo", "Fetched ${trainings.size} trainings")
                 if (trainings.isNotEmpty()) {
                     dao.insertTrainings(trainings.map { it.toEntity() })
                     Log.d("TrainingRepo", "Inserted ${trainings.size} trainings into DB")
+                    val newIds = trainings.map { it.id }.toSet()
+                    val deletedIds = existingIds.filter { it !in newIds }
+                    Log.d("TrainingRepo", "${deletedIds.size} deleted trainings to remove")
+                    for (id in deletedIds) {
+                        dao.deleteTrainingById(id)
+                        Log.d("TrainingRepo", "Deleted training: $id")
+                    }
                 } else {
                     Log.d("TrainingRepo", "No trainings fetched, skipping insert")
                 }
