@@ -96,13 +96,16 @@ class ScheduledBookingRepository(
     }
 
     private suspend fun saveAllBookings(bookings: List<ScheduledBooking>) {
-        // Simple JSON serialization
         val json = bookings.joinToString(",", "[", "]") { booking ->
-            """{"id":"${booking.id}","trainingId":"${booking.trainingId}","className":"${booking.className}","startTime":${booking.startTime},"instructor":"${booking.instructor}","status":"${booking.status.name}","bookedCount":${booking.bookedCount},"maxRepeatCount":${booking.maxRepeatCount ?: "null"},"createdAt":${booking.createdAt}}"""
+            """{"id":"${escapeJson(booking.id.toString())}","trainingId":"${escapeJson(booking.trainingId)}","className":"${escapeJson(booking.className)}","startTime":${booking.startTime},"instructor":"${escapeJson(booking.instructor)}","status":"${escapeJson(booking.status.name)}","bookedCount":${booking.bookedCount},"maxRepeatCount":${booking.maxRepeatCount?.let { "\"$it\"" } ?: "null"},"createdAt":${booking.createdAt}}"""
         }
         context.scheduledBookingDataStore.edit { prefs ->
             prefs[bookingsKey] = json
         }
+    }
+
+    private fun escapeJson(value: String): String {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"")
     }
 
     private fun parseBookingsFromJson(json: String): List<ScheduledBooking> {
@@ -152,13 +155,17 @@ class ScheduledBookingRepository(
     }
 
     private fun String.findValue(key: String): String? {
-        val regex = Regex(""""$key":"?([^",}]+)""")
-        return regex.find(this)?.groupValues?.get(1)?.removeSurroundingQuotes()
+        val regex = Regex("\"$key\":\"(.*?)\"(?=[,}]|$)")
+        return regex.find(this)?.groupValues?.get(1)?.unescapeJson()
     }
 
     private fun String.removeSurroundingQuotes(): String {
         return if (startsWith("\"") && endsWith("\"")) {
             substring(1, length - 1)
         } else this
+    }
+
+    private fun String.unescapeJson(): String {
+        return replace("\\\"", "\"").replace("\\\\", "\\")
     }
 }
