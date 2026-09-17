@@ -461,32 +461,25 @@ class ScheduleViewModel(
     }
 
     fun scheduleRecurringBooking(
-        trainingId: String,
-        title: String,
-        startTime: Long = 0L,
-        instructor: String = "",
+        training: Training,
         maxRepeatCount: Int? = null
     ) {
         viewModelScope.launch {
-            var locstartTime=startTime
-            var locinstructor = instructor
-            var loctitle=title
-            var loctrainingId=trainingId
+            var locstartTime=training.startTime
+            var locinstructor = training.instructor
+            var loctitle=training.title
+            var loctrainingId=training.id
             val bookingId = System.currentTimeMillis()/1000
-            var training = dao.getTrainingById(trainingId)
+
             if (training !=null && training!!.isJoined) {
-                training = dao.getTrainingByStartTime(startTime+7*86400)
-                if (training != null) {
-                    locstartTime+=7*86400
-                    locinstructor=training.instructor
-                    loctitle=training.title
-                    loctrainingId = training.id
+                // if the training is already joined skip this one
+                var nexttraining = dao.getTrainingByStartTime(locstartTime+7*86400)
+                if (nexttraining != null) {
+                    locstartTime=nexttraining.startTime
+                    locinstructor=nexttraining.instructor
+                    loctitle=nexttraining.title
+                    loctrainingId = nexttraining.id
                 }
-            }
-            val nowSeconds = System.currentTimeMillis() / 1000
-            if (locstartTime < nowSeconds + 2 * 86400) {
-                android.util.Log.d("ScheduleViewModel", "Cannot schedule booking: class starts at ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(locstartTime * 1000)} (sooner than 2 days ahead, now=$nowSeconds)")
-                return@launch
             }
             val scheduledBooking = ScheduledBooking(
                 id = bookingId,

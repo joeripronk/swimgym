@@ -138,11 +138,12 @@ class BookingSchedulerImpl(
 
                 val nextBooking = updatedBooking.copy(startTime = updatedBooking.startTime + 7 * 86400)
                 scheduledBookingRepo.saveBooking(nextBooking)
-                alarmScheduler.scheduleBooking(bookingId, alarmScheduler.bookingAlarmTimeMillis(nextBooking))
 
                 val maxRepeat = booking.maxRepeatCount
                 if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
                     scheduledBookingRepo.completeBooking(bookingId)
+                } else {
+                    alarmScheduler.scheduleBooking(bookingId,nextBooking.startTime * 1000)
                 }
 
                 notificationManager.showBookingConfirmation(
@@ -175,7 +176,7 @@ class BookingSchedulerImpl(
             }
             return
         }
-        val retryTime = System.currentTimeMillis() + 15 * 60 * 1000L
+        val retryTime = System.currentTimeMillis() + 15 * 60000L
         alarmScheduler.scheduleBooking(booking.id, retryTime)
     }
 

@@ -118,7 +118,7 @@ class ScheduledBookingRepository(
                 val id = obj.findValue("id")?.toLongOrNull() ?: 0L
                 val trainingId = obj.findValue("trainingId")
                 val className = obj.findValue("className")
-                val startTime = obj.findValue("startTime")?.toLongOrNull() ?: 0L
+                val startTime = obj.findValue("startTime")!!.toLong()
                 val instructor = obj.findValue("instructor") ?: ""
                 val statusStr = obj.findValue("status")
                 val bookedCount = obj.findValue("bookedCount")?.toIntOrNull() ?: 0
@@ -155,8 +155,10 @@ class ScheduledBookingRepository(
     }
 
     private fun String.findValue(key: String): String? {
-        val regex = Regex("\"$key\":\"(.*?)\"(?=[,}]|$)")
-        return regex.find(this)?.groupValues?.get(1)?.unescapeJson()
+        val quotedRegex = Regex("\"$key\":\"(.*?)\"(?=[,}]|$)")
+        val unquotedRegex = Regex("\"$key\":\\s*([^,}]+)")
+        return quotedRegex.find(this)?.groupValues?.get(1)?.unescapeJson()
+            ?: unquotedRegex.find(this)?.groupValues?.get(1)?.trim()?.unescapeJson()
     }
 
     private fun String.removeSurroundingQuotes(): String {

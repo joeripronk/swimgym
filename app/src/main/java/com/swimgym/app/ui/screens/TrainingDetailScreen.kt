@@ -42,7 +42,7 @@ import java.util.*
         onBack: () -> Unit,
         onBook: (com.swimgym.app.domain.model.Training) -> Unit,
         onCancel: (com.swimgym.app.domain.model.Training) -> Unit,
-        onSchedule: (String, String, String, Int?) -> Unit,
+        onSchedule: (com.swimgym.app.domain.model.Training, Int?) -> Unit,
         onAddToCalendar: (Training) -> Unit,
         onNavigateToMyBookings: () -> Unit,
         onRefresh: (String) -> Unit,
@@ -395,7 +395,7 @@ import java.util.*
             confirmButton = {
                     Button(onClick = {
                        val maxCount = maxRepeatCount.toIntOrNull()
-                      onSchedule(training.id, training.title, training.instructor, maxCount)
+                      onSchedule(training, maxCount)
                        showScheduleDialog = false
                        onNavigateToMyBookings()
                    }) {

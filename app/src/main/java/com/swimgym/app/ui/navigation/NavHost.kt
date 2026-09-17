@@ -174,12 +174,9 @@ fun SwimGymNavigation(
                      )
                      scheduleViewModel.cancelBooking(booking)
                  },
-                 onSchedule = { trainingId, title, instructor, maxRepeat ->
+                 onSchedule = { training, maxRepeat ->
                      scheduleViewModel.scheduleRecurringBooking(
-                         trainingId = trainingId,
-                         title = title,
-                         startTime = selectedTraining?.startTime ?: 0L,
-                         instructor = instructor,
+                         training = training,
                          maxRepeatCount = maxRepeat
                      )
                  },
