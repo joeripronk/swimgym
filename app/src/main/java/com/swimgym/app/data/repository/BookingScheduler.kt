@@ -158,7 +158,16 @@ class BookingSchedulerImpl(
     }
 
     private fun rescheduleAlarmForRetry(booking: ScheduledBooking) {
-        alarmScheduler.scheduleBooking(booking.id, alarmScheduler.bookingAlarmTimeMillis(booking))
+        val now = System.currentTimeMillis() / 1000
+        var startSeconds = booking.startTime
+        while (startSeconds < now + 7 * 86400) {
+            startSeconds += 7 * 86400
+        }
+        val nextAlarmTime = (startSeconds - 7 * 86400 + 5 * 60) * 1000L
+        val nowMillis = System.currentTimeMillis()
+        if (nextAlarmTime > nowMillis) {
+            alarmScheduler.scheduleBooking(booking.id, nextAlarmTime)
+        }
     }
 
     private suspend fun getTrainingDetails(training: TrainingEntity): Result<TrainingEntity> = withContext(Dispatchers.IO) {
