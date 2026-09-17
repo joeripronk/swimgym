@@ -352,6 +352,7 @@ class ScheduleViewModel(
                                 val booking = bookingDto.toDomain()
                                 android.util.Log.d("BookTraining", "Inserting verified booking into DB for: ${training.id}")
                                 dao.insertBooking(booking.toEntity())
+                                dao.updateTrainingJoined(training.id)
                             } else {
                                 android.util.Log.e("BookTraining", "Booking verification failed - user not joined after booking")
                             }
@@ -418,6 +419,7 @@ class ScheduleViewModel(
                             _selectedTraining.value = trainingResult
                             if (!trainingResult.isJoined) {
                                 android.util.Log.d("CancelBooking", "Cancellation verified - user is no longer joined")
+                                dao.updateTrainingNotJoined(booking.trainingId)
                                 // Update the training list with fresh data
                                 val currentTrainings = _uiState.value.trainings.toMutableList()
                                 val index = currentTrainings.indexOfFirst { it.id == booking.trainingId }
@@ -497,10 +499,7 @@ class ScheduleViewModel(
             scheduledBookingRepo.saveBooking(scheduledBooking)
             
             val alarmTimeMillis = alarmScheduler.bookingAlarmTimeMillis(scheduledBooking)
-            val nowMillis = System.currentTimeMillis()
-            if (alarmTimeMillis > nowMillis) {
-                alarmScheduler.scheduleBooking(bookingId, alarmTimeMillis)
-            }
+            alarmScheduler.scheduleBooking(bookingId, alarmTimeMillis)
         }
     }
 
@@ -521,10 +520,7 @@ class ScheduleViewModel(
             if (booking != null) {
                 scheduledBookingRepo.resumeBooking(bookingId)
                 val alarmTimeMillis = alarmScheduler.bookingAlarmTimeMillis(booking)
-                val nowMillis = System.currentTimeMillis()
-                if (alarmTimeMillis > nowMillis) {
-                    alarmScheduler.scheduleBooking(bookingId, alarmTimeMillis)
-                }
+                alarmScheduler.scheduleBooking(bookingId, alarmTimeMillis)
             }
         }
     }

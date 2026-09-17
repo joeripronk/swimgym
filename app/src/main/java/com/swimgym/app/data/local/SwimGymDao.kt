@@ -65,6 +65,12 @@ interface SwimGymDao {
     @Query("DELETE FROM bookings WHERE trainingId = :trainingId")
     suspend fun deleteBookingByTrainingId(trainingId: String)
 
+    @Query("UPDATE trainings SET isJoined = 1 WHERE id = :trainingId")
+    suspend fun updateTrainingJoined(trainingId: String)
+
+    @Query("UPDATE trainings SET isJoined = 0 WHERE id = :trainingId")
+    suspend fun updateTrainingNotJoined(trainingId: String)
+
     @Query("DELETE FROM trainings WHERE startTime < :beforeTime")
     suspend fun deleteOldTrainings(beforeTime: Long)
 

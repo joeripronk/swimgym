@@ -43,8 +43,6 @@ class BookingSchedulerImpl(
             if (adjustedStartTime != booking.startTime) {
                 scheduledBookingRepo.saveBooking(booking.copy(startTime = adjustedStartTime))
             }
-            val shouldBook = shouldBookForAlarm(booking.startTime, now)
-            if (!shouldBook) return@forEach
             val training = getNextTraining(adjustedStartTime, booking.className, trainings) ?: return@forEach
             val res = getTrainingDetails(training)
             if (!res.isSuccess) {
@@ -55,6 +53,10 @@ class BookingSchedulerImpl(
             val updtraining = res.getOrThrow()
             if (updtraining.isJoined) {
                 scheduledBookingRepo.incrementBookingCount(booking.id, training)
+                val maxRepeat = booking.maxRepeatCount
+                if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
+                    scheduledBookingRepo.completeBooking(booking.id)
+                }
                 return@forEach
             }
             if (updtraining.isFull) {
@@ -64,6 +66,8 @@ class BookingSchedulerImpl(
             result.fold(
                 onSuccess = {
                     scheduledBookingRepo.incrementBookingCount(booking.id, training)
+                    val nextBooking = booking.copy(startTime = adjustedStartTime + 7 * 86400)
+                    scheduledBookingRepo.saveBooking(nextBooking)
                     val maxRepeat = booking.maxRepeatCount
                     if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
                         scheduledBookingRepo.completeBooking(booking.id)
@@ -104,16 +108,7 @@ class BookingSchedulerImpl(
         val updatedBooking = booking.copy(startTime = adjustedStartTime)
         scheduledBookingRepo.saveBooking(updatedBooking)
 
-        if (!shouldBookForAlarm(booking.startTime, now)) {
-            rescheduleAlarmForRetry(updatedBooking)
-            return@withContext false
-        }
-
-        val training = getNextTraining(adjustedStartTime, booking.className, trainings) ?: run {
-            showRetryNotification(booking)
-            rescheduleAlarmForRetry(updatedBooking)
-            return@withContext false
-        }
+        val training = getNextTraining(adjustedStartTime, booking.className, trainings) ?: return@withContext false
         val res = getTrainingDetails(training)
         if (!res.isSuccess) {
             showRetryNotification(booking)
@@ -128,15 +123,11 @@ class BookingSchedulerImpl(
             val maxRepeat = booking.maxRepeatCount
             if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
                 scheduledBookingRepo.completeBooking(bookingId)
-            } else {
-                rescheduleAlarmForRetry(updatedBooking)
             }
             return@withContext true
         }
 
         if (updtraining.isFull) {
-            showRetryNotification(booking)
-            rescheduleAlarmForRetry(updatedBooking)
             return@withContext false
         }
 
@@ -145,7 +136,9 @@ class BookingSchedulerImpl(
             onSuccess = {
                 scheduledBookingRepo.incrementBookingCount(bookingId, training)
 
-                alarmScheduler.scheduleBooking(bookingId, alarmScheduler.bookingAlarmTimeMillis(updatedBooking))
+                val nextBooking = updatedBooking.copy(startTime = updatedBooking.startTime + 7 * 86400)
+                scheduledBookingRepo.saveBooking(nextBooking)
+                alarmScheduler.scheduleBooking(bookingId, alarmScheduler.bookingAlarmTimeMillis(nextBooking))
 
                 val maxRepeat = booking.maxRepeatCount
                 if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
@@ -254,7 +247,9 @@ class BookingSchedulerImpl(
                 cost = cost,
                 isJoined = isJoined,
                 imageUrl = imageUrl,
-                cancelPolicy = cancelPolicy
+                cancelPolicy = cancelPolicy,
+                eventId = training.eventId,
+                calendarId = training.calendarId
             )
 
             dao.insertTraining(tupdate)
@@ -344,7 +339,4 @@ class BookingSchedulerImpl(
         return null
     }
 
-    private fun shouldBookForAlarm(trainingStart: Long, now: Long): Boolean {
-        return trainingStart < now + 7 * 86400 && trainingStart > now + 2 * 86400
-    }
 }
