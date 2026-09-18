@@ -513,8 +513,12 @@ class ScheduleViewModel(
         }
     }
 
+    private val trainingMap: StateFlow<Map<String, Training>> = _uiState
+        .map { it.trainings.associateBy { t -> t.id } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
     fun getTrainingById(trainingId: String): Training? {
-        return _uiState.value.trainings.find { it.id == trainingId }
+        return trainingMap.value[trainingId]
     }
 
     fun loadTrainingDetails(trainingId: String) {
