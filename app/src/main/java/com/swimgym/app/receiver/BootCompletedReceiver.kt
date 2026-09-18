@@ -19,11 +19,11 @@ class BootCompletedReceiver : BroadcastReceiver() {
         Log.d(TAG, "Boot completed, re-arming alarms")
 
         val container = SwimGymAppContainer.getInstance()
-        container.alarmScheduler.scheduleSyncAlarm()
 
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                container.alarmScheduler.scheduleSyncAlarm()
                 val bookings = container.scheduledBookingRepository.getAllBookings()
                 container.alarmScheduler.rescheduleBookingAlarms(bookings)
             } catch (e: Exception) {

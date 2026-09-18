@@ -161,7 +161,7 @@ class BookingSchedulerImpl(
         return@withContext true
     }
 
-    private fun rescheduleAlarmForRetry(booking: ScheduledBooking) {
+    private suspend fun rescheduleAlarmForRetry(booking: ScheduledBooking) {
         val now = System.currentTimeMillis() / 1000
         val windowOpen = booking.startTime > now + 2 * 86400 && booking.startTime < now + 7 * 86400
         if (!windowOpen) {

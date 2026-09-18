@@ -22,6 +22,19 @@ object PermissionHelper {
     }
     
     /**
+     * Checks if exact alarm permission is granted (Android 12+).
+     * Returns true on older Android versions where the permission is not required.
+     */
+    fun hasExactAlarmPermission(context: Context): Boolean {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            alarmManager.canScheduleExactAlarms()
+        } else {
+            true // Not required for Android 11 and below
+        }
+    }
+    
+    /**
      * Checks if calendar read permission is granted
      */
     fun hasCalendarReadPermission(context: Context): Boolean {

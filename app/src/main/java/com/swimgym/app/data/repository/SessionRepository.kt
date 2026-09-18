@@ -44,6 +44,7 @@ class SessionRepository(
         private val COOKIES = stringPreferencesKey("cookies")
         private val USER_AGENT = stringPreferencesKey("user_agent")
         private val ALARM_NOTIFICATION_ENABLED = stringPreferencesKey("alarm_notification_enabled")
+        private val EXACT_ALARM_ENABLED = stringPreferencesKey("exact_alarm_enabled")
     }
 
     val authToken: Flow<String?> = context.dataStore.data.map { it[AUTH_TOKEN] }
@@ -243,6 +244,18 @@ class SessionRepository(
     suspend fun getAlarmNotificationEnabled(): Boolean {
         return context.dataStore.data
             .map { it[ALARM_NOTIFICATION_ENABLED]?.toBoolean() ?: true }
+            .first()
+    }
+
+    suspend fun saveExactAlarmEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[EXACT_ALARM_ENABLED] = enabled.toString()
+        }
+    }
+
+    suspend fun getExactAlarmEnabled(): Boolean {
+        return context.dataStore.data
+            .map { it[EXACT_ALARM_ENABLED]?.toBoolean() ?: true }
             .first()
     }
 

@@ -64,7 +64,7 @@ class SwimGymAppContainer private constructor() {
     val calendarRepository: CalendarRepository by lazy { CalendarRepositoryImpl(context) }
     val trainingRepositoryInterface: TrainingRepository by lazy { trainingRepository }
     val trainerImageCache: TrainerImageCache by lazy { TrainerImageCache(context, dao) }
-    val alarmScheduler: AlarmScheduler by lazy { AlarmScheduler(context) }
+    val alarmScheduler: AlarmScheduler by lazy { AlarmScheduler(context, sessionRepository) }
     
     // Use cases
     val getScheduleUseCase: GetScheduleUseCase by lazy { GetScheduleUseCase(trainingRepositoryInterface) }

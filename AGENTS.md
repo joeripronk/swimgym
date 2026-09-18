@@ -38,6 +38,15 @@ app/src/main/java/com/swimgym/app/
 - Use standard Android architecture: MVVM, Coroutines
 - API endpoints in `data/api/VirtuagymApiClient.kt` - verify actual Virtuagym API via network inspection
 
+### Versions & Conventions
+- AGP `9.2.1`, Kotlin `2.2.10`, Compose (AndroidX)
+- KSP `2.3.4` for Room `2.7.0`, DB version 11 (destructive-migration fallback)
+- Retrofit + OkHttp `4.12.0` for Virtuagym REST API; Gson `2.10.1` for models
+- Jsoup `1.17.2` parses Virtuagym HTML schedule pages
+- Coil `2.5.0` (coil-compose) for image loading
+- DataStore `1.0.0` for settings preferences
+- UI is single-journey Compose: schedule → detail → booking info
+
 ## Curl Debug Tooling
 
 ### Scripts

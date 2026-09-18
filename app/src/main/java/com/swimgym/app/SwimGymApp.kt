@@ -6,6 +6,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Bundle
 import com.swimgym.app.di.SwimGymAppContainer
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -26,7 +27,9 @@ class SwimGymApp : Application() {
         createNotificationChannel()
 
         // Arm the schedule sync alarm
-        SwimGymAppContainer.getInstance().alarmScheduler.scheduleSyncAlarm()
+        CoroutineScope(Dispatchers.IO).launch {
+            SwimGymAppContainer.getInstance().alarmScheduler.scheduleSyncAlarm()
+        }
 
         // Reschedule booking alarms on app start
         runBlocking(Dispatchers.IO) {

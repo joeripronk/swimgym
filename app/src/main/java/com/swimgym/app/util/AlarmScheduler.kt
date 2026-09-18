@@ -8,10 +8,14 @@ import android.os.Build
 import android.util.Log
 import com.swimgym.app.data.repository.ScheduledBooking
 import com.swimgym.app.data.repository.ScheduledBookingStatus
+import com.swimgym.app.data.repository.SessionRepository
 import com.swimgym.app.receiver.ScheduleSyncReceiver
 import com.swimgym.app.receiver.ScheduledBookingReceiver
 
-class AlarmScheduler(private val context: Context) {
+class AlarmScheduler(
+    private val context: Context,
+    private val sessionRepository: SessionRepository
+) {
     companion object {
         const val TAG = "AlarmScheduler"
         private const val SYNC_REQUEST_CODE = 0x7E57
@@ -21,7 +25,24 @@ class AlarmScheduler(private val context: Context) {
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-    fun scheduleBooking(bookingId: Long, alarmTimeMillis: Long) {
+    /**
+     * Returns true if exact alarms should be used, based on both the user preference
+     * and the system permission. On Android 12+ the permission must be granted AND
+     * the user must have exact alarms enabled in settings.
+     */
+    private suspend fun isExactAlarmSupported(): Boolean {
+        val exactAlarmEnabled = sessionRepository.getExactAlarmEnabled()
+        if (!exactAlarmEnabled) {
+            return false
+        }
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            alarmManager.canScheduleExactAlarms()
+        } else {
+            true
+        }
+    }
+
+    suspend fun scheduleBooking(bookingId: Long, alarmTimeMillis: Long) {
         val nowMillis = System.currentTimeMillis()
         if (alarmTimeMillis <= nowMillis) {
             Log.d(TAG, "Firing booking alarm $bookingId immediately (alarmTime=$alarmTimeMillis <= now=$nowMillis)")
@@ -32,11 +53,7 @@ class AlarmScheduler(private val context: Context) {
         val pendingIntent = createPendingIntent(bookingId)
         alarmManager.cancel(pendingIntent)
 
-        val exactSupported = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            alarmManager.canScheduleExactAlarms()
-        } else {
-            true
-        }
+        val exactSupported = isExactAlarmSupported()
 
         if (exactSupported) {
             alarmManager.setExactAndAllowWhileIdle(
@@ -90,14 +107,10 @@ class AlarmScheduler(private val context: Context) {
      * ScheduleSyncReceiver. The receiver re-arms it at the following slot,
      * giving two daily syncs.
      */
-    fun scheduleSyncAlarm() {
+    suspend fun scheduleSyncAlarm() {
         val alarmTimeMillis = nextSyncTimeMillis()
         val pendingIntent = createSyncPendingIntent()
-        val exactSupported = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            alarmManager.canScheduleExactAlarms()
-        } else {
-            true
-        }
+        val exactSupported = isExactAlarmSupported()
 
         if (exactSupported) {
             alarmManager.setExactAndAllowWhileIdle(
@@ -120,7 +133,7 @@ class AlarmScheduler(private val context: Context) {
      * The alarm fires 5 minutes after the booking window opens (7 days before
      * the class). Bookings whose window is already open fire immediately.
      */
-    fun rescheduleBookingAlarms(bookings: List<ScheduledBooking>) {
+    suspend fun rescheduleBookingAlarms(bookings: List<ScheduledBooking>) {
         bookings
             .filter { it.status == ScheduledBookingStatus.ACTIVE }
             .forEach { booking ->

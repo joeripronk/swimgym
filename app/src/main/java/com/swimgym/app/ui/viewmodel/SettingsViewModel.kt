@@ -43,7 +43,8 @@ data class SettingsUiState(
     val calendarPermissionDenied: Boolean = false,
     val hideFullyBooked: Boolean = false,
     val workTimeConfig: WorkTimeConfig = WorkTimeConfig(),
-    val alarmNotificationEnabled: Boolean = true
+    val alarmNotificationEnabled: Boolean = true,
+    val exactAlarmEnabled: Boolean = true
 )
 
 class SettingsViewModel(
@@ -60,6 +61,7 @@ class SettingsViewModel(
         loadHideFullyBookedSetting()
         loadWorkTimeSettings()
         loadAlarmNotificationSetting()
+        loadExactAlarmSetting()
         viewModelScope.launch {
             sessionRepository.selectedCalendar.collect { calendar ->
                 if (calendar != null) {
@@ -87,6 +89,20 @@ class SettingsViewModel(
         viewModelScope.launch {
             sessionRepository.saveAlarmNotificationEnabled(enabled)
             _uiState.update { it.copy(alarmNotificationEnabled = enabled) }
+        }
+    }
+
+    private fun loadExactAlarmSetting() {
+        viewModelScope.launch {
+            val enabled = sessionRepository.getExactAlarmEnabled()
+            _uiState.update { it.copy(exactAlarmEnabled = enabled) }
+        }
+    }
+
+    fun setExactAlarmEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            sessionRepository.saveExactAlarmEnabled(enabled)
+            _uiState.update { it.copy(exactAlarmEnabled = enabled) }
         }
     }
 
