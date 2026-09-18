@@ -48,6 +48,7 @@ import java.util.*
         onRefresh: (String) -> Unit,
         onBookingSuccess: (String) -> Unit,
         onCancellationSuccess: (String) -> Unit,
+        calendarRefreshVersion: Int = 0,
         isBookingInProgress: Boolean,
         isCancellingInProgress: Boolean,
         bookingError: String? = null,
@@ -99,7 +100,7 @@ import java.util.*
         }
     }
 
-    LaunchedEffect(training?.id) {
+    LaunchedEffect(training?.id, calendarRefreshVersion) {
         if (training != null) {
             val calendarService = SwimGymAppContainer.getInstance().calendarService
             isInCalendar = calendarService.isTrainingInCalendar(training.id, training.startTime, training.title)

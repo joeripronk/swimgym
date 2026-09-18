@@ -204,10 +204,11 @@ fun SwimGymNavigation(
                  onClearCancelError = {
                      scheduleViewModel.clearCancelError()
                  },
-                 onClearCalendarError = {
-                     scheduleViewModel.clearCalendarError()
-                 }
-            )
+                  onClearCalendarError = {
+                      scheduleViewModel.clearCalendarError()
+                  },
+                  calendarRefreshVersion = uiState.calendarRefreshVersion
+             )
         }
 
         composable(Screen.MyBookings.route) {

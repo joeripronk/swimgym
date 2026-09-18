@@ -151,6 +151,7 @@ class TrainingRepositoryImpl(
                 bookResult.fold(
                     onSuccess = {
                         android.util.Log.d("BookTraining", "Booking succeeded for: ${training.id}")
+                        calendarService.addTrainingToCalendar(training)
                         val bookingDto = com.swimgym.app.data.model.BookingResponse(
                             id = 0,
                             trainingId = training.id,
@@ -179,6 +180,7 @@ class TrainingRepositoryImpl(
         return withContext(Dispatchers.IO) {
             try {
                 android.util.Log.d("CancelBooking", "Cancelling trainingId: ${training.id}, title: ${training.title}")
+                calendarService.removeTrainingFromCalendar(training)
                 val cancelResult = apiClient.cancelTraining(training)
                 val booking = Booking(
                     id = 0,
@@ -196,7 +198,6 @@ class TrainingRepositoryImpl(
                         val current = bookingsFlow.value.toMutableList()
                         current.removeAll { it.trainingId == training.id }
                         bookingsFlow.value = current
-                        calendarService.removeTrainingFromCalendar(training)
                         Result.success(booking)
                     },
                     onFailure = { e ->

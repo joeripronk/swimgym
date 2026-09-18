@@ -58,7 +58,8 @@ data class ScheduleUiState(
     val workTimeSaturdayEnabled: Boolean = false,
     val workTimeSunday: Pair<String, String> = Pair("08:00", "18:00"),
     val workTimeSundayEnabled: Boolean = false,
-    val calendarError: String? = null
+    val calendarError: String? = null,
+    val calendarRefreshVersion: Int = 0
 )
 
 class ScheduleViewModel(
@@ -370,16 +371,16 @@ class ScheduleViewModel(
                             }
                             
                             val bookingError = if (!trainingResult.isJoined) "Cannot book this training" else null
-                            _uiState.update { it.copy(trainings = currentTrainings, isLoading = false, isBookingInProgress = false, bookingError = bookingError) }
+                            _uiState.update { it.copy(trainings = currentTrainings, isLoading = false, isBookingInProgress = false, bookingError = bookingError, calendarRefreshVersion = _uiState.value.calendarRefreshVersion + 1) }
                         }
                         .onFailure { e ->
                             android.util.Log.e("BookTraining", "Failed to verify booking details: ${e.message}")
-                            _uiState.update { it.copy(isBookingInProgress = false, bookingError = e.message ?: "Booking failed") }
+                            _uiState.update { it.copy(isBookingInProgress = false, bookingError = e.message ?: "Booking failed", calendarRefreshVersion = _uiState.value.calendarRefreshVersion + 1) }
                         }
                 }
                 .onFailure { e ->
                     android.util.Log.e("BookTraining", "Booking use case failed for ${training.id}: ${e.message}", e)
-                    _uiState.update { it.copy(bookingError = e.message ?: "Booking failed", isBookingInProgress = false) }
+                    _uiState.update { it.copy(bookingError = e.message ?: "Booking failed", isBookingInProgress = false, calendarRefreshVersion = _uiState.value.calendarRefreshVersion + 1) }
                 }
         }
     }
@@ -411,39 +412,20 @@ class ScheduleViewModel(
                     container.calendarService.removeTrainingByTimeAndTitle(booking.startTime, booking.className)
                     android.util.Log.d("CancelBooking", "Removed training from calendar: ${booking.className}")
                     
-                    // Verify cancellation by refreshing training details
-                    android.util.Log.d("CancelBooking", "Verifying cancellation by fetching updated training details for: ${booking.trainingId}")
-                    getTrainingDetailsUseCase(booking.trainingId)
-                        .onSuccess { trainingResult ->
-                            android.util.Log.d("CancelBooking", "Updated training details fetched: isJoined=${trainingResult.isJoined}, spotsAvailable=${trainingResult.spotsAvailable}")
-                            _selectedTraining.value = trainingResult
-                            if (!trainingResult.isJoined) {
-                                android.util.Log.d("CancelBooking", "Cancellation verified - user is no longer joined")
-                                dao.updateTrainingNotJoined(booking.trainingId)
-                                // Update the training list with fresh data
-                                val currentTrainings = _uiState.value.trainings.toMutableList()
-                                val index = currentTrainings.indexOfFirst { it.id == booking.trainingId }
-                                if (index >= 0) {
-                                    currentTrainings[index] = trainingResult
-                                } else {
-                                    currentTrainings.add(trainingResult)
-                                }
-                                _uiState.update { it.copy(bookings = current, trainings = currentTrainings, isCancellingInProgress = false, cancelError = null) }
-                            } else {
-                                android.util.Log.e("CancelBooking", "Cancellation verification failed - user still joined after cancellation")
-                                val updatedCurrent = _uiState.value.bookings.toMutableList()
-                                updatedCurrent.add(booking)
-                                _uiState.update { it.copy(bookings = updatedCurrent, cancelError = "Cancellation failed", isCancellingInProgress = false) }
-                            }
-                        }
-                        .onFailure { e ->
-                            android.util.Log.e("CancelBooking", "Failed to verify cancellation details: ${e.message}")
-                            _uiState.update { it.copy(isCancellingInProgress = false, cancelError = e.message ?: "Cancellation verification failed") }
-                        }
+                    android.util.Log.d("CancelBooking", "Cancellation verified for: ${booking.trainingId}")
+                    dao.updateTrainingNotJoined(booking.trainingId)
+                    val currentTrainings = _uiState.value.trainings.toMutableList()
+                    val index = currentTrainings.indexOfFirst { it.id == booking.trainingId }
+                    if (index >= 0) {
+                        currentTrainings[index] = training
+                    } else {
+                        currentTrainings.add(training)
+                    }
+                    _uiState.update { it.copy(bookings = current, trainings = currentTrainings, isCancellingInProgress = false, cancelError = null, calendarRefreshVersion = _uiState.value.calendarRefreshVersion + 1) }
                 }
                 .onFailure { e ->
                     android.util.Log.e("CancelBooking", "Cancellation use case failed for ${booking.trainingId}: ${e.message}")
-                    _uiState.update { it.copy(cancelError = e.message ?: "Cancellation failed", isCancellingInProgress = false) }
+                    _uiState.update { it.copy(cancelError = e.message ?: "Cancellation failed", isCancellingInProgress = false, calendarRefreshVersion = _uiState.value.calendarRefreshVersion + 1) }
                 }
         }
     }

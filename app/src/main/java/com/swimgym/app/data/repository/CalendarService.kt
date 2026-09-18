@@ -16,6 +16,7 @@ import com.swimgym.app.data.model.Mappers.toEntity
 
 interface CalendarService {
     suspend fun addTrainingToCalendar(training: Training): String?
+    suspend fun addTrainingToCalendar(training: TrainingEntity): String?
     suspend fun removeTrainingFromCalendar(training: TrainingEntity)
     suspend fun findExistingCalendarEntry(startTime: Long, title: String): TrainingEntity?
     suspend fun removeTrainingByTimeAndTitle(startTime: Long, title: String)
@@ -32,6 +33,10 @@ class CalendarServiceImpl(
     }
 
     override suspend fun addTrainingToCalendar(training: Training): String? = withContext(Dispatchers.IO) {
+        addTrainingToCalendar(training.toEntity())
+    }
+
+    override suspend fun addTrainingToCalendar(training: TrainingEntity): String? = withContext(Dispatchers.IO) {
         Log.d(TAG, "Adding training to calendar: ${training.title} at ${training.startTime}")
         try {
             if (ContextCompat.checkSelfPermission(
@@ -75,9 +80,7 @@ class CalendarServiceImpl(
             val eventId = uri?.getLastPathSegment() ?: return@withContext null
             Log.d(TAG, "Event created with ID: $eventId")
 
-            // Store eventId and calendarId in the training entity
-            val trainingEntity = training.toEntity()
-            val updatedTraining = trainingEntity.copy(
+            val updatedTraining = training.copy(
                 eventId = eventId,
                 calendarId = selectedCalendarId.toString()
             )
