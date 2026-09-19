@@ -31,6 +31,7 @@ class BookingNotificationManager(
         trainingName: String,
         classTime: String,
         classDate: String,
+        instructor: String,
         isScheduledBooking: Boolean = false
     ) {
         if (!hasNotificationPermission(context)) return
@@ -44,7 +45,7 @@ class BookingNotificationManager(
             "Training Booked ✓"
         }
 
-        val trainingDetails = formatTrainingDetails(trainingName, classTime, classDate)
+        val trainingDetails = formatTrainingDetails(trainingName, classTime, classDate, instructor)
         val content = if (isScheduledBooking) {
             "Your recurring training has been automatically booked:\n\n$trainingDetails"
         } else {
@@ -73,14 +74,14 @@ class BookingNotificationManager(
         notificationManager.notify(NOTIFICATION_ID_BASE, builder.build())
     }
 
-    fun showBookingRetry(bookingId: Long, trainingName: String, classDate: String, classTime: String) {
+    fun showBookingRetry(bookingId: Long, trainingName: String, classDate: String, classTime: String, instructor: String) {
         if (!hasNotificationPermission(context)) return
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel(notificationManager)
 
         val title = "Booking Failed - Retry Available"
-        val trainingDetails = formatTrainingDetails(trainingName, classTime, classDate)
+        val trainingDetails = formatTrainingDetails(trainingName, classTime, classDate, instructor)
         val content = "Your booking could not be completed. Tap to retry now or wait for automatic retry in 15 minutes.\n\n$trainingDetails"
 
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -158,12 +159,13 @@ class BookingNotificationManager(
     private fun formatTrainingDetails(
         trainingName: String,
         classTime: String,
-        classDate: String
+        classDate: String,
+        instructor: String
     ): String {
         val formattedDate = if (classDate.isNotEmpty()) {
             try {
                 val inputFormat = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
-                val outputFormat = SimpleDateFormat("EEEE, dd MMMM yyyy", Locale.getDefault())
+                val outputFormat = SimpleDateFormat("EEEE", Locale.getDefault())
                 val date = inputFormat.parse(classDate)
                 if (date != null) {
                     outputFormat.format(date)
@@ -177,18 +179,15 @@ class BookingNotificationManager(
             ""
         }
 
-        val timeInfo = if (classTime.isNotEmpty()) {
+        val startTime = if (classTime.isNotEmpty()) {
             val timeParts = classTime.split("-").map { it.trim() }
-            if (timeParts.size >= 2) {
-                " ${timeParts[0]} - ${timeParts[1]}"
-            } else {
-                ""
-            }
+            if (timeParts.size >= 2) timeParts[0] else ""
         } else {
             ""
         }
 
-        return "Training: $trainingName\nDate: $formattedDate\nTime:$timeInfo"
+        val instructorLine = if (instructor.isNotEmpty()) "\n$instructor" else ""
+        return "$trainingName\n$formattedDate $startTime$instructorLine"
     }
 
     private fun createNotificationChannel(notificationManager: NotificationManager) {

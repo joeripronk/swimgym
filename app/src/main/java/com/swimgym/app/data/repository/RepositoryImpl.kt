@@ -151,7 +151,6 @@ class TrainingRepositoryImpl(
                 bookResult.fold(
                     onSuccess = {
                         android.util.Log.d("BookTraining", "Booking succeeded for: ${training.id}")
-                        calendarService.addTrainingToCalendar(training)
                         val bookingDto = com.swimgym.app.data.model.BookingResponse(
                             id = 0,
                             trainingId = training.id,

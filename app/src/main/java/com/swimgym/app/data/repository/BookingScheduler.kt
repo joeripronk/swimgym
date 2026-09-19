@@ -76,6 +76,7 @@ class BookingSchedulerImpl(
                         trainingName = training.title,
                         classTime = training.classTime,
                         classDate = training.classDate,
+                        instructor = training.instructor,
                         isScheduledBooking = true
                     )
                 },
@@ -150,6 +151,7 @@ class BookingSchedulerImpl(
                     trainingName = training.title,
                     classTime = training.classTime,
                     classDate = training.classDate,
+                    instructor = training.instructor,
                     isScheduledBooking = true
                 )
             },
@@ -185,7 +187,8 @@ class BookingSchedulerImpl(
         val classDate = training?.classDate ?: ""
         val classTime = training?.classTime ?: ""
         val className = training?.title ?: booking.className
-        notificationManager.showBookingRetry(booking.id, className, classDate, classTime)
+        val instructor = training?.instructor ?: ""
+        notificationManager.showBookingRetry(booking.id, className, classDate, classTime, instructor)
     }
 
     private suspend fun getTrainingDetails(training: TrainingEntity): Result<TrainingEntity> = withContext(Dispatchers.IO) {

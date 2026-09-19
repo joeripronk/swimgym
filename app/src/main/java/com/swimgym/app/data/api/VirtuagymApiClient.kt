@@ -24,7 +24,8 @@ interface VirtuagymApiClient {
 class VirtuagymApiClientImpl(
     private val sessionRepository: SessionRepository,
     private val notificationManager: com.swimgym.app.util.BookingNotificationManager,
-    private val context: Context
+    private val context: Context,
+    private val calendarService: com.swimgym.app.data.repository.CalendarService
 ) : VirtuagymApiClient {
 
     private val cookieLock = Mutex()
@@ -124,7 +125,12 @@ class VirtuagymApiClientImpl(
         val request = buildRequest(url).post(formBody).build()
         val response = client.newCall(request).execute()
         extractCookiesFromResponse(response)
-        if (response.isSuccessful || response.code == 302) Result.success(Unit) else Result.failure(Exception("Booking failed: ${response.code}"))
+        if (response.isSuccessful || response.code == 302) {
+            calendarService.addTrainingToCalendar(training)
+            Result.success(Unit)
+        } else {
+            Result.failure(Exception("Booking failed: ${response.code}"))
+        }
     }
 
     override suspend fun cancelTraining(training: com.swimgym.app.data.local.entity.TrainingEntity): Result<Unit> = cookieLock.withLock {

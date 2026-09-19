@@ -24,7 +24,8 @@ class SwimGymAppContainer private constructor() {
         VirtuagymApiClientImpl(
             sessionRepository = sessionRepository,
             notificationManager = bookingNotificationManager,
-            context = context
+            context = context,
+            calendarService = calendarService
         )
     }
     
