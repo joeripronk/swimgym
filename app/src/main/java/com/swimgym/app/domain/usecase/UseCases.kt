@@ -7,17 +7,7 @@ import com.swimgym.app.domain.repository.SwodLevel
 import com.swimgym.app.domain.repository.SyncStatus
 import com.swimgym.app.domain.repository.TrainingRepository
 import kotlinx.coroutines.flow.Flow
-/*
-class LoginUseCase(
-    private val authRepository: AuthRepository
-) {
-    suspend operator fun invoke(email: String, password: String): Result<User> {
-        if (email.isBlank()) return Result.failure(Exception("Email required"))
-        if (password.isBlank()) return Result.failure(Exception("Password required"))
-        return authRepository.login(email, password)
-    }
-}
-*/
+
 class LogoutUseCase(
     private val authRepository: AuthRepository
 ) {

@@ -119,6 +119,37 @@ class BookingNotificationManager(
         notificationManager.notify(BOOKING_RETRY_ID, builder.build())
     }
 
+    fun showTrainingRenamed(oldName: String, newName: String) {
+        if (!hasNotificationPermission(context)) return
+
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        createNotificationChannel(notificationManager)
+
+        val title = "Training Renamed"
+        val content = "Your scheduled training was renamed:\n\n$oldName → $newName"
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, BOOKING_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+
+        notificationManager.notify(3000, builder.build())
+    }
+
     fun showSyncNotification(success: Boolean) {
         if (!hasNotificationPermission(context)) return
 

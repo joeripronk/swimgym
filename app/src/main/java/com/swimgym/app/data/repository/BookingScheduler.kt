@@ -43,7 +43,7 @@ class BookingSchedulerImpl(
             if (adjustedStartTime != booking.startTime) {
                 scheduledBookingRepo.saveBooking(booking.copy(startTime = adjustedStartTime))
             }
-            val training = getNextTraining(adjustedStartTime, booking.className, trainings) ?: return@forEach
+            val training = getNextTraining(adjustedStartTime, booking.className, trainings, notificationManager) ?: return@forEach
             val res = getTrainingDetails(training)
             if (!res.isSuccess) {
                 showRetryNotification(booking)
@@ -80,7 +80,10 @@ class BookingSchedulerImpl(
                         isScheduledBooking = true
                     )
                 },
-                onFailure = { }
+                onFailure = {
+                    showRetryNotification(booking)
+                    rescheduleAlarmForRetry(booking)
+                }
             )
         }
     }
@@ -109,7 +112,7 @@ class BookingSchedulerImpl(
         val updatedBooking = booking.copy(startTime = adjustedStartTime)
         scheduledBookingRepo.saveBooking(updatedBooking)
 
-        val training = getNextTraining(adjustedStartTime, booking.className, trainings) ?: return@withContext false
+        val training = getNextTraining(adjustedStartTime, booking.className, trainings, notificationManager) ?: return@withContext false
         val res = getTrainingDetails(training)
         if (!res.isSuccess) {
             showRetryNotification(booking)
@@ -156,7 +159,7 @@ class BookingSchedulerImpl(
                 )
             },
             onFailure = {
-                showRetryNotification(booking)
+                showRetryNotification(updatedBooking)
                 rescheduleAlarmForRetry(updatedBooking)
             }
         )
@@ -266,7 +269,8 @@ class BookingSchedulerImpl(
     private fun getNextTraining(
         startTime: Long,
         title: String,
-        trainings: List<TrainingEntity>
+        trainings: List<TrainingEntity>,
+        notificationManager: BookingNotificationManager
     ): TrainingEntity? {
         val calendar = java.util.Calendar.getInstance()
         val now = calendar.timeInMillis / 1000
@@ -278,7 +282,7 @@ class BookingSchedulerImpl(
         if (nexttime > now + week) {
             return null
         }
-        if (nexttime < now + 86400) {
+        if (nexttime < now + 2*86400) {
             return null
         }
 
@@ -287,7 +291,7 @@ class BookingSchedulerImpl(
                 if (training.title.equals(title, ignoreCase = true)) {
                     return training
                 } else {
-                    // warn user training is renamed
+                    notificationManager.showTrainingRenamed(title, training.title)
                 }
             }
         }
