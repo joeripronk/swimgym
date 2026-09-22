@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("com.google.devtools.ksp")
@@ -25,7 +27,8 @@ android {
         create("release") {
             val props = rootProject.file("keystore.properties")
             if (props.exists()) {
-                val p = java.util.Properties().also { it.load(props.inputStream()) }
+                val p = Properties()
+                p.load(props.bufferedReader())
                 storeFile = props
                 storePassword = p["storePassword"] as String
                 keyAlias = p["keyAlias"] as String
