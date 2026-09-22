@@ -70,12 +70,21 @@ info "New version: $new_version_name (code $new_version_code)"
 sed -i "s/versionCode = $version_code/versionCode = $new_version_code/" "$BUILD_FILE"
 sed -i "s/versionName = \"$version_name\"/versionName = \"$new_version_name\"/" "$BUILD_FILE"
 
-# ── commit + tag ─────────────────────────────────────────────────────────────
+# ── confirm commit + tag ─────────────────────────────────────────────────────
+
+TAG="v$new_version_name"
+
+echo ""
+echo "This will commit the version bump and create tag $TAG."
+read -rp "Continue? [y/N] " confirm
+
+if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+  info "Aborted — changes not committed."
+  exit 0
+fi
 
 git add "$BUILD_FILE"
 git commit -m "bump: $version_name → $new_version_name"
-
-TAG="v$new_version_name"
 git tag -a "$TAG" -m "Release $new_version_name"
 
 info "Tag created: $TAG"
