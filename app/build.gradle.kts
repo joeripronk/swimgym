@@ -29,7 +29,7 @@ android {
             if (props.exists()) {
                 val p = Properties()
                 p.load(props.bufferedReader())
-                storeFile = props
+                storeFile = rootProject.file(p["storeFile"] as String)
                 storePassword = p["storePassword"] as String
                 keyAlias = p["keyAlias"] as String
                 keyPassword = p["keyPassword"] as String
