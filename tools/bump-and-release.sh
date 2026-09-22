@@ -3,7 +3,7 @@
 # Usage: ./tools/bump-and-release.sh [major|minor|patch]
 #   Defaults to "patch" if no argument is given.
 
-set -euo pipefail
+#set -euo pipefail
 
 RELEASE_TYPE="${1:-patch}"
 BUILD_FILE="app/build.gradle.kts"
@@ -84,7 +84,7 @@ if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
 fi
 
 git add "$BUILD_FILE"
-git commit -m "bump: $version_name → $new_version_name"
+git commit -m "bump: ${version_name} → ${new_version_name}"
 git tag -a "$TAG" -m "Release $new_version_name"
 
 info "Tag created: $TAG"
