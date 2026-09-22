@@ -20,18 +20,23 @@ jobs:
           java-version: "17"
           distribution: "temurin"
 
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
       - name: Decode keystore
         run: |
           printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release-keystore.jks
 
       - name: Build release APK
         run: |
-          cat > keystore.properties <<EOF
-storeFile=app/release-keystore.jks
-storePassword=$(printf '%s' "${{ secrets.KEYSTORE_PASSWORD }}" | base64 -d)
-keyAlias=${{ secrets.KEY_ALIAS }}
-keyPassword=$(printf '%s' "${{ secrets.KEY_PASSWORD }}" | base64 -d)
-EOF
+          echo "storeFile=app/release-keystore.jks" > keystore.properties
+          printf '%s' "${{ secrets.KEYSTORE_PASSWORD }}" | base64 -d >> keystore.properties
+          echo "" >> keystore.properties
+          echo "${{ secrets.KEY_ALIAS }}" >> keystore.properties
+          printf '%s' "${{ secrets.KEY_PASSWORD }}" | base64 -d >> keystore.properties
+          echo "" >> keystore.properties
           chmod +x ./gradlew
           ./gradlew assembleRelease
 
