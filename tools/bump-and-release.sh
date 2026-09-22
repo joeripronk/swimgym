@@ -24,15 +24,11 @@ if ! git rev-parse --is-inside-work-tree &>/dev/null; then
   die "not inside a git repository"
 fi
 
-if ! [[ $(git diff --stat --exit-code) ]]; then
-  warn "Working tree is dirty — commit or stash changes first."
-  exit 1
-fi
-
-if [[ -z $(git status --porcelain) ]]; then
+if git diff --exit-code --quiet; then
   info "Working tree is clean ✓"
 else
-  warn "Untracked files exist — they will NOT be included in the tag."
+  warn "Working tree is dirty — commit or stash changes first."
+  exit 1
 fi
 
 # ── read current version ─────────────────────────────────────────────────────
