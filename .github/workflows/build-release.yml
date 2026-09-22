@@ -22,6 +22,7 @@ jobs:
       - name: Decode keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release-keystore.jks
+          keytool -list -v -keystore app/release-keystore.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" -alias "${{ secrets.KEY_ALIAS }}" < /dev/null
 
       - name: Build release APK
         env:
@@ -36,12 +37,18 @@ jobs:
             -Pandroid.injected.signing.key.password=$KEY_PASSWORD \
             --no-daemon
 
+      - name: List APK outputs
+        run: |
+          ls -la app/build/outputs/apk/release/
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
           body: "Auto-generated release build"
-          files: app/build/outputs/apk/release/app-release.apk
+          files: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/app-release-unsigned.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
