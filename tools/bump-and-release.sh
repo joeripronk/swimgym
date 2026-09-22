@@ -49,19 +49,11 @@ IFS='.' read -r major minor <<< "$version_name"
 case "$RELEASE_TYPE" in
   major) major=$((major + 1)); minor=0 ;;
   minor) minor=$((minor + 1)) ;;
-  patch) version_code=$((version_code + 1)) ;;
-  *) die "Unknown release type: $RELEASE_TYPE (use major|minor|patch)" ;;
+  *) ;;  # patch: no change to major/minor
 esac
 
 new_version_name="$major.$minor"
-new_version_code=$((version_code))
-
-# For patch bumps, versionCode is incremented; for major/minor, also bump versionCode
-if [[ "$RELEASE_TYPE" == "patch" ]]; then
-  new_version_code=$((version_code))
-else
-  new_version_code=$((version_code + 1))
-fi
+new_version_code=$((version_code + 1))
 
 info "New version: $new_version_name (code $new_version_code)"
 
