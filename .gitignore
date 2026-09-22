@@ -3,3 +3,4 @@ app/build
 local.properties
 .gradle
 .idea
+app/release-keystore.jks
