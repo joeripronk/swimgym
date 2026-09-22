@@ -29,7 +29,7 @@ jobs:
           cat > keystore.properties <<EOF
 storeFile=app/release-keystore.jks
 storePassword=$(printf '%s' "${{ secrets.KEYSTORE_PASSWORD }}" | base64 -d)
-keyAlias=$(printf '%s' "${{ secrets.KEY_ALIAS }}" | base64 -d)
+keyAlias=${{ secrets.KEY_ALIAS }}
 keyPassword=$(printf '%s' "${{ secrets.KEY_PASSWORD }}" | base64 -d)
 EOF
           chmod +x ./gradlew
