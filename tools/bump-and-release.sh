@@ -72,7 +72,7 @@ sed -i "s/versionName = \"$version_name\"/versionName = \"$new_version_name\"/" 
 
 # ── confirm commit + tag ─────────────────────────────────────────────────────
 
-TAG="v$new_version_name"
+TAG="v${new_version_name}p${version_code}"
 
 echo ""
 echo "This will commit the version bump and create tag $TAG."
