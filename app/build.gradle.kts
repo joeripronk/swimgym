@@ -25,10 +25,11 @@ android {
         create("release") {
             val props = rootProject.file("keystore.properties")
             if (props.exists()) {
+                val p = java.util.Properties().also { it.load(props.inputStream()) }
                 storeFile = props
-                storePassword = props.property("storePassword")
-                keyAlias = props.property("keyAlias")
-                keyPassword = props.property("keyPassword")
+                storePassword = p["storePassword"] as String
+                keyAlias = p["keyAlias"] as String
+                keyPassword = p["keyPassword"] as String
             }
         }
     }
