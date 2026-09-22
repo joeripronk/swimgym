@@ -28,7 +28,7 @@ class BookingSchedulerImpl(
         val bookings = scheduledBookingRepo.getAllBookings()
         if (bookings.isNullOrEmpty()) return@withContext
 
-        var trainings = dao.getAllTrainingsList()
+        val trainings = dao.getAllTrainingsList()
         if (trainings.isNullOrEmpty()) {
             return@withContext
         }
@@ -77,7 +77,11 @@ class BookingSchedulerImpl(
                         classTime = training.classTime,
                         classDate = training.classDate,
                         instructor = training.instructor,
-                        isScheduledBooking = true
+                        isScheduledBooking = true,
+                        location = training.location,
+                        spotsAvailable = training.spotsAvailable,
+                        bookingCount = booking.bookedCount,
+                        maxRepeatCount = booking.maxRepeatCount
                     )
                 },
                 onFailure = {
@@ -155,7 +159,11 @@ class BookingSchedulerImpl(
                     classTime = training.classTime,
                     classDate = training.classDate,
                     instructor = training.instructor,
-                    isScheduledBooking = true
+                    isScheduledBooking = true,
+                    location = training.location,
+                    spotsAvailable = training.spotsAvailable,
+                    bookingCount = booking.bookedCount,
+                    maxRepeatCount = booking.maxRepeatCount
                 )
             },
             onFailure = {
@@ -223,7 +231,7 @@ class BookingSchedulerImpl(
 
             val spotsParts = spotsText.split("/").map { it.trim() }
             val spotsTaken = spotsParts.getOrNull(0)?.toIntOrNull() ?: 0
-            var totalSpots = spotsParts.getOrNull(1)?.toIntOrNull() ?: 0
+            val totalSpots = spotsParts.getOrNull(1)?.toIntOrNull() ?: 0
 
             val spotsAvailable = totalSpots - spotsTaken
             val isFull = spotsAvailable == 0

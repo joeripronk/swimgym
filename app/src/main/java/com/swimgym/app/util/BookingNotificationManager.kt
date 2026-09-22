@@ -1,6 +1,5 @@
 package com.swimgym.app.util
 
-import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -32,7 +31,11 @@ class BookingNotificationManager(
         classTime: String,
         classDate: String,
         instructor: String,
-        isScheduledBooking: Boolean = false
+        isScheduledBooking: Boolean = false,
+        location: String = "",
+        spotsAvailable: Int = 0,
+        bookingCount: Int = 0,
+        maxRepeatCount: Int? = null
     ) {
         if (!hasNotificationPermission(context)) return
 
@@ -40,16 +43,22 @@ class BookingNotificationManager(
         createNotificationChannel(notificationManager)
 
         val title = if (isScheduledBooking) {
-            "Scheduled Booking Confirmed ✓"
+            "Scheduled $trainingName $instructor Booked ✓"
         } else {
-            "Training Booked ✓"
+            "Training $trainingName $instructor Booked ✓"
         }
 
-        val trainingDetails = formatTrainingDetails(trainingName, classTime, classDate, instructor)
-        val content = if (isScheduledBooking) {
-            "Your recurring training has been automatically booked:\n\n$trainingDetails"
+        val bookingProgress = if (isScheduledBooking && maxRepeatCount != null) {
+            "Booking ${bookingCount + 1} of $maxRepeatCount"
         } else {
-            "Your training has been successfully booked:\n\n$trainingDetails"
+            ""
+        }
+
+        val trainingDetails = formatTrainingDetails(trainingName, classTime, classDate, instructor, location, spotsAvailable)
+        val content = if (isScheduledBooking) {
+            "$trainingDetails\n\n$bookingProgress"
+        } else {
+            trainingDetails
         }
 
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -191,7 +200,9 @@ class BookingNotificationManager(
         trainingName: String,
         classTime: String,
         classDate: String,
-        instructor: String
+        instructor: String,
+        location: String = "",
+        spotsAvailable: Int = 0
     ): String {
         val formattedDate = if (classDate.isNotEmpty()) {
             try {
@@ -217,8 +228,13 @@ class BookingNotificationManager(
             ""
         }
 
-        val instructorLine = if (instructor.isNotEmpty()) "\n$instructor" else ""
-        return "$trainingName\n$formattedDate $startTime$instructorLine"
+        val lines = mutableListOf<String>()
+        lines.add(trainingName)
+        lines.add("$formattedDate $startTime")
+        if (instructor.isNotEmpty()) lines.add(instructor)
+        if (location.isNotEmpty()) lines.add(location)
+        if (spotsAvailable > 0) lines.add("$spotsAvailable spots available")
+        return lines.joinToString("\n")
     }
 
     private fun createNotificationChannel(notificationManager: NotificationManager) {
