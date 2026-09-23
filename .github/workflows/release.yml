@@ -32,9 +32,9 @@ jobs:
       - name: Build release APK
         env:
           STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          printf "storeFile=app/release-keystore.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" "$STORE_PASSWORD" "$ALIAS" "$STORE_PASSWORD" > keystore.properties
+          printf "storeFile=app/release-keystore.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" "$STORE_PASSWORD" "$KEY_ALIAS" "$STORE_PASSWORD" > keystore.properties
           chmod +x ./gradlew
           ./gradlew assembleRelease
 
