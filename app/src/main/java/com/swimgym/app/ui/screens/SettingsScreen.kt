@@ -860,10 +860,17 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Text(
-                                text = "Current version: ${context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode}",
+                                text = "Local: ${uiState.currentVersion.ifEmpty { context.packageManager.getPackageInfo(context.packageName, 0).versionName }}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            if (uiState.latestVersion.isNotEmpty()) {
+                                Text(
+                                    text = "Remote: ${uiState.latestVersion}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (uiState.updateAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
 
                         if (uiState.isCheckingUpdate) {
