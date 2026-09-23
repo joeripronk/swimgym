@@ -57,11 +57,6 @@ new_version_code=$((version_code + 1))
 
 info "New version: $new_version_name (code $new_version_code)"
 
-# ── edit build.gradle.kts ────────────────────────────────────────────────────
-
-sed -i "s/versionCode = $version_code/versionCode = $new_version_code/" "$BUILD_FILE"
-sed -i "s/versionName = \"$version_name\"/versionName = \"$new_version_name\"/" "$BUILD_FILE"
-
 # ── confirm commit + tag ─────────────────────────────────────────────────────
 
 TAG="v${new_version_name}p${new_version_code}"
@@ -74,6 +69,11 @@ if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
   info "Aborted — changes not committed."
   exit 0
 fi
+
+# ── edit build.gradle.kts ────────────────────────────────────────────────────
+
+sed -i "s/versionCode = $version_code/versionCode = $new_version_code/" "$BUILD_FILE"
+sed -i "s/versionName = \"$version_name\"/versionName = \"$new_version_name\"/" "$BUILD_FILE"
 
 git add "$BUILD_FILE"
 git commit -m "release swimgym v${new_version_name}p${new_version_code}"
