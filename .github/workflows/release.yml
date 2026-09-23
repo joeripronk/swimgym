@@ -31,10 +31,9 @@ jobs:
 
       - name: Build release APK
         run: |
-          STORE_PASSWORD=$(printf '%s' "${{ secrets.KEYSTORE_PASSWORD }}" | base64 -d)
-          KEY_PASSWORD=$(printf '%s' "${{ secrets.KEY_PASSWORD }}" | base64 -d)
+          STORE_PASSWORD="${{ secrets.KEYSTORE_PASSWORD }}"
           ALIAS="${{ secrets.KEY_ALIAS }}"
-          printf "storeFile=app/release-keystore.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" "$STORE_PASSWORD" "$ALIAS" "$KEY_PASSWORD" > keystore.properties
+          printf "storeFile=app/release-keystore.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" "$STORE_PASSWORD" "$ALIAS" "$STORE_PASSWORD" > keystore.properties
           chmod +x ./gradlew
           ./gradlew assembleRelease
 
