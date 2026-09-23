@@ -50,8 +50,12 @@ data class SettingsUiState(
     val latestVersion: String = "",
     val releaseNotes: String = "",
     val releaseUrl: String = "",
+    val apkDownloadUrl: String? = null,
     val isCheckingUpdate: Boolean = false,
-    val updateCheckError: String? = null
+    val updateCheckError: String? = null,
+    val isDownloading: Boolean = false,
+    val isInstalling: Boolean = false,
+    val installError: String? = null
 )
 
 class SettingsViewModel(
@@ -265,6 +269,7 @@ class SettingsViewModel(
                             latestVersion = release.tagName,
                             releaseNotes = release.body,
                             releaseUrl = release.htmlUrl,
+                            apkDownloadUrl = release.apkDownloadUrl,
                             isCheckingUpdate = false
                         )
                     }
@@ -281,6 +286,51 @@ class SettingsViewModel(
                     it.copy(
                         isCheckingUpdate = false,
                         updateCheckError = e.message ?: "Failed to check for updates"
+                    )
+                }
+            }
+        }
+    }
+
+    fun installUpdate(context: android.content.Context) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDownloading = true, installError = null) }
+            val downloadUrl = _uiState.value.apkDownloadUrl
+            if (downloadUrl.isNullOrEmpty()) {
+                _uiState.update { it.copy(isDownloading = false, installError = "No APK download URL available") }
+                return@launch
+            }
+
+            try {
+                val result = com.swimgym.app.util.UpdateChecker.downloadApk(context, downloadUrl)
+                result.onSuccess { apkFile ->
+                    _uiState.update { it.copy(isDownloading = false, isInstalling = true) }
+                    val installIntent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+                        .setDataAndType(
+                            androidx.core.content.FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                apkFile
+                            ),
+                            "application/vnd.android.package-archive"
+                        )
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    context.startActivity(installIntent)
+                    _uiState.update { it.copy(isInstalling = false) }
+                }.onFailure { e ->
+                    _uiState.update {
+                        it.copy(
+                            isDownloading = false,
+                            installError = "Download failed: ${e.message}"
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isDownloading = false,
+                        installError = e.message ?: "Installation failed"
                     )
                 }
             }

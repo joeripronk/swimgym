@@ -8,17 +8,22 @@ import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 
 data class ReleaseInfo(
     val tagName: String,
     val htmlUrl: String,
-    val body: String
+    val body: String,
+    val apkDownloadUrl: String? = null
 )
 
 object UpdateChecker {
     private const val GITHUB_API_URL = "https://api.github.com/repos/joeripronk/swimgym/releases/latest"
+    private const val APK_ASSET_PATTERN = "swimgym-.*\\.apk"
 
     suspend fun checkForUpdates(context: android.content.Context): Result<ReleaseInfo> =
         withContext(Dispatchers.IO) {
@@ -38,12 +43,67 @@ object UpdateChecker {
             }
 
             val json = JSONObject(response.body?.string() ?: "")
+            val assets = json.optJSONArray("assets")
+            val apkDownloadUrl = if (assets != null) {
+                findApkAsset(assets)
+            } else {
+                null
+            }
+
             val releaseInfo = ReleaseInfo(
                 tagName = json.getString("tag_name"),
                 htmlUrl = json.getString("html_url"),
-                body = json.optString("body", "")
+                body = json.optString("body", ""),
+                apkDownloadUrl = apkDownloadUrl
             )
             Result.success(releaseInfo)
+        }
+
+    private fun findApkAsset(assets: JSONArray): String? {
+        for (i in 0 until assets.length()) {
+            val asset = assets.getJSONObject(i)
+            val name = asset.optString("name", "")
+            if (name.matches(Regex(APK_ASSET_PATTERN))) {
+                return asset.getString("browser_download_url")
+            }
+        }
+        return null
+    }
+
+    suspend fun downloadApk(context: android.content.Context, downloadUrl: String): Result<File> =
+        withContext(Dispatchers.IO) {
+            val client = OkHttpClient.Builder()
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
+            val request = Request.Builder()
+                .url(downloadUrl)
+                .header("Accept", "application/octet-stream")
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(IOException("Download failed: HTTP ${response.code}"))
+            }
+
+            val cacheDir = context.cacheDir
+            val apkDir = File(cacheDir, "apk")
+            apkDir.mkdirs()
+            val apkFile = File(apkDir, "swimgym-release.apk")
+
+            val body = response.body
+            if (body == null) {
+                return@withContext Result.failure(IOException("No response body"))
+            }
+
+            FileOutputStream(apkFile).use { out ->
+                body.byteStream().use { input ->
+                    input.copyTo(out)
+                }
+            }
+
+            Result.success(apkFile)
         }
 
     fun isNewerVersion(current: String, latest: String): Boolean {

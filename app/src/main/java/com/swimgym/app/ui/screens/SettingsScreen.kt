@@ -934,7 +934,8 @@ fun SettingsScreen(
                                                 }
                                             }
                                         },
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.weight(1f),
+                                        enabled = !uiState.isDownloading && !uiState.isInstalling
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.ArrowForward,
@@ -942,7 +943,23 @@ fun SettingsScreen(
                                             modifier = Modifier.size(18.dp)
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Install")
+                                        Text("View")
+                                    }
+                                    Button(
+                                        onClick = { viewModel.installUpdate(context) },
+                                        modifier = Modifier.weight(1f),
+                                        enabled = !uiState.isDownloading && !uiState.isInstalling
+                                    ) {
+                                        if (uiState.isDownloading) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(16.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        } else if (uiState.isInstalling) {
+                                            Text("Installing...")
+                                        } else {
+                                            Text("Install")
+                                        }
                                     }
                                 }
                             }
@@ -953,6 +970,15 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "Could not check for updates: ${uiState.updateCheckError}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+
+                    if (uiState.installError != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Installation failed: ${uiState.installError}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
