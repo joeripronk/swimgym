@@ -43,9 +43,9 @@ class BookingNotificationManager(
         createNotificationChannel(notificationManager)
 
         val title = if (isScheduledBooking) {
-            "Scheduled $trainingName $instructor Booked ✓"
+            "$trainingName $instructor $classTime Booked (recurring) ✓"
         } else {
-            "Training $trainingName $instructor Booked ✓"
+            "$trainingName $instructor $classTime Booked ✓"
         }
 
         val bookingProgress = if (isScheduledBooking && maxRepeatCount != null) {
