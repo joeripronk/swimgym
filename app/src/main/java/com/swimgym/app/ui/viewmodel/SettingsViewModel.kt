@@ -2,6 +2,7 @@ package com.swimgym.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.swimgym.app.BuildConfig
 import com.swimgym.app.data.repository.SessionRepository
 import com.swimgym.app.domain.model.CalendarInfo
 import com.swimgym.app.domain.repository.CalendarRepository
@@ -44,7 +45,13 @@ data class SettingsUiState(
     val hideFullyBooked: Boolean = false,
     val workTimeConfig: WorkTimeConfig = WorkTimeConfig(),
     val alarmNotificationEnabled: Boolean = true,
-    val exactAlarmEnabled: Boolean = true
+    val exactAlarmEnabled: Boolean = true,
+    val updateAvailable: Boolean = false,
+    val latestVersion: String = "",
+    val releaseNotes: String = "",
+    val releaseUrl: String = "",
+    val isCheckingUpdate: Boolean = false,
+    val updateCheckError: String? = null
 )
 
 class SettingsViewModel(
@@ -242,6 +249,42 @@ class SettingsViewModel(
 
     fun refreshCalendars() {
         loadCalendars()
+    }
+
+    fun checkForUpdates(context: android.content.Context) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isCheckingUpdate = true, updateCheckError = null) }
+            try {
+                val result = com.swimgym.app.util.UpdateChecker.checkForUpdates(context)
+                result.onSuccess { release ->
+                    val currentVersion = BuildConfig.VERSION_NAME
+                    val isNewer = com.swimgym.app.util.UpdateChecker.isNewerVersion(currentVersion, release.tagName)
+                    _uiState.update {
+                        it.copy(
+                            updateAvailable = isNewer,
+                            latestVersion = release.tagName,
+                            releaseNotes = release.body,
+                            releaseUrl = release.htmlUrl,
+                            isCheckingUpdate = false
+                        )
+                    }
+                }.onFailure { e ->
+                    _uiState.update {
+                        it.copy(
+                            isCheckingUpdate = false,
+                            updateCheckError = e.message ?: "Failed to check for updates"
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isCheckingUpdate = false,
+                        updateCheckError = e.message ?: "Failed to check for updates"
+                    )
+                }
+            }
+        }
     }
 
     fun selectCalendar(calendarId: Long, calendarName: String) {
