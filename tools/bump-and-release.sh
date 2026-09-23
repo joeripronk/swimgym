@@ -76,7 +76,7 @@ if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
 fi
 
 git add "$BUILD_FILE"
-git commit -m "bump: ${version_name} → ${new_version_name}"
+git commit -m "release swimgym v${new_version_name}p${new_version_code}"
 git tag -a "$TAG" -m "Release $new_version_name"
 
 info "Tag created: $TAG"
