@@ -25,9 +25,9 @@ jobs:
         with:
           node-version: 24
 
-      - name: Decode keystore
-        run: |
-          printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release-keystore.jks
+#      - name: Decode keystore
+#        run: |
+#          printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release-keystore.jks
 
       - name: Build release APK
         run: |

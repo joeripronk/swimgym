@@ -3,6 +3,5 @@ app/build
 local.properties
 .gradle
 .idea
-app/release-keystore.jks
 keystore.properties
 tools/*.env
