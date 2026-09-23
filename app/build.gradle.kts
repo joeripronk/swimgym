@@ -14,7 +14,7 @@ android {
         applicationId = "com.swimgym.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 14
+        versionCode = 15
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
