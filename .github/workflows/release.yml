@@ -46,10 +46,12 @@ jobs:
           version_code=$(echo "$tag" | sed 's/^v[0-9]*\.[0-9]*p\([0-9]*\)/\1/')
           echo "version_name=$version_name" >> "$GITHUB_OUTPUT"
           echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
+          apkfile="app/build/outputs/swimgym-${tag}.apk"
+          mv "app/build/outputs/apk/release/app-release.apk" "$apkfile"
 
       - name: Upload release APK
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/app-release.apk
-          name: v${{ steps.version.outputs.version_name }} (code ${{ steps.version.outputs.version_code }})
+          files: ${{ steps.version.outputs.apkfile }}
+          name: v${{ steps.version.outputs.tag }}
           generate_release_notes: true
