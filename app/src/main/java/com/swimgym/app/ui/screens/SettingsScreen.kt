@@ -908,7 +908,7 @@ fun SettingsScreen(
                                             color = MaterialTheme.colorScheme.onPrimaryContainer
                                         )
                                         Text(
-                                            text = "Version ${uiState.latestVersion} is available",
+                                            text = "Current: ${uiState.currentVersion} → Latest: ${uiState.latestVersion}",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onPrimaryContainer
                                         )

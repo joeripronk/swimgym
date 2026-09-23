@@ -107,6 +107,33 @@ object UpdateChecker {
         }
 
     fun isNewerVersion(current: String, latest: String): Boolean {
-        return current != latest && current != "1.0"
+        val currentClean = current.trimStart('v')
+        val latestClean = latest.trimStart('v')
+        return compareVersions(currentClean, latestClean) < 0
+    }
+
+    private fun compareVersions(current: String, latest: String): Int {
+        val currentParts = current.split(".").map { it.trim() }
+        val latestParts = latest.split(".").map { it.trim() }
+        val maxLen = maxOf(currentParts.size, latestParts.size)
+        for (i in 0 until maxLen) {
+            val c = currentParts.getOrElse(i) { "0" }
+            val l = latestParts.getOrElse(i) { "0" }
+            val cNum = parseVersionPart(c)
+            val lNum = parseVersionPart(l)
+            if (cNum < lNum) return -1
+            if (cNum > lNum) return 1
+        }
+        return 0
+    }
+
+    private fun parseVersionPart(part: String): Int {
+        val clean = part.trimStart('v')
+        val pIndex = clean.indexOf('p')
+        return if (pIndex >= 0) {
+            clean.substring(pIndex + 1).toIntOrNull() ?: 0
+        } else {
+            clean.toIntOrNull() ?: 0
+        }
     }
 }

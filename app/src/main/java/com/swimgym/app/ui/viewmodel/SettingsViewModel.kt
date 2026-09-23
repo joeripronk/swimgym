@@ -47,6 +47,7 @@ data class SettingsUiState(
     val alarmNotificationEnabled: Boolean = true,
     val exactAlarmEnabled: Boolean = true,
     val updateAvailable: Boolean = false,
+    val currentVersion: String = "",
     val latestVersion: String = "",
     val releaseNotes: String = "",
     val releaseUrl: String = "",
@@ -266,6 +267,7 @@ class SettingsViewModel(
                     _uiState.update {
                         it.copy(
                             updateAvailable = isNewer,
+                            currentVersion = currentVersion,
                             latestVersion = release.tagName,
                             releaseNotes = release.body,
                             releaseUrl = release.htmlUrl,
