@@ -547,7 +547,9 @@ class ScheduleViewModel(
                     } else {
                         currentTrainings.add(training)
                     }
-                    _uiState.update { it.copy(trainings = currentTrainings, isLoading = false) }
+                    // Refresh bookings to reflect updated joined state
+                    val currentBookings = getMyBookingsUseCase().first()
+                    _uiState.update { it.copy(trainings = currentTrainings, bookings = currentBookings, isLoading = false) }
                 }
                 .onFailure { e ->
                     android.util.Log.e("ScheduleViewModel", "Failed to fetch updated training details: $trainingId - ${e.message}")
