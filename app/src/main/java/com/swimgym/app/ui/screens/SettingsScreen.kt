@@ -8,13 +8,16 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -33,6 +36,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -1028,58 +1033,125 @@ fun TimePickerDialog(
     var hour by remember { mutableStateOf(initialHour) }
     var minute by remember { mutableStateOf(initialMinute) }
     
+    val hoursList = (0..23).toList()
+    val minutesList = listOf(0, 15, 30, 45)
+    
+    val hoursState = rememberLazyListState(
+        initialFirstVisibleItemIndex = initialHour
+    )
+    val minutesState = rememberLazyListState(
+        initialFirstVisibleItemIndex = minutesList.indexOf(initialMinute)
+    )
+    
+    LaunchedEffect(initialHour) {
+        hoursState.scrollToItem(initialHour)
+    }
+    LaunchedEffect(initialMinute) {
+        minutesState.scrollToItem(minutesList.indexOf(initialMinute))
+    }
+    
     AlertDialog(
         onDismissRequest = onDismissRequest,
         title = { Text("Select Time") },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp)
             ) {
+                // Large time display at top
                 Text(
-                    text = "Hours",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = String.format("%02d:%02d", hour, minute),
+                    style = MaterialTheme.typography.displayMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp)
+                        .wrapContentHeight(Alignment.CenterVertically),
+                    textAlign = TextAlign.Center
                 )
+                
+                // Hours and minutes columns
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    for (h in 0..23) {
-                        val isSelected = h == hour
-                        Button(
-                            onClick = { hour = h },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-                                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            ),
-                            modifier = Modifier.weight(1f)
+                    // Hours column
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Hour",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        LazyColumn(
+                            state = hoursState,
+                            modifier = Modifier.height(200.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                            contentPadding = PaddingValues(vertical = 8.dp)
                         ) {
-                            Text("$h")
+                            items(hoursList) { h ->
+                                val isSelected = h == hour
+                                Text(
+                                    text = String.format("%02d", h),
+                                    style = if (isSelected) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.bodyLarge,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                                        .background(
+                                            if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { hour = h }
+                                        .wrapContentHeight()
+                                        .align(Alignment.CenterHorizontally)
+                                )
+                            }
                         }
                     }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Minutes",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    for (m in (0..59 step 5)) {
-                        val isSelected = m == minute
-                        Button(
-                            onClick = { minute = m },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-                                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            ),
-                            modifier = Modifier.weight(1f)
+                    
+                    // Minutes column
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Minute",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        LazyColumn(
+                            state = minutesState,
+                            modifier = Modifier.height(200.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                            contentPadding = PaddingValues(vertical = 8.dp)
                         ) {
-                            Text("$m")
+                            items(minutesList) { m ->
+                                val isSelected = m == minute
+                                Text(
+                                    text = String.format("%02d", m),
+                                    style = if (isSelected) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.bodyLarge,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                                        .background(
+                                            if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { minute = m }
+                                        .wrapContentHeight()
+                                        .align(Alignment.CenterHorizontally)
+                                )
+                            }
                         }
                     }
                 }
