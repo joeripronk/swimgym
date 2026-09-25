@@ -1002,12 +1002,7 @@ fun SettingsScreen(
             latestVersion = uiState.latestVersion,
             onInstall = {
                 showReleaseNotesDialog = false
-                uiState.releaseUrl.let { url ->
-                    if (url.isNotEmpty()) {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                        context.startActivity(intent)
-                    }
-                }
+                viewModel.installUpdate(context)
             }
         )
     }
