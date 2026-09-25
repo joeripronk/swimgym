@@ -57,14 +57,18 @@ fun SettingsScreen(
         }
     }
 
+    var permissionRefreshCount by remember { mutableStateOf(0) }
+
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        // Permission result handled
+        if (isGranted) {
+            permissionRefreshCount++
+        }
     }
 
     val context = LocalContext.current
-    val hasNotificationPermission by remember {
+    val hasNotificationPermission by remember(permissionRefreshCount) {
         derivedStateOf {
             PermissionHelper.hasNotificationPermission(context)
         }
@@ -75,7 +79,13 @@ fun SettingsScreen(
     val installApkLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        // APK install result handled
+        permissionRefreshCount++
+    }
+
+    val exactAlarmPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        permissionRefreshCount++
     }
 
     LaunchedEffect(Unit) {
@@ -627,7 +637,7 @@ fun SettingsScreen(
                                         val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
                                             data = Uri.parse("package:${context.packageName}")
                                         }
-                                        context.startActivity(intent)
+                                        exactAlarmPermissionLauncher.launch(intent)
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(
