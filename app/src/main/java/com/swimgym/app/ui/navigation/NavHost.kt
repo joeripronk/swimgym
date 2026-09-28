@@ -73,7 +73,8 @@ fun SwimGymNavigation(
         alarmScheduler = container.alarmScheduler,
         trainerImageCache = container.trainerImageCache,
         dao = container.dao,
-        applicationContext = context
+        applicationContext = context,
+        bookingScheduler = container.bookingScheduler
     )
     
     val settingsViewModel = SettingsViewModel(

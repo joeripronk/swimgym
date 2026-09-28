@@ -16,5 +16,6 @@ data class ScheduledBooking(
     val status: ScheduledBookingStatus = ScheduledBookingStatus.ACTIVE,
     val bookedCount: Int = 0,
     val maxRepeatCount: Int? = null,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val skippedDueToConflict: Boolean = false
 )

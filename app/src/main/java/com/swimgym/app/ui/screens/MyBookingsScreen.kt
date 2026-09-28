@@ -272,15 +272,24 @@ private fun ScheduledBookingCard(
                         )
                     }
                     Text(
-                        text = "Status: ${scheduled.status.name}",
+                        text = if (scheduled.skippedDueToConflict) "Skipped (calendar conflict)" else "Status: ${scheduled.status.name}",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = when (scheduled.status) {
-                            ScheduledBookingStatus.ACTIVE -> MaterialTheme.colorScheme.primary
-                            ScheduledBookingStatus.PAUSED -> MaterialTheme.colorScheme.tertiary
-                            ScheduledBookingStatus.COMPLETED -> MaterialTheme.colorScheme.outline
-                            ScheduledBookingStatus.INVALIDATED -> MaterialTheme.colorScheme.error
+                        color = when {
+                            scheduled.skippedDueToConflict -> MaterialTheme.colorScheme.tertiary
+                            scheduled.status == ScheduledBookingStatus.ACTIVE -> MaterialTheme.colorScheme.primary
+                            scheduled.status == ScheduledBookingStatus.PAUSED -> MaterialTheme.colorScheme.tertiary
+                            scheduled.status == ScheduledBookingStatus.COMPLETED -> MaterialTheme.colorScheme.outline
+                            scheduled.status == ScheduledBookingStatus.INVALIDATED -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
                     )
+                    if (scheduled.skippedDueToConflict) {
+                        Text(
+                            text = "Skipped this week: calendar conflict detected",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
                     if (scheduled.status == ScheduledBookingStatus.ACTIVE && timeUntilNext.isNotEmpty()) {
                         Text(
                             text = "Next booking: $timeUntilNext",

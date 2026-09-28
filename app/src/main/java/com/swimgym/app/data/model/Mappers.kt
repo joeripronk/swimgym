@@ -89,7 +89,8 @@ object Mappers {
         description = description,
         cost = cost,
         totalSpots = totalSpots,
-        cancelPolicy = cancelPolicy
+        cancelPolicy = cancelPolicy,
+        eventId = eventId
     )
 
     fun BookingResponse.toDomain(): Booking {

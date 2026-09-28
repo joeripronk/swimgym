@@ -48,7 +48,9 @@ class SwimGymAppContainer private constructor() {
             notificationManager = bookingNotificationManager,
             alarmScheduler = alarmScheduler,
             apiClient = apiClient,
-            context = context
+            context = context,
+            calendarService = calendarService,
+            sessionRepository = sessionRepository
         )
     }
 

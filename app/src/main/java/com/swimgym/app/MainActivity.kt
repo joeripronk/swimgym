@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.swimgym.app.di.SwimGymAppContainer
 import com.swimgym.app.receiver.LoginActivity
 import com.swimgym.app.ui.navigation.SwimGymNavigation
@@ -37,6 +40,10 @@ class MainActivity : ComponentActivity() {
         // Check if login is required from notification
         if (localIntent?.action == LoginActivity.ACTION_LOGIN_REQUIRED) {
             // The NavHost will handle navigation to login screen
+        }
+        // Check for calendar conflicts on app resume
+        CoroutineScope(Dispatchers.IO).launch {
+            SwimGymAppContainer.getInstance().bookingScheduler.checkCalendarConflicts()
         }
     }
 

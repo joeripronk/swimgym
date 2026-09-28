@@ -14,6 +14,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import com.swimgym.app.data.model.Mappers.toEntity
 
+data class CalendarEventInfo(
+    val id: Long,
+    val title: String,
+    val startMillis: Long,
+    val endMillis: Long
+)
+
 interface CalendarService {
     suspend fun addTrainingToCalendar(training: Training): String?
     suspend fun addTrainingToCalendar(training: TrainingEntity): String?
@@ -21,6 +28,12 @@ interface CalendarService {
     suspend fun findExistingCalendarEntry(startTime: Long, title: String): TrainingEntity?
     suspend fun removeTrainingByTimeAndTitle(startTime: Long, title: String)
     suspend fun isTrainingInCalendar(trainingId: String, startTime: Long, title: String): Boolean
+    suspend fun findConflictingEvents(
+        startMillis: Long,
+        endMillis: Long,
+        excludeEventId: String? = null,
+        excludeTitle: String? = null
+    ): List<CalendarEventInfo>
 }
 
 class CalendarServiceImpl(
@@ -230,5 +243,137 @@ class CalendarServiceImpl(
             Log.e(TAG, "Error checking if training is in calendar", e)
             false
         }
+    }
+
+    override suspend fun findConflictingEvents(
+        startMillis: Long,
+        endMillis: Long,
+        excludeEventId: String?,
+        excludeTitle: String?
+    ): List<CalendarEventInfo> = withContext(Dispatchers.IO) {
+        try {
+            if (ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.READ_CALENDAR
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                Log.d(TAG, "No READ_CALENDAR permission, skipping conflict check")
+                return@withContext emptyList()
+            }
+
+            val visibleCalendarIds = getVisibleCalendarIds()
+            if (visibleCalendarIds.isEmpty()) {
+                Log.d(TAG, "No visible calendars found")
+                return@withContext emptyList()
+            }
+
+            val idPlaceholders = visibleCalendarIds.joinToString(",") { "?" }
+            // Timed events store DTSTART/DTEND as UTC millis; all-day events store
+            // them as "YYYYMMDD" date strings. The two formats compare differently
+            // (lexicographically), so each branch only ever matches its own format.
+            val dateStart = toDateOnlyString(startMillis)
+            val calEnd = java.util.Calendar.getInstance()
+            calEnd.timeInMillis = endMillis
+            calEnd.add(java.util.Calendar.DAY_OF_MONTH, 1)
+            val dateEndExclusive = toDateOnlyString(calEnd.timeInMillis)
+            val selection = "(${CalendarContract.Events.DTSTART} < ? AND ${CalendarContract.Events.DTEND} > ? OR " +
+                "${CalendarContract.Events.DTSTART} < ? AND ${CalendarContract.Events.DTEND} > ?) AND " +
+                "${CalendarContract.Events.CALENDAR_ID} IN ($idPlaceholders)"
+            val selectionArgs = (listOf(endMillis, startMillis, dateEndExclusive, dateStart) + visibleCalendarIds)
+                .map { it.toString() }
+                .toTypedArray()
+            val cursor = context.contentResolver.query(
+                CalendarContract.Events.CONTENT_URI,
+                arrayOf(
+                    CalendarContract.Events._ID,
+                    CalendarContract.Events.TITLE,
+                    CalendarContract.Events.DTSTART,
+                    CalendarContract.Events.DTEND
+                ),
+                selection,
+                selectionArgs,
+                null
+            )
+
+            val events = mutableListOf<CalendarEventInfo>()
+            cursor?.use { c ->
+                val idIdx = c.getColumnIndex(CalendarContract.Events._ID)
+                val titleIdx = c.getColumnIndex(CalendarContract.Events.TITLE)
+                val startIdx = c.getColumnIndex(CalendarContract.Events.DTSTART)
+                val endIdx = c.getColumnIndex(CalendarContract.Events.DTEND)
+                if (idIdx < 0 || titleIdx < 0 || startIdx < 0 || endIdx < 0) {
+                    Log.w(TAG, "Missing required event columns (_ID, TITLE, DTSTART or DTEND)")
+                    return@use
+                }
+                while (c.moveToNext()) {
+                    events.add(
+                        CalendarEventInfo(
+                            id = c.getLong(idIdx),
+                            title = c.getString(titleIdx) ?: "",
+                            startMillis = parseCalendarTime(c.getString(startIdx) ?: ""),
+                            endMillis = parseCalendarTime(c.getString(endIdx) ?: "")
+                        )
+                    )
+                }
+            }
+
+            val conflicts = events.filter { event ->
+                val excludedById = excludeEventId != null && event.id.toString() == excludeEventId
+                val excludedByTitle = excludeTitle != null && event.title.equals(excludeTitle, ignoreCase = true)
+                !excludedById && !excludedByTitle
+            }
+            Log.d(TAG, "Found ${conflicts.size} conflicting events in window [$startMillis, $endMillis]")
+            conflicts
+        } catch (e: Exception) {
+            Log.e(TAG, "Error finding conflicting calendar events", e)
+            emptyList()
+        }
+    }
+
+    private fun getVisibleCalendarIds(): List<Long> {
+        val ids = mutableListOf<Long>()
+        val cursor = context.contentResolver.query(
+            Calendars.CONTENT_URI,
+            arrayOf(Calendars._ID),
+            "${Calendars.VISIBLE} = 1",
+            null,
+            null
+        )
+        cursor?.use { c ->
+            val idColumn = c.getColumnIndex(Calendars._ID)
+            if (idColumn >= 0) {
+                while (c.moveToNext()) {
+                    ids.add(c.getLong(idColumn))
+                }
+            }
+        }
+        return ids
+    }
+
+    private fun toDateOnlyString(millis: Long): String {
+        val cal = java.util.Calendar.getInstance()
+        cal.timeInMillis = millis
+        return String.format(
+            java.util.Locale.US,
+            "%04d%02d%02d",
+            cal.get(java.util.Calendar.YEAR),
+            cal.get(java.util.Calendar.MONTH) + 1,
+            cal.get(java.util.Calendar.DAY_OF_MONTH)
+        )
+    }
+
+    private fun parseCalendarTime(value: String): Long {
+        // All-day events use "YYYYMMDD"; timed events use UTC millis.
+        if (value.length == 8 && value.all { it.isDigit() }) {
+            val cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+            cal.clear()
+            cal.set(
+                value.substring(0, 4).toInt(),
+                value.substring(4, 6).toInt() - 1,
+                value.substring(6, 8).toInt()
+            )
+            return cal.timeInMillis
+        }
+        return value.toLongOrNull() ?: 0L
     }
 }

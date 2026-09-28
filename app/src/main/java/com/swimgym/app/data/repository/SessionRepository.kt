@@ -45,6 +45,8 @@ class SessionRepository(
         private val USER_AGENT = stringPreferencesKey("user_agent")
         private val ALARM_NOTIFICATION_ENABLED = stringPreferencesKey("alarm_notification_enabled")
         private val EXACT_ALARM_ENABLED = stringPreferencesKey("exact_alarm_enabled")
+        private val CALENDAR_CONFLICT_CHECK_ENABLED = stringPreferencesKey("calendar_conflict_check_enabled")
+        private val CALENDAR_CONFLICT_NOTIFIED_IDS = stringPreferencesKey("calendar_conflict_notified_ids")
     }
 
     val authToken: Flow<String?> = context.dataStore.data.map { it[AUTH_TOKEN] }
@@ -257,6 +259,33 @@ class SessionRepository(
         return context.dataStore.data
             .map { it[EXACT_ALARM_ENABLED]?.toBoolean() ?: true }
             .first()
+    }
+
+    suspend fun saveCalendarConflictCheckEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[CALENDAR_CONFLICT_CHECK_ENABLED] = enabled.toString()
+        }
+    }
+
+    suspend fun getCalendarConflictCheckEnabled(): Boolean {
+        return context.dataStore.data
+            .map { it[CALENDAR_CONFLICT_CHECK_ENABLED]?.toBoolean() ?: true }
+            .first()
+    }
+
+    suspend fun getConflictNotifiedIds(): Set<String> {
+        return context.dataStore.data
+            .map { it[CALENDAR_CONFLICT_NOTIFIED_IDS] }
+            .first()?.let { idsStr ->
+                if (idsStr.isBlank()) emptySet()
+                else idsStr.split(",").filter { it.isNotBlank() }.toSet()
+            } ?: emptySet()
+    }
+
+    suspend fun saveConflictNotifiedIds(ids: Set<String>) {
+        context.dataStore.edit { prefs ->
+            prefs[CALENDAR_CONFLICT_NOTIFIED_IDS] = ids.joinToString(",")
+        }
     }
 
     suspend fun clearSession() {

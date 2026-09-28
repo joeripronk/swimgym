@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.swimgym.app.di.SwimGymAppContainer
+import com.swimgym.app.data.repository.CalendarEventInfo
 import com.swimgym.app.domain.model.Training
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -67,6 +68,8 @@ import java.util.*
     var retryTraining by remember { mutableStateOf<Training?>(null) }
     var isInCalendar by remember { mutableStateOf(false) }
     var trainingToRemoveFromCalendar by remember { mutableStateOf<Training?>(null) }
+    var conflictEvents by remember { mutableStateOf<List<CalendarEventInfo>>(emptyList()) }
+    var conflictCheckLoading by remember { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -104,8 +107,19 @@ import java.util.*
         if (training != null) {
             val calendarService = SwimGymAppContainer.getInstance().calendarService
             isInCalendar = calendarService.isTrainingInCalendar(training.id, training.startTime, training.title)
+            
+            conflictCheckLoading = true
+            conflictEvents = calendarService.findConflictingEvents(
+                startMillis = (training.startTime - 3600) * 1000,
+                endMillis = (training.endTime + 3600) * 1000,
+                excludeEventId = training.eventId.ifBlank { null },
+                excludeTitle = training.title
+            )
+            conflictCheckLoading = false
         } else {
             isInCalendar = false
+            conflictEvents = emptyList()
+            conflictCheckLoading = false
         }
     }
 
@@ -274,6 +288,37 @@ import java.util.*
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
+
+                    if (conflictEvents.isNotEmpty() && !conflictCheckLoading) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "⚠ Calendar conflicts detected",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                conflictEvents.forEach { event ->
+                                    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+                                    val conflictTime = if (event.startMillis > 0) {
+                                        "${timeFormat.format(Date(event.startMillis))} - ${timeFormat.format(Date(event.endMillis))}"
+                                    } else {
+                                        "all-day"
+                                    }
+                                    Text(
+                                        text = "• ${event.title} ($conflictTime)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                   Button(
                           onClick = {

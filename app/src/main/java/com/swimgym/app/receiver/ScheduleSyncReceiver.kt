@@ -7,6 +7,7 @@ import android.util.Log
 import com.swimgym.app.di.SwimGymAppContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class ScheduleSyncReceiver : BroadcastReceiver() {
@@ -26,6 +27,9 @@ class ScheduleSyncReceiver : BroadcastReceiver() {
                 val notificationsEnabled = container.sessionRepository.getAlarmNotificationEnabled()
                 if (notificationsEnabled) {
                     container.bookingNotificationManager.showSyncNotification(success)
+                }
+                if (container.sessionRepository.isLoggedIn.first()) {
+                    container.bookingScheduler.checkCalendarConflicts()
                 }
                 container.alarmScheduler.scheduleSyncAlarm()
             } catch (e: Exception) {

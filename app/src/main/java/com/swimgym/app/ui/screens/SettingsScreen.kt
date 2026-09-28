@@ -563,6 +563,55 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
+                text = "Booking Conflict Check",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(8.dp)
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Check your calendar before booking",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Skip recurring bookings on calendar conflicts",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "Skips a recurring booking when a calendar event overlaps the class time (with a 1 hour buffer before and after), and notifies you when a new conflict is detected for an already booked class",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Switch(
+                            checked = uiState.calendarConflictCheckEnabled,
+                            onCheckedChange = { viewModel.setCalendarConflictCheckEnabled(it) }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
                 text = "Exact Alarms",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(8.dp)

@@ -23,7 +23,8 @@ data class Training(
     val description: String = "",
     val cost: String = "",
     val totalSpots: Int = 0,
-    val cancelPolicy: String = ""
+    val cancelPolicy: String = "",
+    val eventId: String = ""
 )
 
 data class Booking(

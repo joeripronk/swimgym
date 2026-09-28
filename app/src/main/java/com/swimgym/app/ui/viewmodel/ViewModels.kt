@@ -75,7 +75,8 @@ class ScheduleViewModel(
     private val alarmScheduler: com.swimgym.app.util.AlarmScheduler,
     private val trainerImageCache: TrainerImageCache,
     private val dao: com.swimgym.app.data.local.SwimGymDao,
-    private val applicationContext: android.content.Context
+    private val applicationContext: android.content.Context,
+    private val bookingScheduler: com.swimgym.app.data.repository.BookingScheduler
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ScheduleUiState())
@@ -579,6 +580,7 @@ class ScheduleViewModel(
             refreshScheduleUseCase()
                 .onSuccess {
                     loadSchedule(_uiState.value.selectedLevel, _uiState.value.hideFullyBooked)
+                    bookingScheduler.checkCalendarConflicts()
                 }
                 .onFailure { e ->
                     _uiState.update { it.copy(isLoading = false, error = e.message) }
