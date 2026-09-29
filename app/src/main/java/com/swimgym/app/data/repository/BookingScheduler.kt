@@ -210,7 +210,7 @@ class BookingSchedulerImpl(
 
         val now = System.currentTimeMillis() / 1000
         val upcomingBooked = trainings.filter {
-            it.isJoined && it.startTime > now && it.startTime <= now + 14 * 86400
+            it.isJoined && it.startTime > now
         }
         if (upcomingBooked.isEmpty()) return@withContext
 

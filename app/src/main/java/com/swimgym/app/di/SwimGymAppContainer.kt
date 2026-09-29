@@ -91,5 +91,11 @@ class SwimGymAppContainer private constructor() {
         fun reset() {
             instance = null
         }
+        
+        fun resetOnAppRestart() {
+            // Called from SwimGymApp.onCreate() to clear singleton after process death
+            // This ensures a fresh context reference and prevents stale WebView state
+            reset()
+        }
     }
 }

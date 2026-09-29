@@ -4,7 +4,8 @@ import android.app.Activity
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.os.Bundle
+import android.webkit.CookieManager
+import android.webkit.WebView
 import com.swimgym.app.di.SwimGymAppContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +22,7 @@ class SwimGymApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        SwimGymAppContainer.resetOnAppRestart()
         SwimGymAppContainer.getInstance()
         
         // Create notification channel for foreground service
@@ -35,6 +37,16 @@ class SwimGymApp : Application() {
         runBlocking(Dispatchers.IO) {
             val bookings = SwimGymAppContainer.getInstance().scheduledBookingRepository.getAllBookings()
             SwimGymAppContainer.getInstance().alarmScheduler.rescheduleBookingAlarms(bookings)
+        }
+    }
+    
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        // Clear WebView cookies and cache to prevent native state corruption
+        // on process restart (fixes SIGILL crash in libwebviewchromium.so)
+        if (level >= TRIM_MEMORY_MODERATE) {
+            CookieManager.getInstance().removeAllCookies(null)
+            WebView(applicationContext).clearCache(true)
         }
     }
     

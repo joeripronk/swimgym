@@ -18,8 +18,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+import com.swimgym.app.data.repository.CalendarEventInfo
 import com.swimgym.app.data.repository.ScheduledBooking
 import com.swimgym.app.data.repository.ScheduledBookingStatus
+import com.swimgym.app.di.SwimGymAppContainer
 import com.swimgym.app.domain.model.Booking
 import com.swimgym.app.domain.model.BookingStatus
 import java.text.SimpleDateFormat
@@ -242,6 +244,23 @@ private fun ScheduledBookingCard(
         }
     }
 
+    var conflictEvents by remember { mutableStateOf(emptyList<CalendarEventInfo>()) }
+
+    LaunchedEffect(scheduled.id) {
+        val calendarService = SwimGymAppContainer.getInstance().calendarService
+        val dao = SwimGymAppContainer.getInstance().dao
+        val training = dao.getTrainingById(scheduled.trainingId)
+        if (training != null) {
+            val duration = training.endTime - training.startTime
+            conflictEvents = calendarService.findConflictingEvents(
+                startMillis = (scheduled.startTime - 3600) * 1000,
+                endMillis = (scheduled.startTime + duration + 3600) * 1000,
+                excludeEventId = training.eventId.ifBlank { null },
+                excludeTitle = training.title
+            )
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -289,6 +308,36 @@ private fun ScheduledBookingCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.tertiary
                         )
+                    }
+                    if (conflictEvents.isNotEmpty()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "⚠ Calendar conflicts detected",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                conflictEvents.forEach { event ->
+                                    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+                                    val conflictTime = if (event.startMillis > 0) {
+                                        "${timeFormat.format(Date(event.startMillis))} - ${timeFormat.format(Date(event.endMillis))}"
+                                    } else {
+                                        "all-day"
+                                    }
+                                    Text(
+                                        text = "• ${event.title} ($conflictTime)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
                     }
                     if (scheduled.status == ScheduledBookingStatus.ACTIVE && timeUntilNext.isNotEmpty()) {
                         Text(
