@@ -32,7 +32,8 @@ interface CalendarService {
         startMillis: Long,
         endMillis: Long,
         excludeEventId: String? = null,
-        excludeTitle: String? = null
+        excludeTitle: String? = null,
+        calendarIds: Set<Long>? = null
     ): List<CalendarEventInfo>
 }
 
@@ -249,7 +250,8 @@ class CalendarServiceImpl(
         startMillis: Long,
         endMillis: Long,
         excludeEventId: String?,
-        excludeTitle: String?
+        excludeTitle: String?,
+        calendarIds: Set<Long>?
     ): List<CalendarEventInfo> = withContext(Dispatchers.IO) {
         try {
             if (ContextCompat.checkSelfPermission(
@@ -267,7 +269,18 @@ class CalendarServiceImpl(
                 return@withContext emptyList()
             }
 
-            val idPlaceholders = visibleCalendarIds.joinToString(",") { "?" }
+            val selectedIds = calendarIds ?: sessionRepository.getConflictCalendarIds()
+            val targetCalendarIds = if (selectedIds.isEmpty()) {
+                visibleCalendarIds
+            } else {
+                visibleCalendarIds.filter { it in selectedIds }
+            }
+            if (targetCalendarIds.isEmpty()) {
+                Log.d(TAG, "No selected calendars are visible")
+                return@withContext emptyList()
+            }
+
+            val idPlaceholders = targetCalendarIds.joinToString(",") { "?" }
             // Timed events store DTSTART/DTEND as UTC millis; all-day events store
             // them as "YYYYMMDD" date strings. The two formats compare differently
             // (lexicographically), so each branch only ever matches its own format.
@@ -279,7 +292,7 @@ class CalendarServiceImpl(
             val selection = "(${CalendarContract.Events.DTSTART} < ? AND ${CalendarContract.Events.DTEND} > ? OR " +
                 "${CalendarContract.Events.DTSTART} < ? AND ${CalendarContract.Events.DTEND} > ?) AND " +
                 "${CalendarContract.Events.CALENDAR_ID} IN ($idPlaceholders)"
-            val selectionArgs = (listOf(endMillis, startMillis, dateEndExclusive, dateStart) + visibleCalendarIds)
+            val selectionArgs = (listOf(endMillis, startMillis, dateEndExclusive, dateStart) + targetCalendarIds)
                 .map { it.toString() }
                 .toTypedArray()
             val cursor = context.contentResolver.query(

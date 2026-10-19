@@ -47,6 +47,7 @@ data class SettingsUiState(
     val alarmNotificationEnabled: Boolean = true,
     val exactAlarmEnabled: Boolean = true,
     val calendarConflictCheckEnabled: Boolean = true,
+    val conflictCalendarIds: Set<Long> = emptySet(),
     val updateAvailable: Boolean = false,
     val currentVersion: String = "",
     val latestVersion: String = "",
@@ -76,6 +77,7 @@ class SettingsViewModel(
         loadAlarmNotificationSetting()
         loadExactAlarmSetting()
         loadCalendarConflictCheckSetting()
+        loadConflictCalendarSetting()
         viewModelScope.launch {
             sessionRepository.selectedCalendar.collect { calendar ->
                 if (calendar != null) {
@@ -131,6 +133,20 @@ class SettingsViewModel(
         viewModelScope.launch {
             sessionRepository.saveCalendarConflictCheckEnabled(enabled)
             _uiState.update { it.copy(calendarConflictCheckEnabled = enabled) }
+        }
+    }
+
+    private fun loadConflictCalendarSetting() {
+        viewModelScope.launch {
+            val ids = sessionRepository.getConflictCalendarIds()
+            _uiState.update { it.copy(conflictCalendarIds = ids) }
+        }
+    }
+
+    fun setConflictCalendarIds(ids: Set<Long>) {
+        viewModelScope.launch {
+            sessionRepository.saveConflictCalendarIds(ids)
+            _uiState.update { it.copy(conflictCalendarIds = ids) }
         }
     }
 

@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.swimgym.app.ui.viewmodel.SettingsViewModel
+import com.swimgym.app.domain.model.CalendarInfo
 import com.swimgym.app.util.PermissionHelper
 
 @ExperimentalComposeUiApi
@@ -80,6 +81,7 @@ fun SettingsScreen(
     }
 
     var showReleaseNotesDialog by remember { mutableStateOf(false) }
+    var showConflictCalendarPicker by remember { mutableStateOf(false) }
 
     val installApkLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -606,7 +608,43 @@ fun SettingsScreen(
                             onCheckedChange = { viewModel.setCalendarConflictCheckEnabled(it) }
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Calendars to check",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = if (uiState.conflictCalendarIds.isEmpty()) "All calendars"
+                                else "${uiState.conflictCalendarIds.size} calendar(s) selected",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        TextButton(onClick = { showConflictCalendarPicker = true }) {
+                            Text("Choose")
+                        }
+                    }
                 }
+            }
+
+            if (showConflictCalendarPicker) {
+                ConflictCalendarPickerDialog(
+                    availableCalendars = uiState.availableCalendars,
+                    selectedIds = uiState.conflictCalendarIds,
+                    onDismiss = { showConflictCalendarPicker = false },
+                    onConfirm = { ids ->
+                        viewModel.setConflictCalendarIds(ids)
+                        showConflictCalendarPicker = false
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -1070,6 +1108,75 @@ fun SettingsScreen(
             }
         )
     }
+}
+
+@Composable
+fun ConflictCalendarPickerDialog(
+    availableCalendars: List<CalendarInfo>,
+    selectedIds: Set<Long>,
+    onDismiss: () -> Unit,
+    onConfirm: (Set<Long>) -> Unit
+) {
+    var selection by remember { mutableStateOf(selectedIds) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Calendars to check") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { selection = emptySet() },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = selection.isEmpty(),
+                        onCheckedChange = { if (it) selection = emptySet() }
+                    )
+                    Text(
+                        text = "All calendars",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                availableCalendars.forEach { calendar ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selection = if (calendar.id in selection) {
+                                    selection - calendar.id
+                                } else {
+                                    selection + calendar.id
+                                }
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = calendar.id in selection,
+                            onCheckedChange = { checked ->
+                                selection = if (checked) selection + calendar.id else selection - calendar.id
+                            }
+                        )
+                        Text(
+                            text = calendar.displayName,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(selection) }) {
+                Text("OK")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable
