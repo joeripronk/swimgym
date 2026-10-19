@@ -11,6 +11,7 @@ import com.swimgym.app.data.repository.ScheduledBookingStatus
 import com.swimgym.app.data.repository.SessionRepository
 import com.swimgym.app.receiver.ScheduleSyncReceiver
 import com.swimgym.app.receiver.ScheduledBookingReceiver
+import com.swimgym.app.util.addDaysToSeconds
 
 class AlarmScheduler(
     private val context: Context,
@@ -154,9 +155,9 @@ class AlarmScheduler(
         val nowSeconds = System.currentTimeMillis() / 1000
         var startSeconds = booking.startTime
         while (startSeconds < nowSeconds) {
-            startSeconds += 7 * 86400
+            startSeconds = addDaysToSeconds(startSeconds, 7)
         }
-        return (startSeconds - 7 * 86400 + 5 * 60) * 1000L
+        return addDaysToSeconds(startSeconds, -7) * 1000L + 5 * 60 * 1000L
     }
 
     private fun createSyncPendingIntent(): PendingIntent {

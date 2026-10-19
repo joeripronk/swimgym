@@ -6,6 +6,7 @@ import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.util.AlarmScheduler
 import com.swimgym.app.util.BookingNotificationManager
 import com.swimgym.app.util.PermissionHelper
+import com.swimgym.app.util.addDaysToSeconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -55,7 +56,7 @@ class BookingSchedulerImpl(
         activeBookings.forEach { booking ->
             var adjustedStartTime = booking.startTime
             while (adjustedStartTime < now) {
-                adjustedStartTime += WEEK_SECONDS
+                adjustedStartTime = addDaysToSeconds(adjustedStartTime, 7)
             }
             val adjustedBooking = booking.copy(startTime = adjustedStartTime)
             if (adjustedStartTime != booking.startTime) {
@@ -77,7 +78,7 @@ class BookingSchedulerImpl(
         val now = System.currentTimeMillis() / 1000
         var adjustedStartTime = booking.startTime
         while (adjustedStartTime < now) {
-            adjustedStartTime += WEEK_SECONDS
+            adjustedStartTime = addDaysToSeconds(adjustedStartTime, 7)
         }
         val updatedBooking = booking.copy(startTime = adjustedStartTime)
         scheduledBookingRepo.saveBooking(updatedBooking)
@@ -97,7 +98,7 @@ class BookingSchedulerImpl(
         val now = System.currentTimeMillis() / 1000
         var occurrence = booking.startTime
         while (occurrence < now) {
-            occurrence += WEEK_SECONDS
+            occurrence = addDaysToSeconds(occurrence, 7)
         }
 
         val trainings = dao.getAllTrainingsList()
@@ -140,7 +141,7 @@ class BookingSchedulerImpl(
         val farOutBookings = bookings.filter { booking ->
             var occurrence = booking.startTime
             while (occurrence < now) {
-                occurrence += WEEK_SECONDS
+                occurrence = addDaysToSeconds(occurrence, 7)
             }
             occurrence > now + WEEK_SECONDS
         }
@@ -220,7 +221,7 @@ class BookingSchedulerImpl(
         return bookResult.fold(
             onSuccess = {
                 scheduledBookingRepo.incrementBookingCount(booking.id, training)
-                val nextBooking = booking.copy(startTime = training.startTime + WEEK_SECONDS)
+                val nextBooking = booking.copy(startTime = addDaysToSeconds(training.startTime, 7))
                 scheduledBookingRepo.saveBooking(nextBooking)
                 val maxRepeat = booking.maxRepeatCount
                 if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
@@ -273,9 +274,9 @@ class BookingSchedulerImpl(
         if (!windowOpen) {
             var startSeconds = booking.startTime
             while (startSeconds < now + 7 * 86400) {
-                startSeconds += 7 * 86400
+                startSeconds = addDaysToSeconds(startSeconds, 7)
             }
-            val nextAlarmTime = (startSeconds - 7 * 86400 + 5 * 60) * 1000L
+            val nextAlarmTime = addDaysToSeconds(startSeconds, -7) * 1000L + 5 * 60 * 1000L
             val nowMillis = System.currentTimeMillis()
             if (nextAlarmTime > nowMillis) {
                 alarmScheduler.scheduleBooking(booking.id, nextAlarmTime)

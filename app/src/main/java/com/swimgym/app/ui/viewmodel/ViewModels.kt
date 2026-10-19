@@ -10,6 +10,7 @@ import com.swimgym.app.data.repository.ScheduledBooking
 import com.swimgym.app.data.repository.ScheduledBookingRepository
 import com.swimgym.app.data.repository.TrainerImageCache
 import com.swimgym.app.di.SwimGymAppContainer
+import com.swimgym.app.util.addDaysToSeconds
 import com.swimgym.app.domain.model.Booking
 import com.swimgym.app.domain.model.Training
 import com.swimgym.app.domain.repository.SwodLevel
@@ -456,7 +457,7 @@ class ScheduleViewModel(
 
             if (training !=null && training!!.isJoined) {
                 // if the training is already joined skip this one
-                var nexttraining = dao.getTrainingByStartTime(locstartTime+7*86400)
+                var nexttraining = dao.getTrainingByStartTime(addDaysToSeconds(locstartTime, 7))
                 if (nexttraining != null) {
                     locstartTime=nexttraining.startTime
                     locinstructor=nexttraining.instructor

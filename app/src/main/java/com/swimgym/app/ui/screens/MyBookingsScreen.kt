@@ -25,6 +25,7 @@ import com.swimgym.app.data.repository.ScheduledBookingStatus
 import com.swimgym.app.di.SwimGymAppContainer
 import com.swimgym.app.domain.model.Booking
 import com.swimgym.app.domain.model.BookingStatus
+import com.swimgym.app.util.addDaysToSeconds
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.Calendar
@@ -400,9 +401,11 @@ private fun ScheduledBookingCard(
 
 private fun formatTimeUntilNext(nextTime: Long): String {
     val now = System.currentTimeMillis()/1000
-    var diff = nextTime - now - 7 * 86400
-    // if the booking was actually started from this week, adjust
-    if (diff <= 0) diff+=7 * 86400
+    var windowOpen = addDaysToSeconds(nextTime, -7)
+    while (windowOpen <= now) {
+        windowOpen = addDaysToSeconds(windowOpen, 7)
+    }
+    val diff = windowOpen - now
 
     if (diff <= 0) return "soon"
 

@@ -7,6 +7,7 @@ import com.swimgym.app.data.local.entity.TrainingEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import com.swimgym.app.util.addDaysToSeconds
 
 private val Context.scheduledBookingDataStore by preferencesDataStore(name = "scheduled_bookings")
 
@@ -53,7 +54,7 @@ class ScheduledBookingRepository(
         saveBooking(booking.copy(
             bookedCount = booking.bookedCount + 1,
 	    // the only verified source for starttime is from training
-	    startTime = training.startTime + 7 * 86400,
+	    startTime = addDaysToSeconds(training.startTime, 7),
             instructor = training.instructor,
             trainingId = training.id
         ))
