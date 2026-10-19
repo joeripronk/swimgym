@@ -563,7 +563,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Booking Conflict Check",
+                text = "Calendar Conflict Warnings",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(8.dp)
             )
@@ -577,7 +577,7 @@ fun SettingsScreen(
                         .fillMaxWidth()
                 ) {
                     Text(
-                        text = "Check your calendar before booking",
+                        text = "Warn about calendar conflicts for recurring bookings",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -591,11 +591,11 @@ fun SettingsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Skip recurring bookings on calendar conflicts",
+                                text = "Warn on calendar conflicts",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Text(
-                                text = "Skips a recurring booking when a calendar event overlaps the class time (with a 1 hour buffer before and after), and notifies you when a new conflict is detected for an already booked class",
+                                text = "Shows a warning when a recurring booking more than a week ahead collides with a calendar event (with a 1 hour buffer before and after). Bookings are never skipped.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

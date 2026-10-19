@@ -55,8 +55,7 @@ class ScheduledBookingRepository(
 	    // the only verified source for starttime is from training
 	    startTime = training.startTime + 7 * 86400,
             instructor = training.instructor,
-            trainingId = training.id,
-            skippedDueToConflict = false
+            trainingId = training.id
         ))
     }
 
@@ -98,7 +97,7 @@ class ScheduledBookingRepository(
 
     private suspend fun saveAllBookings(bookings: List<ScheduledBooking>) {
         val json = bookings.joinToString(",", "[", "]") { booking ->
-            """{"id":"${escapeJson(booking.id.toString())}","trainingId":"${escapeJson(booking.trainingId)}","className":"${escapeJson(booking.className)}","startTime":${booking.startTime},"instructor":"${escapeJson(booking.instructor)}","status":"${escapeJson(booking.status.name)}","bookedCount":${booking.bookedCount},"maxRepeatCount":${booking.maxRepeatCount?.let { "\"$it\"" } ?: "null"},"createdAt":${booking.createdAt},"skippedDueToConflict":${booking.skippedDueToConflict}}"""
+            """{"id":"${escapeJson(booking.id.toString())}","trainingId":"${escapeJson(booking.trainingId)}","className":"${escapeJson(booking.className)}","startTime":${booking.startTime},"instructor":"${escapeJson(booking.instructor)}","status":"${escapeJson(booking.status.name)}","bookedCount":${booking.bookedCount},"maxRepeatCount":${booking.maxRepeatCount?.let { "\"$it\"" } ?: "null"},"createdAt":${booking.createdAt}}"""
         }
         context.scheduledBookingDataStore.edit { prefs ->
             prefs[bookingsKey] = json
@@ -133,8 +132,6 @@ class ScheduledBookingRepository(
                     ScheduledBookingStatus.ACTIVE
                 }
 
-                val skippedDueToConflict = obj.findValue("skippedDueToConflict")?.toBoolean() ?: false
-
                 if (id == 0L) return@forEach
                 if (trainingId == null || className == null) return@forEach
                 result.add(
@@ -147,8 +144,7 @@ class ScheduledBookingRepository(
                         status = status,
                         bookedCount = bookedCount,
                         maxRepeatCount = maxRepeatCount,
-                        createdAt = createdAt,
-                        skippedDueToConflict = skippedDueToConflict
+                        createdAt = createdAt
                     )
                 )
             } catch (e: Exception) {

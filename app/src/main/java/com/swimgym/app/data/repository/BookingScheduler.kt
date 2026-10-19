@@ -13,6 +13,19 @@ interface BookingScheduler {
     suspend fun checkBookings()
     suspend fun processSingleBooking(bookingId: Long): Boolean
     suspend fun checkCalendarConflicts()
+    suspend fun simulateBooking(booking: ScheduledBooking): DryRunResult
+}
+
+sealed interface DryRunResult {
+    data class Ok(val training: TrainingEntity, val bookable: Boolean) : DryRunResult
+    data class Renamed(val newName: String) : DryRunResult
+    data class NotAvailable(val reason: String) : DryRunResult
+    data class Conflict(
+        val training: TrainingEntity,
+        val conflictTitle: String,
+        val conflicts: List<CalendarEventInfo>,
+        val bookable: Boolean
+    ) : DryRunResult
 }
 
 class BookingSchedulerImpl(
@@ -28,159 +41,193 @@ class BookingSchedulerImpl(
 
     companion object {
         private const val CALENDAR_CONFLICT_BUFFER_SECONDS = 60 * 60
+        private const val WEEK_SECONDS = 7 * 86400
+        private const val MIN_LEAD_SECONDS = 2 * 86400
     }
 
     override suspend fun checkBookings() = withContext(Dispatchers.IO) {
-        val calendar = java.util.Calendar.getInstance()
-        val now = calendar.timeInMillis / 1000
+        val now = System.currentTimeMillis() / 1000
         val bookings = scheduledBookingRepo.getAllBookings()
         if (bookings.isNullOrEmpty()) return@withContext
-
-        val trainings = dao.getAllTrainingsList()
-        if (trainings.isNullOrEmpty()) {
-            return@withContext
-        }
 
         val activeBookings = bookings.filter { it.status == ScheduledBookingStatus.ACTIVE }
 
         activeBookings.forEach { booking ->
-            if (booking.skippedDueToConflict) {
-                scheduledBookingRepo.saveBooking(booking.copy(skippedDueToConflict = false))
-                return@forEach
-            }
             var adjustedStartTime = booking.startTime
             while (adjustedStartTime < now) {
-                adjustedStartTime += 7 * 86400
+                adjustedStartTime += WEEK_SECONDS
             }
+            val adjustedBooking = booking.copy(startTime = adjustedStartTime)
             if (adjustedStartTime != booking.startTime) {
-                scheduledBookingRepo.saveBooking(booking.copy(startTime = adjustedStartTime))
+                scheduledBookingRepo.saveBooking(adjustedBooking)
             }
-            val training = getNextTraining(adjustedStartTime, booking.className, trainings, notificationManager) ?: return@forEach
-            val res = getTrainingDetails(training)
-            if (!res.isSuccess) {
-                showRetryNotification(booking)
-                rescheduleAlarmForRetry(booking)
-                return@forEach
+            when (val dryRun = simulateBooking(adjustedBooking)) {
+                is DryRunResult.Ok -> if (dryRun.bookable) attemptBooking(adjustedBooking, dryRun.training, scheduleNextAlarm = false)
+                is DryRunResult.Conflict -> if (dryRun.bookable) attemptBooking(adjustedBooking, dryRun.training, scheduleNextAlarm = false)
+                is DryRunResult.Renamed -> notificationManager.showTrainingRenamed(booking.className, dryRun.newName)
+                is DryRunResult.NotAvailable -> Unit
             }
-            val updtraining = res.getOrThrow()
-            if (updtraining.isJoined) {
-                scheduledBookingRepo.incrementBookingCount(booking.id, training)
-                val maxRepeat = booking.maxRepeatCount
-                if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
-                    scheduledBookingRepo.completeBooking(booking.id)
-                }
-                return@forEach
-            }
-            if (updtraining.isFull) {
-                return@forEach
-            }
-            val conflicts = findCalendarConflict(updtraining)
-            if (conflicts.isNotEmpty()) {
-                skipBookingDueToConflict(booking, adjustedStartTime, training, conflicts)
-                return@forEach
-            }
-            val bookResult = apiClient.bookTraining(training)
-            bookResult.fold(
-                onSuccess = {
-                    scheduledBookingRepo.incrementBookingCount(booking.id, training)
-                    val nextBooking = booking.copy(startTime = adjustedStartTime + 7 * 86400)
-                    scheduledBookingRepo.saveBooking(nextBooking)
-                    val maxRepeat = booking.maxRepeatCount
-                    if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
-                        scheduledBookingRepo.completeBooking(booking.id)
-                    }
-                    notificationManager.showBookingConfirmation(
-                        trainingName = training.title,
-                        classTime = training.classTime,
-                        classDate = training.classDate,
-                        instructor = training.instructor,
-                        isScheduledBooking = true,
-                        location = training.location,
-                        spotsAvailable = training.spotsAvailable,
-                        bookingCount = booking.bookedCount,
-                        maxRepeatCount = booking.maxRepeatCount
-                    )
-                },
-                onFailure = {
-                    showRetryNotification(booking)
-                    rescheduleAlarmForRetry(booking)
-                }
-            )
         }
     }
 
     override suspend fun processSingleBooking(bookingId: Long): Boolean = withContext(Dispatchers.IO) {
-        var booking = scheduledBookingRepo.getBooking(bookingId) ?: return@withContext false
+        val booking = scheduledBookingRepo.getBooking(bookingId) ?: return@withContext false
         if (booking.status != ScheduledBookingStatus.ACTIVE) return@withContext false
-        if (booking.skippedDueToConflict) {
-            scheduledBookingRepo.saveBooking(booking.copy(skippedDueToConflict = false))
-            return@withContext true
-        }
-
-        val trainings = dao.getAllTrainingsList() ?: run {
-            showRetryNotification(booking)
-            rescheduleAlarmForRetry(booking)
-            return@withContext false
-        }
-        if (trainings.isEmpty()) {
-            showRetryNotification(booking)
-            rescheduleAlarmForRetry(booking)
-            return@withContext false
-        }
 
         val now = System.currentTimeMillis() / 1000
         var adjustedStartTime = booking.startTime
         while (adjustedStartTime < now) {
-            adjustedStartTime += 7 * 86400
+            adjustedStartTime += WEEK_SECONDS
         }
-
         val updatedBooking = booking.copy(startTime = adjustedStartTime)
         scheduledBookingRepo.saveBooking(updatedBooking)
 
-        val training = getNextTraining(adjustedStartTime, booking.className, trainings, notificationManager) ?: return@withContext false
+        when (val dryRun = simulateBooking(updatedBooking)) {
+            is DryRunResult.Ok -> dryRun.bookable && attemptBooking(updatedBooking, dryRun.training, scheduleNextAlarm = true)
+            is DryRunResult.Conflict -> dryRun.bookable && attemptBooking(updatedBooking, dryRun.training, scheduleNextAlarm = true)
+            is DryRunResult.Renamed -> {
+                notificationManager.showTrainingRenamed(booking.className, dryRun.newName)
+                true
+            }
+            is DryRunResult.NotAvailable -> false
+        }
+    }
+
+    override suspend fun simulateBooking(booking: ScheduledBooking): DryRunResult = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis() / 1000
+        var occurrence = booking.startTime
+        while (occurrence < now) {
+            occurrence += WEEK_SECONDS
+        }
+
+        val trainings = dao.getAllTrainingsList()
+        if (trainings.isNullOrEmpty()) {
+            return@withContext DryRunResult.NotAvailable("no cached trainings")
+        }
+        val training = trainings.find { it.startTime == occurrence }
+            ?: return@withContext DryRunResult.NotAvailable("class not in schedule")
+        if (!training.title.equals(booking.className, ignoreCase = true)) {
+            return@withContext DryRunResult.Renamed(training.title)
+        }
+
+        val duration = if (training.endTime > training.startTime) training.endTime - training.startTime else 3600L
+        val conflicts = findCalendarConflict(
+            startSeconds = occurrence,
+            endSeconds = occurrence + duration,
+            excludeEventId = training.eventId.ifBlank { null },
+            excludeTitle = training.title
+        )
+        if (conflicts.isNotEmpty()) {
+            val bookable = occurrence >= now + MIN_LEAD_SECONDS && occurrence <= now + WEEK_SECONDS
+            return@withContext DryRunResult.Conflict(
+                training = training,
+                conflictTitle = conflicts.first().title.ifBlank { "a calendar event" },
+                conflicts = conflicts,
+                bookable = bookable
+            )
+        }
+        val bookable = occurrence >= now + MIN_LEAD_SECONDS && occurrence <= now + WEEK_SECONDS
+        DryRunResult.Ok(training, bookable)
+    }
+
+    override suspend fun checkCalendarConflicts() = withContext(Dispatchers.IO) {
+        if (!sessionRepository.getCalendarConflictCheckEnabled()) return@withContext
+        if (!PermissionHelper.hasCalendarReadPermission(context)) return@withContext
+
+        val now = System.currentTimeMillis() / 1000
+        val bookings = scheduledBookingRepo.getAllBookings()
+            .filter { it.status == ScheduledBookingStatus.ACTIVE }
+        val farOutBookings = bookings.filter { booking ->
+            var occurrence = booking.startTime
+            while (occurrence < now) {
+                occurrence += WEEK_SECONDS
+            }
+            occurrence > now + WEEK_SECONDS
+        }
+        if (farOutBookings.isEmpty()) {
+            if (sessionRepository.getConflictNotifiedIds().isNotEmpty()) {
+                sessionRepository.saveConflictNotifiedIds(emptySet())
+            }
+            return@withContext
+        }
+
+        val alreadyNotified = sessionRepository.getConflictNotifiedIds()
+        val notifiedKeys = mutableSetOf<String>()
+        farOutBookings.forEach { booking ->
+            when (val dryRun = simulateBooking(booking)) {
+                is DryRunResult.Conflict -> {
+                    val key = "c-${booking.id}"
+                    notifiedKeys.add(key)
+                    if (key !in alreadyNotified) {
+                        notificationManager.showScheduledBookingConflictWarning(
+                            bookingId = booking.id,
+                            trainingName = booking.className,
+                            classDate = dryRun.training.classDate,
+                            classTime = dryRun.training.classTime,
+                            instructor = dryRun.training.instructor.ifBlank { booking.instructor },
+                            conflictTitle = dryRun.conflictTitle
+                        )
+                    }
+                }
+                is DryRunResult.NotAvailable -> {
+                    val key = "na-${booking.id}"
+                    notifiedKeys.add(key)
+                    if (key !in alreadyNotified) {
+                        notificationManager.showScheduledBookingNotAvailable(
+                            bookingId = booking.id,
+                            trainingName = booking.className,
+                            reason = dryRun.reason
+                        )
+                    }
+                }
+                is DryRunResult.Renamed -> {
+                    val key = "r-${booking.id}"
+                    notifiedKeys.add(key)
+                    if (key !in alreadyNotified) {
+                        notificationManager.showTrainingRenamed(booking.className, dryRun.newName)
+                    }
+                }
+                is DryRunResult.Ok -> Unit
+            }
+        }
+        sessionRepository.saveConflictNotifiedIds(notifiedKeys)
+    }
+
+    private suspend fun attemptBooking(
+        booking: ScheduledBooking,
+        training: TrainingEntity,
+        scheduleNextAlarm: Boolean
+    ): Boolean {
         val res = getTrainingDetails(training)
         if (!res.isSuccess) {
             showRetryNotification(booking)
-            rescheduleAlarmForRetry(updatedBooking)
-            return@withContext false
+            rescheduleAlarmForRetry(booking)
+            return false
         }
-
         val updtraining = res.getOrThrow()
-
         if (updtraining.isJoined) {
-            scheduledBookingRepo.incrementBookingCount(bookingId, training)
+            scheduledBookingRepo.incrementBookingCount(booking.id, training)
             val maxRepeat = booking.maxRepeatCount
             if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
-                scheduledBookingRepo.completeBooking(bookingId)
+                scheduledBookingRepo.completeBooking(booking.id)
             }
-            return@withContext true
+            return true
         }
-
         if (updtraining.isFull) {
-            return@withContext false
+            return false
         }
-
-        val conflicts = findCalendarConflict(updtraining)
-        if (conflicts.isNotEmpty()) {
-            skipBookingDueToConflict(updatedBooking, updatedBooking.startTime, training, conflicts)
-            return@withContext true
-        }
-
         val bookResult = apiClient.bookTraining(training)
-        bookResult.fold(
+        return bookResult.fold(
             onSuccess = {
-                scheduledBookingRepo.incrementBookingCount(bookingId, training)
-
-                val nextBooking = updatedBooking.copy(startTime = updatedBooking.startTime + 7 * 86400)
+                scheduledBookingRepo.incrementBookingCount(booking.id, training)
+                val nextBooking = booking.copy(startTime = training.startTime + WEEK_SECONDS)
                 scheduledBookingRepo.saveBooking(nextBooking)
-
                 val maxRepeat = booking.maxRepeatCount
                 if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
-                    scheduledBookingRepo.completeBooking(bookingId)
-                } else {
-                    alarmScheduler.scheduleBooking(bookingId,nextBooking.startTime * 1000)
+                    scheduledBookingRepo.completeBooking(booking.id)
+                } else if (scheduleNextAlarm) {
+                    alarmScheduler.scheduleBooking(booking.id, nextBooking.startTime * 1000)
                 }
-
                 notificationManager.showBookingConfirmation(
                     trainingName = training.title,
                     classTime = training.classTime,
@@ -192,84 +239,32 @@ class BookingSchedulerImpl(
                     bookingCount = booking.bookedCount,
                     maxRepeatCount = booking.maxRepeatCount
                 )
+                true
             },
             onFailure = {
-                showRetryNotification(updatedBooking)
-                rescheduleAlarmForRetry(updatedBooking)
+                showRetryNotification(booking)
+                rescheduleAlarmForRetry(booking)
+                false
             }
         )
-        return@withContext true
     }
 
-    override suspend fun checkCalendarConflicts() = withContext(Dispatchers.IO) {
-        if (!sessionRepository.getCalendarConflictCheckEnabled()) return@withContext
-        if (!PermissionHelper.hasCalendarReadPermission(context)) return@withContext
-
-        val trainings = dao.getAllTrainingsList()
-        if (trainings.isNullOrEmpty()) return@withContext
-
-        val now = System.currentTimeMillis() / 1000
-        val upcomingBooked = trainings.filter {
-            it.isJoined && it.startTime > now
-        }
-        if (upcomingBooked.isEmpty()) return@withContext
-
-        val conflicts = upcomingBooked.mapNotNull { training ->
-            val found = findCalendarConflict(training)
-            if (found.isEmpty()) null else training to found
-        }
-
-        if (conflicts.isEmpty()) {
-            if (sessionRepository.getConflictNotifiedIds().isNotEmpty()) {
-                sessionRepository.saveConflictNotifiedIds(emptySet())
-            }
-            return@withContext
-        }
-
-        val alreadyNotified = sessionRepository.getConflictNotifiedIds()
-        conflicts.forEach { (training, found) ->
-            if (training.id in alreadyNotified) return@forEach
-            val conflictTitle = found.first().title.ifBlank { "a calendar event" }
-            notificationManager.showCalendarConflictDetected(
-                trainingId = training.id,
-                trainingName = training.title,
-                classDate = training.classDate,
-                classTime = training.classTime,
-                instructor = training.instructor,
-                conflictTitle = conflictTitle
-            )
-        }
-        sessionRepository.saveConflictNotifiedIds(conflicts.map { it.first.id }.toSet())
-    }
-
-    private suspend fun findCalendarConflict(training: TrainingEntity): List<CalendarEventInfo> {
+    private suspend fun findCalendarConflict(
+        startSeconds: Long,
+        endSeconds: Long,
+        excludeEventId: String?,
+        excludeTitle: String
+    ): List<CalendarEventInfo> {
         if (!sessionRepository.getCalendarConflictCheckEnabled()) return emptyList()
         if (!PermissionHelper.hasCalendarReadPermission(context)) return emptyList()
-        val windowStartMillis = (training.startTime - CALENDAR_CONFLICT_BUFFER_SECONDS) * 1000
-        val windowEndMillis = (training.endTime + CALENDAR_CONFLICT_BUFFER_SECONDS) * 1000
+        val windowStartMillis = (startSeconds - CALENDAR_CONFLICT_BUFFER_SECONDS) * 1000
+        val windowEndMillis = (endSeconds + CALENDAR_CONFLICT_BUFFER_SECONDS) * 1000
         return calendarService.findConflictingEvents(
             startMillis = windowStartMillis,
             endMillis = windowEndMillis,
-            excludeEventId = training.eventId.ifBlank { null },
-            excludeTitle = training.title
+            excludeEventId = excludeEventId,
+            excludeTitle = excludeTitle
         )
-    }
-
-    private suspend fun skipBookingDueToConflict(
-        booking: ScheduledBooking,
-        occurrenceStartTime: Long,
-        training: TrainingEntity,
-        conflicts: List<CalendarEventInfo>
-    ) {
-        val conflictTitle = conflicts.first().title.ifBlank { "a calendar event" }
-        notificationManager.showBookingSkippedDueToConflict(
-            trainingName = training.title,
-            classDate = training.classDate,
-            classTime = training.classTime,
-            instructor = training.instructor,
-            conflictTitle = conflictTitle
-        )
-        scheduledBookingRepo.saveBooking(booking.copy(skippedDueToConflict = true))
     }
 
     private suspend fun rescheduleAlarmForRetry(booking: ScheduledBooking) {
@@ -370,38 +365,6 @@ class BookingSchedulerImpl(
         } catch (e: Exception) {
             Result.failure(e)
         }
-    }
-
-    private fun getNextTraining(
-        startTime: Long,
-        title: String,
-        trainings: List<TrainingEntity>,
-        notificationManager: BookingNotificationManager
-    ): TrainingEntity? {
-        val calendar = java.util.Calendar.getInstance()
-        val now = calendar.timeInMillis / 1000
-        var nexttime = startTime
-        val week = 7 * 86400
-        while (nexttime < now) {
-            nexttime += week
-        }
-        if (nexttime > now + week) {
-            return null
-        }
-        if (nexttime < now + 2*86400) {
-            return null
-        }
-
-        for (training in trainings) {
-            if (training.startTime == nexttime) {
-                if (training.title.equals(title, ignoreCase = true)) {
-                    return training
-                } else {
-                    notificationManager.showTrainingRenamed(title, training.title)
-                }
-            }
-        }
-        return null
     }
 
 }

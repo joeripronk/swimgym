@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import com.swimgym.app.data.repository.CalendarEventInfo
+import com.swimgym.app.data.repository.DryRunResult
 import com.swimgym.app.data.repository.ScheduledBooking
 import com.swimgym.app.data.repository.ScheduledBookingStatus
 import com.swimgym.app.di.SwimGymAppContainer
@@ -244,22 +245,16 @@ private fun ScheduledBookingCard(
         }
     }
 
-    var conflictEvents by remember { mutableStateOf(emptyList<CalendarEventInfo>()) }
+    var dryRunResult by remember { mutableStateOf<DryRunResult?>(null) }
 
-    LaunchedEffect(scheduled.id) {
-        val calendarService = SwimGymAppContainer.getInstance().calendarService
-        val dao = SwimGymAppContainer.getInstance().dao
-        val training = dao.getTrainingById(scheduled.trainingId)
-        if (training != null) {
-            val duration = training.endTime - training.startTime
-            conflictEvents = calendarService.findConflictingEvents(
-                startMillis = (scheduled.startTime - 3600) * 1000,
-                endMillis = (scheduled.startTime + duration + 3600) * 1000,
-                excludeEventId = training.eventId.ifBlank { null },
-                excludeTitle = training.title
-            )
-        }
+    LaunchedEffect(scheduled.id, scheduled.startTime) {
+        dryRunResult = SwimGymAppContainer.getInstance().bookingScheduler.simulateBooking(scheduled)
     }
+
+    val conflictEvents = (dryRunResult as? DryRunResult.Conflict)
+        ?.conflicts
+        ?.takeIf { scheduled.startTime > System.currentTimeMillis() / 1000 + 7 * 86400 }
+        ?: emptyList()
 
     Card(
         modifier = Modifier.fillMaxWidth()
@@ -291,10 +286,9 @@ private fun ScheduledBookingCard(
                         )
                     }
                     Text(
-                        text = if (scheduled.skippedDueToConflict) "Skipped (calendar conflict)" else "Status: ${scheduled.status.name}",
+                        text = "Status: ${scheduled.status.name}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = when {
-                            scheduled.skippedDueToConflict -> MaterialTheme.colorScheme.tertiary
                             scheduled.status == ScheduledBookingStatus.ACTIVE -> MaterialTheme.colorScheme.primary
                             scheduled.status == ScheduledBookingStatus.PAUSED -> MaterialTheme.colorScheme.tertiary
                             scheduled.status == ScheduledBookingStatus.COMPLETED -> MaterialTheme.colorScheme.outline
@@ -302,12 +296,38 @@ private fun ScheduledBookingCard(
                             else -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
                     )
-                    if (scheduled.skippedDueToConflict) {
-                        Text(
-                            text = "Skipped this week: calendar conflict detected",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.tertiary
-                        )
+                    when (val dryRun = dryRunResult) {
+                        is DryRunResult.Ok -> {
+                            Text(
+                                text = "Dry-run: ready to book",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        is DryRunResult.Renamed -> {
+                            Text(
+                                text = "Dry-run: training renamed to ${dryRun.newName}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.tertiary
+                            )
+                        }
+                        is DryRunResult.NotAvailable -> {
+                            Text(
+                                text = "Dry-run: not available (${dryRun.reason})",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.tertiary
+                            )
+                        }
+                        is DryRunResult.Conflict -> {
+                            if (conflictEvents.isNotEmpty()) {
+                                Text(
+                                    text = "Dry-run: calendar conflict (${dryRun.conflictTitle})",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.tertiary
+                                )
+                            }
+                        }
+                        null -> Unit
                     }
                     if (conflictEvents.isNotEmpty()) {
                         Card(

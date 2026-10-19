@@ -115,125 +115,12 @@ class BookingSchedulerTest {
         )
     }
 
-    private fun getNextTraining(startTime: Long, title: String, trainings: List<TrainingEntity>): TrainingEntity? {
-        val method = BookingSchedulerImpl::class.java.getDeclaredMethod(
-            "getNextTraining",
-            Long::class.java,
-            String::class.java,
-            List::class.java,
-            BookingNotificationManager::class.java
-        )
-        method.isAccessible = true
-        @Suppress("UNCHECKED_CAST")
-        return method.invoke(scheduler, startTime, title, trainings, notificationManager) as? TrainingEntity
-    }
-
-    @Test
-    fun `getNextTraining returns training when title matches`() = testScope.runTest {
-        val now = System.currentTimeMillis() / 1000
-        val nextTime = now + 3 * 86400
-        val training = createTraining("t1", "Laps Swimming", nextTime)
-
-        val result = getNextTraining(nextTime, "Laps Swimming", listOf(training))
-        assertNotNull(result)
-        assertEquals("Laps Swimming", result?.title)
-    }
-
-    @Test
-    fun `getNextTraining returns null when title does not match`() = testScope.runTest {
-        val now = System.currentTimeMillis() / 1000
-        val nextTime = now + 3 * 86400
-        val training = createTraining("t1", "Water Polo", nextTime)
-
-        val result = getNextTraining(nextTime, "Laps Swimming", listOf(training))
-        assertNull(result)
-    }
-
-    @Test
-    fun `getNextTraining shows renamed notification when title mismatch`() = testScope.runTest {
-        val now = System.currentTimeMillis() / 1000
-        val nextTime = now + 3 * 86400
-        val training = createTraining("t1", "Advanced Laps", nextTime)
-
-        getNextTraining(nextTime, "Laps Swimming", listOf(training))
-
-        verify { notificationManager.showTrainingRenamed("Laps Swimming", "Advanced Laps") }
-    }
-
-    @Test
-    fun `getNextTraining returns null for training within 2 days`() = testScope.runTest {
-        val now = System.currentTimeMillis() / 1000
-        val nextTime = now + 86400 // 1 day from now
-        val training = createTraining("t1", "Laps Swimming", nextTime)
-
-        val result = getNextTraining(nextTime, "Laps Swimming", listOf(training))
-        assertNull(result)
-    }
-
-    @Test
-    fun `getNextTraining returns null for training more than 1 week away`() = testScope.runTest {
-        val now = System.currentTimeMillis() / 1000
-        val nextTime = now + 10 * 86400 // 10 days from now
-        val training = createTraining("t1", "Laps Swimming", nextTime)
-
-        val result = getNextTraining(nextTime, "Laps Swimming", listOf(training))
-        assertNull(result)
-    }
-
-    @Test
-    fun `getNextTraining case insensitive title match`() = testScope.runTest {
-        val now = System.currentTimeMillis() / 1000
-        val nextTime = now + 3 * 86400
-        val training = createTraining("t1", "laps swimming", nextTime)
-
-        val result = getNextTraining(nextTime, "LAPS SWIMMING", listOf(training))
-        assertNotNull(result)
-    }
-
-    @Test
-    fun `getNextTraining returns null when no trainings in list`() = testScope.runTest {
-        val now = System.currentTimeMillis() / 1000
-        val nextTime = now + 3 * 86400
-
-        val result = getNextTraining(nextTime, "Laps Swimming", emptyList())
-        assertNull(result)
-    }
-
-    @Test
-    fun `getNextTraining finds match among multiple trainings`() = testScope.runTest {
-        val now = System.currentTimeMillis() / 1000
-        val nextTime = now + 3 * 86400
-        val training1 = createTraining("t1", "Water Polo", nextTime)
-        val training2 = createTraining("t2", "Laps Swimming", nextTime)
-
-        val result = getNextTraining(nextTime, "Laps Swimming", listOf(training1, training2))
-        assertNotNull(result)
-        assertEquals("t2", result?.id)
-    }
-
-    @Test
-    fun `getNextTraining returns first matching training`() = testScope.runTest {
-        val now = System.currentTimeMillis() / 1000
-        val nextTime = now + 3 * 86400
-        val training1 = createTraining("t1", "Laps Swimming", nextTime)
-        val training2 = createTraining("t2", "Laps Swimming", nextTime)
-
-        val result = getNextTraining(nextTime, "Laps Swimming", listOf(training1, training2))
-        assertNotNull(result)
-        assertEquals("t1", result?.id)
-    }
-
-    @Test
-    fun `getNextTraining returns null when matching training has different time`() = testScope.runTest {
-        val now = System.currentTimeMillis() / 1000
-        val nextTime = now + 3 * 86400
-        val training = createTraining("t1", "Laps Swimming", nextTime + 7 * 86400)
-
-        val result = getNextTraining(nextTime, "Laps Swimming", listOf(training))
-        assertNull(result)
-    }
-
-    private fun invokeFindCalendarConflict(training: TrainingEntity): List<CalendarEventInfo> {
+    private fun invokeFindCalendarConflict(
+        startSeconds: Long,
+        endSeconds: Long,
+        excludeEventId: String?,
+        excludeTitle: String
+    ): List<CalendarEventInfo> {
         var asyncResult: List<CalendarEventInfo>? = null
         val method = BookingSchedulerImpl::class.java.declaredMethods.first { it.name == "findCalendarConflict" }
         method.isAccessible = true
@@ -244,7 +131,7 @@ class BookingSchedulerTest {
             }
         }
         @Suppress("UNCHECKED_CAST")
-        val returned = method.invoke(scheduler, training, continuation)
+        val returned = method.invoke(scheduler, startSeconds, endSeconds, excludeEventId, excludeTitle, continuation)
         return if (returned === COROUTINE_SUSPENDED) {
             checkNotNull(asyncResult)
         } else {
@@ -276,9 +163,9 @@ class BookingSchedulerTest {
         val conflict = CalendarEventInfo(id = 5, title = "Work meeting", startMillis = 1000, endMillis = 2000)
         coEvery { calendarService.findConflictingEvents(any(), any(), any(), any()) } returns listOf(conflict)
         val now = System.currentTimeMillis() / 1000
-        val training = createTraining("t1", "Laps Swimming", now + 3 * 86400)
+        val startTime = now + 3 * 86400
 
-        val result = invokeFindCalendarConflict(training)
+        val result = invokeFindCalendarConflict(startTime, startTime + 3600, null, "Laps Swimming")
 
         assertEquals(listOf(conflict), result)
     }
@@ -287,28 +174,28 @@ class BookingSchedulerTest {
     fun `findCalendarConflict returns empty when feature disabled`() = testScope.runTest {
         coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns false
         val now = System.currentTimeMillis() / 1000
-        val training = createTraining("t1", "Laps Swimming", now + 3 * 86400)
+        val startTime = now + 3 * 86400
 
-        val result = invokeFindCalendarConflict(training)
+        val result = invokeFindCalendarConflict(startTime, startTime + 3600, null, "Laps Swimming")
 
         assertTrue(result.isEmpty())
         coVerify(exactly = 0) { calendarService.findConflictingEvents(any(), any(), any(), any()) }
     }
 
     @Test
-    fun `findCalendarConflict uses one hour buffer before and after training`() = testScope.runTest {
+    fun `findCalendarConflict uses one hour buffer before and after window`() = testScope.runTest {
         coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns true
         coEvery { calendarService.findConflictingEvents(any(), any(), any(), any()) } returns emptyList()
         val now = System.currentTimeMillis() / 1000
         val startTime = now + 3 * 86400
-        val training = createTraining("t1", "Laps Swimming", startTime)
+        val endTime = startTime + 3600
 
-        invokeFindCalendarConflict(training)
+        invokeFindCalendarConflict(startTime, endTime, null, "Laps Swimming")
 
         coVerify {
             calendarService.findConflictingEvents(
                 (startTime - 3600) * 1000,
-                (startTime + 3600 + 3600) * 1000,
+                (endTime + 3600) * 1000,
                 null,
                 "Laps Swimming"
             )
@@ -320,15 +207,102 @@ class BookingSchedulerTest {
         coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns true
         coEvery { calendarService.findConflictingEvents(any(), any(), any(), any()) } returns emptyList()
         val now = System.currentTimeMillis() / 1000
-        val training = createTraining("t1", "Laps Swimming", now + 3 * 86400).copy(eventId = "42")
+        val startTime = now + 3 * 86400
 
-        invokeFindCalendarConflict(training)
+        invokeFindCalendarConflict(startTime, startTime + 3600, "42", "Laps Swimming")
 
         coVerify { calendarService.findConflictingEvents(any(), any(), "42", "Laps Swimming") }
     }
 
     @Test
-    fun `processSingleBooking skips booking when calendar conflict is detected`() = testScope.runTest {
+    fun `simulateBooking returns Ok when class available and no conflict`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 3 * 86400
+        val booking = ScheduledBooking(id = 1L, trainingId = "t1", className = "Laps Swimming", startTime = startTime)
+        val training = createTraining("t1", "Laps Swimming", startTime)
+
+        coEvery { dao.getAllTrainingsList() } returns listOf(training)
+        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns true
+        coEvery { calendarService.findConflictingEvents(any(), any(), any(), any()) } returns emptyList()
+
+        val result = scheduler.simulateBooking(booking)
+
+        assertTrue(result is DryRunResult.Ok)
+        assertEquals("t1", (result as DryRunResult.Ok).training.id)
+        assertTrue(result.bookable)
+    }
+
+    @Test
+    fun `simulateBooking returns Ok with bookable false when window not open`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 10 * 86400
+        val booking = ScheduledBooking(id = 1L, trainingId = "t1", className = "Laps Swimming", startTime = startTime)
+        val training = createTraining("t1", "Laps Swimming", startTime)
+
+        coEvery { dao.getAllTrainingsList() } returns listOf(training)
+        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns true
+        coEvery { calendarService.findConflictingEvents(any(), any(), any(), any()) } returns emptyList()
+
+        val result = scheduler.simulateBooking(booking)
+
+        assertTrue(result is DryRunResult.Ok)
+        assertFalse((result as DryRunResult.Ok).bookable)
+    }
+
+    @Test
+    fun `simulateBooking returns Renamed when class title changed`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 10 * 86400
+        val booking = ScheduledBooking(id = 1L, trainingId = "t1", className = "Laps Swimming", startTime = startTime)
+        val training = createTraining("t1", "Advanced Laps", startTime)
+
+        coEvery { dao.getAllTrainingsList() } returns listOf(training)
+
+        val result = scheduler.simulateBooking(booking)
+
+        assertTrue(result is DryRunResult.Renamed)
+        assertEquals("Advanced Laps", (result as DryRunResult.Renamed).newName)
+    }
+
+    @Test
+    fun `simulateBooking returns NotAvailable when class not in schedule`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 10 * 86400
+        val booking = ScheduledBooking(id = 1L, trainingId = "t1", className = "Laps Swimming", startTime = startTime)
+
+        coEvery { dao.getAllTrainingsList() } returns emptyList()
+
+        val result = scheduler.simulateBooking(booking)
+
+        assertTrue(result is DryRunResult.NotAvailable)
+    }
+
+    @Test
+    fun `simulateBooking returns Conflict when calendar event overlaps`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 10 * 86400
+        val booking = ScheduledBooking(id = 1L, trainingId = "t1", className = "Laps Swimming", startTime = startTime)
+        val training = createTraining("t1", "Laps Swimming", startTime)
+        val conflict = CalendarEventInfo(
+            id = 5,
+            title = "Work meeting",
+            startMillis = startTime * 1000,
+            endMillis = (startTime + 3600) * 1000
+        )
+
+        coEvery { dao.getAllTrainingsList() } returns listOf(training)
+        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns true
+        coEvery { calendarService.findConflictingEvents(any(), any(), any(), any()) } returns listOf(conflict)
+
+        val result = scheduler.simulateBooking(booking)
+
+        assertTrue(result is DryRunResult.Conflict)
+        assertEquals("Work meeting", (result as DryRunResult.Conflict).conflictTitle)
+        assertFalse(result.bookable)
+    }
+
+    @Test
+    fun `processSingleBooking books despite calendar conflict`() = testScope.runTest {
         val now = System.currentTimeMillis() / 1000
         val startTime = now + 3 * 86400
         val booking = ScheduledBooking(id = 1L, trainingId = "t1", className = "Laps Swimming", startTime = startTime)
@@ -345,23 +319,13 @@ class BookingSchedulerTest {
         coEvery { dao.getAllTrainingsList() } returns listOf(training)
         apiClient.htmlToReturn = trainingDetailsDocument("Laps Swimming")
         coEvery { calendarService.findConflictingEvents(any(), any(), any(), any()) } returns listOf(conflict)
+        apiClient.bookResult = Result.success(Unit)
 
         val result = scheduler.processSingleBooking(1L)
 
         assertTrue(result)
-        assertFalse(apiClient.bookTrainingCalled)
-        verify {
-            notificationManager.showBookingSkippedDueToConflict(
-                "Laps Swimming",
-                training.classDate,
-                training.classTime,
-                "John",
-                "Work meeting"
-            )
-        }
-        coVerify(exactly = 2) { scheduledBookingRepo.saveBooking(any()) }
-        coVerify(exactly = 0) { scheduledBookingRepo.pauseBooking(any()) }
-        coVerify(exactly = 0) { alarmScheduler.scheduleBooking(any(), any()) }
+        assertTrue(apiClient.bookTrainingCalled)
+        verify(exactly = 0) { notificationManager.showScheduledBookingConflictWarning(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -382,64 +346,122 @@ class BookingSchedulerTest {
 
         assertTrue(result)
         assertTrue(apiClient.bookTrainingCalled)
-        verify(exactly = 0) { notificationManager.showBookingSkippedDueToConflict(any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { notificationManager.showScheduledBookingConflictWarning(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
-    fun `processSingleBooking skips when already marked as skipped due to conflict`() = testScope.runTest {
+    fun `checkCalendarConflicts warns when scheduled booking more than 7 days in future collides`() = testScope.runTest {
         val now = System.currentTimeMillis() / 1000
-        val startTime = now + 3 * 86400
+        val startTime = now + 10 * 86400
         val booking = ScheduledBooking(
             id = 1L,
             trainingId = "t1",
             className = "Laps Swimming",
             startTime = startTime,
-            skippedDueToConflict = true
+            instructor = "John"
         )
-
-        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns true
-        coEvery { scheduledBookingRepo.getBooking(1L) } returns booking
-        coEvery { dao.getAllTrainingsList() } returns emptyList()
-
-        val savedBookings = mutableListOf<ScheduledBooking>()
-        coEvery { scheduledBookingRepo.saveBooking(any()) } coAnswers { savedBookings.add(firstArg()) }
-
-        val result = scheduler.processSingleBooking(1L)
-
-        assertTrue(result)
-        assertFalse(apiClient.bookTrainingCalled)
-        coVerify(exactly = 0) { dao.getAllTrainingsList() }
-        // flag should be cleared so next week the scheduler tries again
-        assertFalse(savedBookings.last().skippedDueToConflict)
-    }
-
-    @Test
-    fun `processSingleBooking clears skippedDueToConflict flag on successful booking`() = testScope.runTest {
-        val now = System.currentTimeMillis() / 1000
-        val startTime = now + 3 * 86400
         val training = createTraining("t1", "Laps Swimming", startTime)
+        val conflict = CalendarEventInfo(
+            id = 5,
+            title = "Work meeting",
+            startMillis = startTime * 1000,
+            endMillis = (startTime + 3600) * 1000
+        )
+
+        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns true
+        coEvery { scheduledBookingRepo.getAllBookings() } returns listOf(booking)
+        coEvery { dao.getAllTrainingsList() } returns listOf(training)
+        coEvery { calendarService.findConflictingEvents(any(), any(), any(), any()) } returns listOf(conflict)
+        coEvery { sessionRepository.getConflictNotifiedIds() } returns emptySet()
+
+        scheduler.checkCalendarConflicts()
+
+        verify {
+            notificationManager.showScheduledBookingConflictWarning(
+                1L,
+                "Laps Swimming",
+                training.classDate,
+                training.classTime,
+                "John",
+                "Work meeting"
+            )
+        }
+        coVerify { sessionRepository.saveConflictNotifiedIds(setOf("c-1")) }
+    }
+
+    @Test
+    fun `checkCalendarConflicts does not warn when booking within 7 days`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 3 * 86400
         val booking = ScheduledBooking(
             id = 1L,
             trainingId = "t1",
             className = "Laps Swimming",
             startTime = startTime,
-            skippedDueToConflict = false
+            instructor = "John"
+        )
+        val training = createTraining("t1", "Laps Swimming", startTime)
+
+        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns true
+        coEvery { scheduledBookingRepo.getAllBookings() } returns listOf(booking)
+        coEvery { dao.getAllTrainingsList() } returns listOf(training)
+        coEvery { calendarService.findConflictingEvents(any(), any(), any(), any()) } returns listOf(
+            CalendarEventInfo(id = 5, title = "Work meeting", startMillis = startTime * 1000, endMillis = (startTime + 3600) * 1000)
+        )
+        coEvery { sessionRepository.getConflictNotifiedIds() } returns emptySet()
+
+        scheduler.checkCalendarConflicts()
+
+        coVerify(exactly = 0) { calendarService.findConflictingEvents(any(), any(), any(), any()) }
+        verify(exactly = 0) { notificationManager.showScheduledBookingConflictWarning(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `checkCalendarConflicts does not re-notify already notified bookings`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 10 * 86400
+        val booking = ScheduledBooking(
+            id = 1L,
+            trainingId = "t1",
+            className = "Laps Swimming",
+            startTime = startTime,
+            instructor = "John"
+        )
+        val training = createTraining("t1", "Laps Swimming", startTime)
+
+        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns true
+        coEvery { scheduledBookingRepo.getAllBookings() } returns listOf(booking)
+        coEvery { dao.getAllTrainingsList() } returns listOf(training)
+        coEvery { calendarService.findConflictingEvents(any(), any(), any(), any()) } returns listOf(
+            CalendarEventInfo(id = 5, title = "Work meeting", startMillis = startTime * 1000, endMillis = (startTime + 3600) * 1000)
+        )
+        coEvery { sessionRepository.getConflictNotifiedIds() } returns setOf("c-1")
+
+        scheduler.checkCalendarConflicts()
+
+        verify(exactly = 0) { notificationManager.showScheduledBookingConflictWarning(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `checkCalendarConflicts notifies when scheduled booking not available`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 10 * 86400
+        val booking = ScheduledBooking(
+            id = 1L,
+            trainingId = "t1",
+            className = "Laps Swimming",
+            startTime = startTime,
+            instructor = "John"
         )
 
         coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns true
-        coEvery { scheduledBookingRepo.getBooking(1L) } returns booking
-        coEvery { dao.getAllTrainingsList() } returns listOf(training)
-        apiClient.htmlToReturn = trainingDetailsDocument("Laps Swimming")
-        coEvery { calendarService.findConflictingEvents(any(), any(), any(), any()) } returns emptyList()
-        apiClient.bookResult = Result.success(Unit)
+        coEvery { scheduledBookingRepo.getAllBookings() } returns listOf(booking)
+        coEvery { dao.getAllTrainingsList() } returns emptyList()
+        coEvery { sessionRepository.getConflictNotifiedIds() } returns emptySet()
 
-        val savedBookings = mutableListOf<ScheduledBooking>()
-        coEvery { scheduledBookingRepo.saveBooking(any()) } coAnswers { savedBookings.add(firstArg()) }
+        scheduler.checkCalendarConflicts()
 
-        scheduler.processSingleBooking(1L)
-
-        // booking should succeed and flag should remain false
-        assertFalse(savedBookings.last().skippedDueToConflict)
-        assertEquals(1, savedBookings.last().bookedCount)
+        verify { notificationManager.showScheduledBookingNotAvailable(1L, "Laps Swimming", "no cached trainings") }
+        coVerify { sessionRepository.saveConflictNotifiedIds(setOf("na-1")) }
     }
 }

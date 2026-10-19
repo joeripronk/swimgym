@@ -23,8 +23,8 @@ class BookingNotificationManager(
     const val LOGIN_REQUIRED_ID = 9999
     const val SYNC_ID = 5000
     const val BOOKING_RETRY_ID = 2000
-    const val BOOKING_SKIPPED_ID = 4000
     const val CALENDAR_CONFLICT_ID = 4001
+    const val BOOKING_NOT_AVAILABLE_ID = 4002
         private const val SYNC_CHANNEL_ID = "swimgym_notifications"
     }
 
@@ -161,7 +161,8 @@ class BookingNotificationManager(
         notificationManager.notify(3000, builder.build())
     }
 
-    fun showBookingSkippedDueToConflict(
+    fun showScheduledBookingConflictWarning(
+        bookingId: Long,
         trainingName: String,
         classDate: String,
         classTime: String,
@@ -173,9 +174,12 @@ class BookingNotificationManager(
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel(notificationManager)
 
-        val title = "Booking Skipped - Calendar Conflict"
+        // Unique id per scheduled booking so multiple conflicts don't overwrite each other.
+        val notificationId = CALENDAR_CONFLICT_ID + (bookingId.hashCode() and 0xFF)
+
+        val title = "Calendar Conflict - Recurring Booking"
         val trainingDetails = formatTrainingDetails(trainingName, classTime, classDate, instructor)
-        val content = "Your recurring booking was skipped because it conflicts with \"$conflictTitle\" on your calendar.\n\n$trainingDetails"
+        val content = "Your recurring booking more than a week ahead conflicts with \"$conflictTitle\" on your calendar. Review your calendar, the booking will be made automatically.\n\n$trainingDetails"
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -183,7 +187,7 @@ class BookingNotificationManager(
 
         val pendingIntent = PendingIntent.getActivity(
             context,
-            0,
+            notificationId,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -196,28 +200,23 @@ class BookingNotificationManager(
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
 
-        notificationManager.notify(BOOKING_SKIPPED_ID, builder.build())
+        notificationManager.notify(notificationId, builder.build())
     }
 
-    fun showCalendarConflictDetected(
-        trainingId: String,
+    fun showScheduledBookingNotAvailable(
+        bookingId: Long,
         trainingName: String,
-        classDate: String,
-        classTime: String,
-        instructor: String,
-        conflictTitle: String
+        reason: String
     ) {
         if (!hasNotificationPermission(context)) return
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel(notificationManager)
 
-        // Unique id per training so multiple conflicts don't overwrite each other.
-        val notificationId = CALENDAR_CONFLICT_ID + (trainingId.hashCode() and 0xFF)
+        val notificationId = BOOKING_NOT_AVAILABLE_ID + (bookingId.hashCode() and 0xFF)
 
-        val title = "Calendar Conflict Detected"
-        val trainingDetails = formatTrainingDetails(trainingName, classTime, classDate, instructor)
-        val content = "Your booked training conflicts with \"$conflictTitle\" on your calendar. You can cancel this booking from the app if needed.\n\n$trainingDetails"
+        val title = "Recurring Booking Not Available"
+        val content = "Your recurring booking \"$trainingName\" more than a week ahead cannot be booked: $reason"
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
