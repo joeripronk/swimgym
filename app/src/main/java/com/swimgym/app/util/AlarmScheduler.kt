@@ -15,7 +15,8 @@ import com.swimgym.app.util.addDaysToSeconds
 
 class AlarmScheduler(
     private val context: Context,
-    private val sessionRepository: SessionRepository
+    private val sessionRepository: SessionRepository,
+    private val nowMillisProvider: () -> Long = { System.currentTimeMillis() }
 ) {
     companion object {
         const val TAG = "AlarmScheduler"
@@ -44,7 +45,7 @@ class AlarmScheduler(
     }
 
     suspend fun scheduleBooking(bookingId: Long, alarmTimeMillis: Long) {
-        val nowMillis = System.currentTimeMillis()
+        val nowMillis = nowMillisProvider()
         if (alarmTimeMillis <= nowMillis) {
             Log.d(TAG, "Firing booking alarm $bookingId immediately (alarmTime=$alarmTimeMillis <= now=$nowMillis)")
             fireImmediately(bookingId)
@@ -74,7 +75,7 @@ class AlarmScheduler(
     }
 
     private fun nextSyncTimeMillis(): Long {
-        val now = System.currentTimeMillis()
+        val now = nowMillisProvider()
         val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
         for (hour in listOf(9, 21)) {
             val cal = java.util.Calendar.getInstance()
@@ -139,7 +140,7 @@ class AlarmScheduler(
             .filter { it.status == ScheduledBookingStatus.ACTIVE }
             .forEach { booking ->
                 val alarmTimeMillis = bookingAlarmTimeMillis(booking)
-                if (alarmTimeMillis > System.currentTimeMillis()) {
+                if (alarmTimeMillis > nowMillisProvider()) {
                     Log.d(TAG, "Rescheduling booking alarm ${booking.id} for ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(alarmTimeMillis)}")
                     scheduleBooking(booking.id, alarmTimeMillis)
                 }
@@ -152,7 +153,7 @@ class AlarmScheduler(
      * weekly occurrence is used.
      */
     fun bookingAlarmTimeMillis(booking: ScheduledBooking): Long {
-        val nowSeconds = System.currentTimeMillis() / 1000
+        val nowSeconds = nowMillisProvider() / 1000
         var startSeconds = booking.startTime
         while (startSeconds < nowSeconds) {
             startSeconds = addDaysToSeconds(startSeconds, 7)

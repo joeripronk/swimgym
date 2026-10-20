@@ -7,6 +7,7 @@ import com.swimgym.app.util.AlarmScheduler
 import com.swimgym.app.util.BookingNotificationManager
 import com.swimgym.app.util.PermissionHelper
 import com.swimgym.app.util.addDaysToSeconds
+import com.swimgym.app.util.wallClockDeltaSeconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -37,7 +38,8 @@ class BookingSchedulerImpl(
     private val apiClient: com.swimgym.app.data.api.VirtuagymApiClient,
     private val context: Context,
     private val calendarService: CalendarService,
-    private val sessionRepository: SessionRepository
+    private val sessionRepository: SessionRepository,
+    private val nowSeconds: () -> Long = { System.currentTimeMillis() / 1000 }
 ) : BookingScheduler {
 
     companion object {
@@ -47,7 +49,7 @@ class BookingSchedulerImpl(
     }
 
     override suspend fun checkBookings() = withContext(Dispatchers.IO) {
-        val now = System.currentTimeMillis() / 1000
+        val now = nowSeconds()
         val bookings = scheduledBookingRepo.getAllBookings()
         if (bookings.isNullOrEmpty()) return@withContext
 
@@ -75,7 +77,7 @@ class BookingSchedulerImpl(
         val booking = scheduledBookingRepo.getBooking(bookingId) ?: return@withContext false
         if (booking.status != ScheduledBookingStatus.ACTIVE) return@withContext false
 
-        val now = System.currentTimeMillis() / 1000
+        val now = nowSeconds()
         var adjustedStartTime = booking.startTime
         while (adjustedStartTime < now) {
             adjustedStartTime = addDaysToSeconds(adjustedStartTime, 7)
@@ -95,7 +97,7 @@ class BookingSchedulerImpl(
     }
 
     override suspend fun simulateBooking(booking: ScheduledBooking): DryRunResult = withContext(Dispatchers.IO) {
-        val now = System.currentTimeMillis() / 1000
+        val now = nowSeconds()
         var occurrence = booking.startTime
         while (occurrence < now) {
             occurrence = addDaysToSeconds(occurrence, 7)
@@ -118,8 +120,8 @@ class BookingSchedulerImpl(
             excludeEventId = training.eventId.ifBlank { null },
             excludeTitle = training.title
         )
+        val bookable = isBookable(occurrence, now)
         if (conflicts.isNotEmpty()) {
-            val bookable = occurrence >= now + MIN_LEAD_SECONDS && occurrence <= now + WEEK_SECONDS
             return@withContext DryRunResult.Conflict(
                 training = training,
                 conflictTitle = conflicts.first().title.ifBlank { "a calendar event" },
@@ -127,7 +129,6 @@ class BookingSchedulerImpl(
                 bookable = bookable
             )
         }
-        val bookable = occurrence >= now + MIN_LEAD_SECONDS && occurrence <= now + WEEK_SECONDS
         DryRunResult.Ok(training, bookable)
     }
 
@@ -135,7 +136,7 @@ class BookingSchedulerImpl(
         if (!sessionRepository.getCalendarConflictCheckEnabled()) return@withContext
         if (!PermissionHelper.hasCalendarReadPermission(context)) return@withContext
 
-        val now = System.currentTimeMillis() / 1000
+        val now = nowSeconds()
         val bookings = scheduledBookingRepo.getAllBookings()
             .filter { it.status == ScheduledBookingStatus.ACTIVE }
         val farOutBookings = bookings.filter { booking ->
@@ -143,7 +144,7 @@ class BookingSchedulerImpl(
             while (occurrence < now) {
                 occurrence = addDaysToSeconds(occurrence, 7)
             }
-            occurrence > now + WEEK_SECONDS
+            wallClockDeltaSeconds(now, occurrence) > WEEK_SECONDS
         }
         if (farOutBookings.isEmpty()) {
             if (sessionRepository.getConflictNotifiedIds().isNotEmpty()) {
@@ -250,6 +251,17 @@ class BookingSchedulerImpl(
         )
     }
 
+    /**
+     * A class can be booked from 2 local days before it starts, until it is 7 local days
+     * away. The window is measured on the local wall clock: 7 local days are 6d23h before
+     * the spring transition and 7d1h after the autumn transition, so comparing raw epoch
+     * seconds would drop classes that are exactly 7 days ahead around a transition.
+     */
+    private fun isBookable(occurrence: Long, now: Long): Boolean {
+        val lead = wallClockDeltaSeconds(now, occurrence)
+        return lead >= MIN_LEAD_SECONDS && lead <= WEEK_SECONDS
+    }
+
     private suspend fun findCalendarConflict(
         startSeconds: Long,
         endSeconds: Long,
@@ -269,21 +281,22 @@ class BookingSchedulerImpl(
     }
 
     private suspend fun rescheduleAlarmForRetry(booking: ScheduledBooking) {
-        val now = System.currentTimeMillis() / 1000
-        val windowOpen = booking.startTime > now + 2 * 86400 && booking.startTime < now + 7 * 86400
+        val now = nowSeconds()
+        val lead = wallClockDeltaSeconds(now, booking.startTime)
+        val windowOpen = lead > 2 * 86400 && lead < 7 * 86400
         if (!windowOpen) {
             var startSeconds = booking.startTime
-            while (startSeconds < now + 7 * 86400) {
+            while (wallClockDeltaSeconds(now, startSeconds) < 7 * 86400) {
                 startSeconds = addDaysToSeconds(startSeconds, 7)
             }
             val nextAlarmTime = addDaysToSeconds(startSeconds, -7) * 1000L + 5 * 60 * 1000L
-            val nowMillis = System.currentTimeMillis()
+            val nowMillis = nowSeconds() * 1000
             if (nextAlarmTime > nowMillis) {
                 alarmScheduler.scheduleBooking(booking.id, nextAlarmTime)
             }
             return
         }
-        val retryTime = System.currentTimeMillis() + 15 * 60000L
+        val retryTime = nowSeconds() * 1000 + 15 * 60000L
         alarmScheduler.scheduleBooking(booking.id, retryTime)
     }
 
