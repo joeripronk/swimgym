@@ -119,7 +119,16 @@ class ScheduledBookingRepository(
                 val id = obj.findValue("id")?.toLongOrNull() ?: 0L
                 val trainingId = obj.findValue("trainingId")
                 val className = obj.findValue("className")
-                val startTime = obj.findValue("startTime")!!.toLong()
+                val startTimeStr = obj.findValue("startTime")
+                if (startTimeStr == null) {
+                    android.util.Log.w("ScheduledBookingRepo", "dropping corrupt booking entry (no startTime): $obj")
+                    return@forEach
+                }
+                val startTime = startTimeStr.toLongOrNull()
+                if (startTime == null) {
+                    android.util.Log.w("ScheduledBookingRepo", "dropping corrupt booking entry (bad startTime): $obj")
+                    return@forEach
+                }
                 val instructor = obj.findValue("instructor") ?: ""
                 val statusStr = obj.findValue("status")
                 val bookedCount = obj.findValue("bookedCount")?.toIntOrNull() ?: 0

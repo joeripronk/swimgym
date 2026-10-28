@@ -1,16 +1,12 @@
 package com.swimgym.app
 
-import android.app.Activity
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.webkit.CookieManager
-import android.webkit.WebView
 import com.swimgym.app.di.SwimGymAppContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
 class SwimGymApp : Application() {
     
@@ -28,27 +24,20 @@ class SwimGymApp : Application() {
         // Create notification channel for foreground service
         createNotificationChannel()
 
-        // Arm the schedule sync alarm
+        // Arm the schedule sync alarm and any active booking alarms asynchronously
+        // so the main thread is not blocked during cold start.
         CoroutineScope(Dispatchers.IO).launch {
             SwimGymAppContainer.getInstance().alarmScheduler.scheduleSyncAlarm()
-        }
-
-        // Reschedule booking alarms on app start
-        runBlocking(Dispatchers.IO) {
             val bookings = SwimGymAppContainer.getInstance().scheduledBookingRepository.getAllBookings()
             SwimGymAppContainer.getInstance().alarmScheduler.rescheduleBookingAlarms(bookings)
         }
     }
     
-    override fun onTrimMemory(level: Int) {
-        super.onTrimMemory(level)
-        // Clear WebView cookies and cache to prevent native state corruption
-        // on process restart (fixes SIGILL crash in libwebviewchromium.so)
-        if (level >= TRIM_MEMORY_MODERATE) {
-            CookieManager.getInstance().removeAllCookies(null)
-            WebView(applicationContext).clearCache(true)
-        }
-    }
+    // onTrimMemory is intentionally not overridden: alarms live in system_server,
+    // so cancelling them frees no memory here, and cancelling the sync alarm would
+    // break the daily 09:00/21:00 chain for a running app. The SIGILL in
+    // libwebviewchromium.so was caused by allocating a WebView under memory
+    // pressure, which this override used to do.
     
     private fun createNotificationChannel() {
         val channel = NotificationChannel(

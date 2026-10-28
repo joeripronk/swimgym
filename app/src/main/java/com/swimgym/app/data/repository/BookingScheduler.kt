@@ -56,10 +56,7 @@ class BookingSchedulerImpl(
         val activeBookings = bookings.filter { it.status == ScheduledBookingStatus.ACTIVE }
 
         activeBookings.forEach { booking ->
-            var adjustedStartTime = booking.startTime
-            while (adjustedStartTime < now) {
-                adjustedStartTime = addDaysToSeconds(adjustedStartTime, 7)
-            }
+            val adjustedStartTime = nextOccurrence(booking.startTime, now)
             val adjustedBooking = booking.copy(startTime = adjustedStartTime)
             if (adjustedStartTime != booking.startTime) {
                 scheduledBookingRepo.saveBooking(adjustedBooking)
@@ -78,10 +75,7 @@ class BookingSchedulerImpl(
         if (booking.status != ScheduledBookingStatus.ACTIVE) return@withContext false
 
         val now = nowSeconds()
-        var adjustedStartTime = booking.startTime
-        while (adjustedStartTime < now) {
-            adjustedStartTime = addDaysToSeconds(adjustedStartTime, 7)
-        }
+        val adjustedStartTime = nextOccurrence(booking.startTime, now)
         val updatedBooking = booking.copy(startTime = adjustedStartTime)
         scheduledBookingRepo.saveBooking(updatedBooking)
 
@@ -98,10 +92,7 @@ class BookingSchedulerImpl(
 
     override suspend fun simulateBooking(booking: ScheduledBooking): DryRunResult = withContext(Dispatchers.IO) {
         val now = nowSeconds()
-        var occurrence = booking.startTime
-        while (occurrence < now) {
-            occurrence = addDaysToSeconds(occurrence, 7)
-        }
+        val occurrence = nextOccurrence(booking.startTime, now)
 
         val trainings = dao.getAllTrainingsList()
         if (trainings.isNullOrEmpty()) {
@@ -139,12 +130,11 @@ class BookingSchedulerImpl(
         val now = nowSeconds()
         val bookings = scheduledBookingRepo.getAllBookings()
             .filter { it.status == ScheduledBookingStatus.ACTIVE }
-        val farOutBookings = bookings.filter { booking ->
-            var occurrence = booking.startTime
-            while (occurrence < now) {
-                occurrence = addDaysToSeconds(occurrence, 7)
-            }
-            wallClockDeltaSeconds(now, occurrence) > WEEK_SECONDS
+        val farOutBookings = bookings.mapNotNull { booking ->
+            val occurrence = nextOccurrence(booking.startTime, now)
+            if (wallClockDeltaSeconds(now, occurrence) > WEEK_SECONDS) {
+                booking.copy(startTime = occurrence) to occurrence
+            } else null
         }
         if (farOutBookings.isEmpty()) {
             if (sessionRepository.getConflictNotifiedIds().isNotEmpty()) {
@@ -155,10 +145,14 @@ class BookingSchedulerImpl(
 
         val alreadyNotified = sessionRepository.getConflictNotifiedIds()
         val notifiedKeys = mutableSetOf<String>()
-        farOutBookings.forEach { booking ->
+        farOutBookings.forEach { (booking, occurrence) ->
+            // Keys are bound to the specific weekly occurrence so a recurring
+            // booking's conflict/renamed/unavailable state can be re-surfaced
+            // for a new week once a previous week's state resolved.
+            val weekKey = occurrence / WEEK_SECONDS
             when (val dryRun = simulateBooking(booking)) {
                 is DryRunResult.Conflict -> {
-                    val key = "c-${booking.id}"
+                    val key = "c-${booking.id}-$weekKey"
                     notifiedKeys.add(key)
                     if (key !in alreadyNotified) {
                         notificationManager.showScheduledBookingConflictWarning(
@@ -172,7 +166,7 @@ class BookingSchedulerImpl(
                     }
                 }
                 is DryRunResult.NotAvailable -> {
-                    val key = "na-${booking.id}"
+                    val key = "na-${booking.id}-$weekKey"
                     notifiedKeys.add(key)
                     if (key !in alreadyNotified) {
                         notificationManager.showScheduledBookingNotAvailable(
@@ -183,7 +177,7 @@ class BookingSchedulerImpl(
                     }
                 }
                 is DryRunResult.Renamed -> {
-                    val key = "r-${booking.id}"
+                    val key = "r-${booking.id}-$weekKey"
                     notifiedKeys.add(key)
                     if (key !in alreadyNotified) {
                         notificationManager.showTrainingRenamed(booking.className, dryRun.newName)
@@ -249,6 +243,21 @@ class BookingSchedulerImpl(
                 false
             }
         )
+    }
+
+    /**
+     * The first weekly occurrence at or after [now], measured on the local wall
+     * clock. Adding calendar days via [addDaysToSeconds] preserves the time of
+     * day, so across a DST transition a weekly class keeps its local start time;
+     * advancing on epoch seconds instead would let a 6d23h/7d1h week drift the
+     * booking window by an hour relative to [isBookable].
+     */
+    internal fun nextOccurrence(base: Long, now: Long): Long {
+        var occurrence = base
+        while (wallClockDeltaSeconds(now, occurrence) < 0) {
+            occurrence = addDaysToSeconds(occurrence, 7)
+        }
+        return occurrence
     }
 
     /**

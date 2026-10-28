@@ -386,7 +386,7 @@ class BookingSchedulerTest {
                 "Work meeting"
             )
         }
-        coVerify { sessionRepository.saveConflictNotifiedIds(setOf("c-1")) }
+        coVerify { sessionRepository.saveConflictNotifiedIds(setOf("c-1-${startTime / (7 * 86400)}")) }
     }
 
     @Test
@@ -435,7 +435,7 @@ class BookingSchedulerTest {
         coEvery { calendarService.findConflictingEvents(any(), any(), any(), any()) } returns listOf(
             CalendarEventInfo(id = 5, title = "Work meeting", startMillis = startTime * 1000, endMillis = (startTime + 3600) * 1000)
         )
-        coEvery { sessionRepository.getConflictNotifiedIds() } returns setOf("c-1")
+        coEvery { sessionRepository.getConflictNotifiedIds() } returns setOf("c-1-${startTime / (7 * 86400)}")
 
         scheduler.checkCalendarConflicts()
 
@@ -462,6 +462,6 @@ class BookingSchedulerTest {
         scheduler.checkCalendarConflicts()
 
         verify { notificationManager.showScheduledBookingNotAvailable(1L, "Laps Swimming", "no cached trainings") }
-        coVerify { sessionRepository.saveConflictNotifiedIds(setOf("na-1")) }
+        coVerify { sessionRepository.saveConflictNotifiedIds(setOf("na-1-${startTime / (7 * 86400)}")) }
     }
 }

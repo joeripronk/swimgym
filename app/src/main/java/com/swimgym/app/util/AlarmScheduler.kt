@@ -21,7 +21,6 @@ class AlarmScheduler(
     companion object {
         const val TAG = "AlarmScheduler"
         private const val SYNC_REQUEST_CODE = 0x7E57
-        private const val BOOKING_WINDOW_AHEAD_SECONDS = 7 * 86400
         private const val BOOKING_LEAD_MILLIS = 5 * 60 * 1000L
     }
 
@@ -140,25 +139,30 @@ class AlarmScheduler(
             .filter { it.status == ScheduledBookingStatus.ACTIVE }
             .forEach { booking ->
                 val alarmTimeMillis = bookingAlarmTimeMillis(booking)
-                if (alarmTimeMillis > nowMillisProvider()) {
-                    Log.d(TAG, "Rescheduling booking alarm ${booking.id} for ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(alarmTimeMillis)}")
-                    scheduleBooking(booking.id, alarmTimeMillis)
-                }
+                // An alarm time in the past means the booking window is already
+                // open; scheduleBooking fires the booking immediately in that case.
+                Log.d(TAG, "Rescheduling booking alarm ${booking.id} for ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(alarmTimeMillis)}")
+                scheduleBooking(booking.id, alarmTimeMillis)
             }
     }
 
     /**
      * Alarm time (epoch millis) for a booking: 5 minutes after its booking
-     * window opens. If the stored start time is already in the past, the next
-     * weekly occurrence is used.
+     * window opens, i.e. 7 local days before the next weekly occurrence.
+     * The advance uses wall-clock lead (not raw epoch) so a DST transition
+     * does not shift the alarm by an hour.
+     *
+     * When the window is already open the result is in the past and
+     * [scheduleBooking] fires the booking immediately, which is intended:
+     * spots should be grabbed as soon as the window opens.
      */
     fun bookingAlarmTimeMillis(booking: ScheduledBooking): Long {
         val nowSeconds = nowMillisProvider() / 1000
-        var startSeconds = booking.startTime
-        while (startSeconds < nowSeconds) {
-            startSeconds = addDaysToSeconds(startSeconds, 7)
+        var occurrence = booking.startTime
+        while (wallClockDeltaSeconds(nowSeconds, occurrence) < 0) {
+            occurrence = addDaysToSeconds(occurrence, 7)
         }
-        return addDaysToSeconds(startSeconds, -7) * 1000L + 5 * 60 * 1000L
+        return addDaysToSeconds(occurrence, -7) * 1000L + BOOKING_LEAD_MILLIS
     }
 
     private fun createSyncPendingIntent(): PendingIntent {

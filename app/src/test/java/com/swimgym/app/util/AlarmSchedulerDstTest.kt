@@ -122,7 +122,8 @@ class AlarmSchedulerDstTest {
     @Test
     fun `alarm rolls forward to the next weekly occurrence when the stored class has passed`() {
         // The stored class (2026-10-13 19:00) is in the past, the next occurrence is
-        // 2026-10-20 19:00 local, so its alarm was at 2026-10-13 19:05 local.
+        // 2026-10-20 19:00 local, so its window opened at 2026-10-13 19:00 and the
+        // alarm (19:05) is in the past: scheduleBooking fires the booking immediately.
         val scheduler = schedulerAt(DstTimeFixtures.epochAt("2026-10-20 12:00"))
 
         val alarm = scheduler.bookingAlarmTimeMillis(bookingFor("2026-10-13 19:00"))
@@ -133,7 +134,8 @@ class AlarmSchedulerDstTest {
     @Test
     fun `alarm belongs to the next week when the current occurrence already started`() {
         // 19:30 local on 2026-10-20: today's class (19:00) has started, so the next
-        // occurrence is 2026-10-27 19:00 and its alarm was at 2026-10-20 19:05 local.
+        // occurrence is 2026-10-27 19:00 and its window opened at 2026-10-20 19:00;
+        // the alarm (19:05) is in the past and fires immediately.
         val scheduler = schedulerAt(DstTimeFixtures.epochAt("2026-10-20 19:30"))
 
         val alarm = scheduler.bookingAlarmTimeMillis(bookingFor("2026-10-20 19:00"))
