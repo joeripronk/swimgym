@@ -457,13 +457,10 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        TextButton(onClick = { viewModel.setReminderConfig(0, false) }) {
+                        TextButton(onClick = { viewModel.disableAllReminders() }) {
                             Text("Disable all reminders")
                         }
-                        TextButton(onClick = { 
-                            viewModel.setReminderTimes(emptyList()) 
-                            viewModel.setReminderConfig(30, true)
-                        }) {
+                        TextButton(onClick = { viewModel.resetRemindersToDefault() }) {
                             Text("Reset to default (30 min)")
                         }
                     }
@@ -1186,24 +1183,26 @@ fun TimePickerDialog(
     initialHour: Int = 9,
     initialMinute: Int = 0
 ) {
-    var hour by remember { mutableStateOf(initialHour) }
-    var minute by remember { mutableStateOf(initialMinute) }
-    
     val hoursList = (0..23).toList()
     val minutesList = listOf(0, 15, 30, 45)
+    val safeHour = initialHour.coerceIn(hoursList.indices)
+    val minuteIndex = minutesList.indexOf(initialMinute).coerceAtLeast(0)
+
+    var hour by remember { mutableStateOf(safeHour) }
+    var minute by remember { mutableStateOf(minutesList[minuteIndex]) }
     
     val hoursState = rememberLazyListState(
-        initialFirstVisibleItemIndex = initialHour
+        initialFirstVisibleItemIndex = safeHour
     )
     val minutesState = rememberLazyListState(
-        initialFirstVisibleItemIndex = minutesList.indexOf(initialMinute)
+        initialFirstVisibleItemIndex = minuteIndex
     )
     
-    LaunchedEffect(initialHour) {
-        hoursState.scrollToItem(initialHour)
+    LaunchedEffect(safeHour) {
+        hoursState.scrollToItem(safeHour)
     }
-    LaunchedEffect(initialMinute) {
-        minutesState.scrollToItem(minutesList.indexOf(initialMinute))
+    LaunchedEffect(minuteIndex) {
+        minutesState.scrollToItem(minuteIndex)
     }
     
     AlertDialog(

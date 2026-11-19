@@ -30,8 +30,6 @@ import coil.compose.AsyncImage
 import com.swimgym.app.di.SwimGymAppContainer
 import com.swimgym.app.data.repository.CalendarEventInfo
 import com.swimgym.app.domain.model.Training
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -76,7 +74,7 @@ import java.util.*
         if (permissions[Manifest.permission.WRITE_CALENDAR] == true && trainingToAddToCalendar != null) {
             val training = trainingToAddToCalendar!!
             trainingToAddToCalendar = null
-            CoroutineScope(Dispatchers.IO).launch {
+            coroutineScope.launch {
                 val calendarService = SwimGymAppContainer.getInstance().calendarService
                 val result = calendarService.addTrainingToCalendar(training)
                 if (result == null) {
@@ -95,7 +93,7 @@ import java.util.*
         if (permissions[Manifest.permission.WRITE_CALENDAR] == true && trainingToRemoveFromCalendar != null) {
             val training = trainingToRemoveFromCalendar!!
             trainingToRemoveFromCalendar = null
-            CoroutineScope(Dispatchers.IO).launch {
+            coroutineScope.launch {
                 val calendarService = SwimGymAppContainer.getInstance().calendarService
                 calendarService.removeTrainingByTimeAndTitle(training.startTime, training.title)
                 isInCalendar = false

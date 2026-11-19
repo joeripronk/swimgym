@@ -275,7 +275,7 @@ class SettingsViewModel(
             _uiState.update { it.copy(isLoading = true, calendarPermissionDenied = false) }
             try {
                 val calendars = calendarRepository.getAvailableCalendars()
-                _uiState.update { it.copy(availableCalendars = calendars, isLoading = false) }
+                _uiState.update { it.copy(availableCalendars = calendars, isLoading = false, error = null) }
             } catch (e: SecurityException) {
                 _uiState.update { it.copy(error = "Calendar permission denied", isLoading = false, calendarPermissionDenied = true) }
             } catch (e: Exception) {
@@ -391,6 +391,22 @@ class SettingsViewModel(
         viewModelScope.launch {
             sessionRepository.saveReminderConfig(minutes, enabled)
             _uiState.update { it.copy(reminderConfig = ReminderConfig(minutes, enabled, emptyList(), false)) }
+        }
+    }
+
+    fun disableAllReminders() {
+        viewModelScope.launch {
+            sessionRepository.saveReminderConfig(0, false)
+            sessionRepository.saveReminderTimes(emptyList())
+            _uiState.update { it.copy(reminderConfig = ReminderConfig(0, false, emptyList(), false)) }
+        }
+    }
+
+    fun resetRemindersToDefault() {
+        viewModelScope.launch {
+            sessionRepository.saveReminderTimes(listOf(30))
+            sessionRepository.saveReminderConfig(30, true)
+            _uiState.update { it.copy(reminderConfig = ReminderConfig(30, true, listOf(30), false)) }
         }
     }
 

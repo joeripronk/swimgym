@@ -3,6 +3,9 @@ package com.swimgym.app.ui.navigation
 import android.content.Context
 import androidx.compose.runtime.*
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -60,26 +63,36 @@ fun SwimGymNavigation(
         }
     }
     
-    val scheduleViewModel = ScheduleViewModel(
-        getScheduleUseCase = container.getScheduleUseCase,
-        getTrainingDetailsUseCase = container.getTrainingDetailsUseCase,
-        getMyBookingsUseCase = container.getMyBookingsUseCase,
-        bookTrainingUseCase = container.bookTrainingUseCase,
-        cancelBookingUseCase = container.cancelBookingUseCase,
-        refreshScheduleUseCase = container.refreshScheduleUseCase,
-        getSyncStatusUseCase = container.getSyncStatusUseCase,
-        sessionRepository = container.sessionRepository,
-        scheduledBookingRepo = container.scheduledBookingRepository,
-        alarmScheduler = container.alarmScheduler,
-        trainerImageCache = container.trainerImageCache,
-        dao = container.dao,
-        applicationContext = context,
-        bookingScheduler = container.bookingScheduler
+    val scheduleViewModel: ScheduleViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = ScheduleViewModel(
+                getScheduleUseCase = container.getScheduleUseCase,
+                getTrainingDetailsUseCase = container.getTrainingDetailsUseCase,
+                getMyBookingsUseCase = container.getMyBookingsUseCase,
+                bookTrainingUseCase = container.bookTrainingUseCase,
+                cancelBookingUseCase = container.cancelBookingUseCase,
+                refreshScheduleUseCase = container.refreshScheduleUseCase,
+                getSyncStatusUseCase = container.getSyncStatusUseCase,
+                sessionRepository = container.sessionRepository,
+                scheduledBookingRepo = container.scheduledBookingRepository,
+                alarmScheduler = container.alarmScheduler,
+                trainerImageCache = container.trainerImageCache,
+                dao = container.dao,
+                applicationContext = context.applicationContext,
+                bookingScheduler = container.bookingScheduler
+            ) as T
+        }
     )
     
-    val settingsViewModel = SettingsViewModel(
-        sessionRepository = container.sessionRepository,
-        calendarRepository = container.calendarRepository
+    val settingsViewModel: SettingsViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = SettingsViewModel(
+                sessionRepository = container.sessionRepository,
+                calendarRepository = container.calendarRepository
+            ) as T
+        }
     )
 
     NavHost(

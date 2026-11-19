@@ -191,7 +191,6 @@ class TrainingRepositoryImpl(
         return withContext(Dispatchers.IO) {
             try {
                 android.util.Log.d("CancelBooking", "Cancelling trainingId: ${training.id}, title: ${training.title}")
-                calendarService.removeTrainingFromCalendar(training)
                 val cancelResult = apiClient.cancelTraining(training)
                 val booking = Booking(
                     id = 0,
@@ -205,6 +204,7 @@ class TrainingRepositoryImpl(
                 cancelResult.fold(
                     onSuccess = {
                         android.util.Log.d("CancelBooking", "Cancellation succeeded for: ${training.id}")
+                        calendarService.removeTrainingByTimeAndTitle(training.startTime, training.title)
                         dao.deleteBookingByTrainingId(training.id)
                         val current = bookingsFlow.value.toMutableList()
                         current.removeAll { it.trainingId == training.id }
