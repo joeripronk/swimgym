@@ -1,8 +1,6 @@
 package com.swimgym.app.ui.navigation
 
-import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import androidx.compose.runtime.*
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.navigation.NavType
@@ -13,7 +11,6 @@ import androidx.navigation.navArgument
 import com.swimgym.app.di.SwimGymAppContainer
 import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.domain.model.BookingStatus
-import com.swimgym.app.receiver.LoginActivity
 import com.swimgym.app.ui.screens.LoginScreen
 import com.swimgym.app.ui.screens.MyBookingsScreen
 import com.swimgym.app.ui.screens.ScheduleScreen
@@ -21,14 +18,17 @@ import com.swimgym.app.ui.screens.TrainingDetailScreen
 import com.swimgym.app.ui.screens.SettingsScreen
 import com.swimgym.app.ui.viewmodel.ScheduleViewModel
 import com.swimgym.app.ui.viewmodel.SettingsViewModel
+import kotlinx.coroutines.launch
 import okhttp3.internal.toLongOrDefault
 
 @ExperimentalComposeUiApi
 @Composable
 fun SwimGymNavigation(
     context: Context,
+    loginRequiredCount: Int = 0
 ) {
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
     val container = SwimGymAppContainer.getInstance()
     
     var hasCookies by remember { mutableStateOf(false) }
@@ -52,8 +52,8 @@ fun SwimGymNavigation(
         }
     }
     
-    LaunchedEffect(Unit) {
-        if ((context as? Activity)?.intent?.action == LoginActivity.ACTION_LOGIN_REQUIRED) {
+    LaunchedEffect(loginRequiredCount) {
+        if (loginRequiredCount > 0) {
             navController.navigate(Screen.Login.route) {
                 popUpTo(Screen.Schedule.route) { inclusive = true }
             }
@@ -115,9 +115,10 @@ fun SwimGymNavigation(
                     navController.navigate(Screen.Settings.route)
                 },
                 onLogout = {
+                    scope.launch {
+                        container.sessionRepository.clearCookies()
+                    }
                     hasCookies = false
-                    val intent = Intent(LoginActivity.ACTION_LOGIN_REQUIRED)
-                    context.sendBroadcast(intent)
                     navController.navigate(Screen.Login.route) {
                         popUpTo(0) { inclusive = true }
                     }

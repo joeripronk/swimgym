@@ -80,7 +80,7 @@ class VirtuagymApiClientImpl(
             .post(body)
             .build()
         val response = client.newCall(request).execute()
-        extractCookiesFromResponse(response)
+        response.use { extractCookiesFromResponse(it) }
         return response
     }
 
@@ -90,7 +90,7 @@ class VirtuagymApiClientImpl(
             .post(body)
             .build()
         val response = client.newCall(request).execute()
-        extractCookiesFromResponse(response)
+        response.use { extractCookiesFromResponse(it) }
         return response
     }
 
@@ -212,10 +212,7 @@ class VirtuagymApiClientImpl(
     }
 
     private suspend fun loadCookiesFromCache() {
-        val newCookies = sessionRepository.loadCookies()
-        if (cookiesLoggedIn(newCookies)) {
-            cookies = newCookies
-        }
+        cookies = sessionRepository.loadCookies()
     }
 
     private suspend fun saveCookiesToCache(cookieMap: Map<String, String>) {
@@ -252,13 +249,16 @@ class VirtuagymApiClientImpl(
 
     private suspend fun extractCookiesFromResponse(response: Response) {
         val cookieMap = cookies.toMutableMap()
-        val newCookies: Map<String, String> = response.headers.filter {
-            it.first.lowercase().equals("set-cookie")
-        }.associate {
-            parseCookie(it.second)
+        var current: Response? = response
+        while (current != null) {
+            current.headers("Set-Cookie").forEach { header ->
+                val (name, value) = parseCookie(header)
+                if (name.isNotBlank()) {
+                    cookieMap[name] = value
+                }
+            }
+            current = current.priorResponse
         }
-
-        cookieMap += newCookies
         if (!cookiesLoggedIn(cookieMap)) {
             triggerLoginRequired()
             throw Exception("you are logged out")

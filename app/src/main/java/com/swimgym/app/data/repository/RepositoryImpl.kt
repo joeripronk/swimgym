@@ -59,6 +59,17 @@ class TrainingRepositoryImpl(
 
     override suspend fun getSchedule(level: SwodLevel, hideFullyBooked: Boolean, startDate: String?): Result<List<Training>> {
         return try {
+            val startSeconds = startDate?.let {
+                SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(it)?.time?.div(1000)
+            }
+
+            if (startDate != null) {
+                val weekTrainings = fetchWeek(startDate)
+                if (weekTrainings.isNotEmpty()) {
+                    dao.insertTrainings(weekTrainings.map { it.toEntity() })
+                }
+            }
+
             var cachedTrainings = dao.getAllTrainingsList()
 
             if (cachedTrainings.isEmpty()) {
@@ -71,6 +82,7 @@ class TrainingRepositoryImpl(
 
             val filteredTrainings = cachedTrainings
                 .map { it.toDomain() }
+                .filter { startSeconds == null || it.startTime >= startSeconds }
                 .filter {
                     when (level) {
                         SwodLevel.ALL -> true
@@ -246,26 +258,27 @@ class TrainingRepositoryImpl(
 
     private suspend fun fetchAndSaveSchedule(): List<com.swimgym.app.data.model.TrainingDto> {
         val trainings = mutableListOf<com.swimgym.app.data.model.TrainingDto>()
-        val date = java.util.Calendar.getInstance()
-        val now = date.timeInMillis / 1000
 
         for (weekOffset in 0 until 3) {
             val formattedDate = LocalDate.now(ZoneId.systemDefault())
                 .minusWeeks((1 - weekOffset).toLong())
                 .with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY))
 
-            val url = "https://swimgym.virtuagym.com/classes/week/$formattedDate?event_type=8"
-
-            try {
-                val doc = apiClient.fetchHtml(url)
-                val weeklyTrainings = parser.parseSchedule(doc, weekOffset, now, apiClient)
-                trainings.addAll(weeklyTrainings)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            trainings.addAll(fetchWeek(formattedDate.toString(), weekOffset))
         }
 
         return trainings
+    }
+
+    private suspend fun fetchWeek(date: String, weekOffset: Int = 0): List<com.swimgym.app.data.model.TrainingDto> {
+        val now = System.currentTimeMillis() / 1000
+        return try {
+            val doc = apiClient.fetchHtml("https://swimgym.virtuagym.com/classes/week/$date?event_type=8")
+            parser.parseSchedule(doc, weekOffset, now, apiClient)
+        } catch (e: Exception) {
+            Log.e("TrainingRepo", "Failed to fetch schedule week $date", e)
+            emptyList()
+        }
     }
 
     private suspend fun updateSyncStatus() {

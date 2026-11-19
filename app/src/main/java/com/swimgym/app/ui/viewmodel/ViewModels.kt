@@ -329,13 +329,6 @@ class ScheduleViewModel(
             bookTrainingUseCase(training)
                 .onSuccess { booking ->
                     android.util.Log.d("BookTraining", "Booking use case succeeded for: ${booking.trainingId}")
-                    val current = _uiState.value.bookings.toMutableList()
-                    val bookingWithDetails = booking.copy(
-                        instructor = training.instructor,
-                        imageUrl = training.imageUrl
-                    )
-                    current.add(bookingWithDetails)
-                    _uiState.update { it.copy(bookings = current) }
                     // Verify booking by refreshing training details
                     android.util.Log.d("BookTraining", "Verifying booking by fetching updated training details for: ${training.id}")
                     getTrainingDetailsUseCase(training.id)

@@ -203,13 +203,25 @@ class BookingSchedulerImpl(
         val updtraining = res.getOrThrow()
         if (updtraining.isJoined) {
             scheduledBookingRepo.incrementBookingCount(booking.id, training)
+            val nextBooking = booking.copy(
+                startTime = addDaysToSeconds(training.startTime, 7),
+                instructor = training.instructor,
+                trainingId = training.id
+            )
             val maxRepeat = booking.maxRepeatCount
             if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
                 scheduledBookingRepo.completeBooking(booking.id)
+            } else if (scheduleNextAlarm) {
+                alarmScheduler.scheduleBooking(
+                    booking.id,
+                    alarmScheduler.bookingAlarmTimeMillis(nextBooking)
+                )
             }
             return true
         }
         if (updtraining.isFull) {
+            showRetryNotification(booking)
+            rescheduleAlarmForRetry(booking)
             return false
         }
         val bookResult = apiClient.bookTraining(training)

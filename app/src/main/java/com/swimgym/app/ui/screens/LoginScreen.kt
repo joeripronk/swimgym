@@ -65,8 +65,9 @@ fun LoginScreen(
                         isLoading = false
 
                         val cookies = cookieManager.getCookie(url) ?: ""
-                        if (cookies.contains(regex = Regex("virtuagym_u=[0-9][0-9]+")) && !hasNavigated) {
-                            val cookieMap = parseCookiesFromString(cookies)
+                        val cookieMap = parseCookiesFromString(cookies)
+                        val userId = cookieMap["virtuagym_u"]?.toLongOrNull() ?: 0
+                        if (userId > 1 && !hasNavigated) {
                             cookiesToSave = cookieMap
 
                             hasNavigated = true

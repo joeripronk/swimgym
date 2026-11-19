@@ -315,6 +315,12 @@ class SessionRepository(
         context.dataStore.edit { it.clear() }
     }
 
+    suspend fun clearCookies() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(COOKIES)
+        }
+    }
+
     suspend fun saveCookies(cookies: Map<String, String>) {
         val cookieString = cookies.map { "${it.key}=${it.value}" }.joinToString("; ")
         context.dataStore.edit { prefs ->
