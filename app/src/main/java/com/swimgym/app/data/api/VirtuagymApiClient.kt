@@ -53,12 +53,11 @@ class VirtuagymApiClientImpl(
         extractCookiesFromResponse(response)
 
         val html = response.body?.string() ?: ""
-        val doc = org.jsoup.Jsoup.parse(html)
-        if (doc.selectFirst(".menu-item.btn-login, .menu-item .btn-login") != null) {
+        if (isLoginPage(html)) {
             triggerLoginRequired()
             throw Exception("need to login")
         }
-        return doc
+        return org.jsoup.Jsoup.parse(html)
     }
 
     override suspend fun fetchPage(url: String): String = cookieLock.withLock {
@@ -124,13 +123,20 @@ class VirtuagymApiClientImpl(
             .build()
         val request = buildRequest(url).post(formBody).build()
         val response = client.newCall(request).execute()
+        val html = response.body?.string().orEmpty()
         extractCookiesFromResponse(response)
-        if (response.isSuccessful || response.code == 302) {
-            calendarService.addTrainingToCalendar(training)
-            Result.success(Unit)
-        } else {
-            Result.failure(Exception("Booking failed: ${response.code}"))
+        if (!response.isSuccessful) {
+            return@withLock Result.failure(Exception("Booking failed: ${response.code}"))
         }
+        if (isLoginPage(html)) {
+            triggerLoginRequired()
+            return@withLock Result.failure(Exception("need to login"))
+        }
+        if (classJoinedState(training.id) != true) {
+            return@withLock Result.failure(Exception("Booking was not confirmed"))
+        }
+        calendarService.addTrainingToCalendar(training)
+        Result.success(Unit)
     }
 
     override suspend fun cancelTraining(training: com.swimgym.app.data.local.entity.TrainingEntity): Result<Unit> = cookieLock.withLock {
@@ -162,11 +168,37 @@ class VirtuagymApiClientImpl(
             .build()
         val request = buildRequest(url).post(formBody).build()
         val response = client.newCall(request).execute()
+        val html = response.body?.string().orEmpty()
         extractCookiesFromResponse(response)
-        if (response.isSuccessful || response.code == 302) Result.success(Unit) else Result.failure(Exception("Cancel failed: ${response.code}"))
+        if (!response.isSuccessful) {
+            return@withLock Result.failure(Exception("Cancel failed: ${response.code}"))
+        }
+        if (isLoginPage(html)) {
+            triggerLoginRequired()
+            return@withLock Result.failure(Exception("need to login"))
+        }
+        if (classJoinedState(training.id) != false) {
+            return@withLock Result.failure(Exception("Cancellation was not confirmed"))
+        }
+        Result.success(Unit)
     }
 
     override fun isLoggedIn(): Boolean = cookiesLoggedIn(cookies)
+
+    private fun isLoginPage(html: String): Boolean =
+        org.jsoup.Jsoup.parse(html).selectFirst(".menu-item.btn-login, .menu-item .btn-login") != null
+
+    private suspend fun classJoinedState(trainingId: String): Boolean? {
+        val request = buildRequest("$baseUrl/classes/class/$trainingId?embedded=0")
+            .method("GET", null)
+            .build()
+        val response = client.newCall(request).execute()
+        val html = response.body?.string().orEmpty()
+        if (!response.isSuccessful || isLoginPage(html)) return null
+        val doc = org.jsoup.Jsoup.parse(html)
+        if (doc.selectFirst(".event-actions") == null) return null
+        return doc.selectFirst(".booking-text.green") != null
+    }
 
     private suspend fun triggerLoginRequired() {
         val now = System.currentTimeMillis() / 1000

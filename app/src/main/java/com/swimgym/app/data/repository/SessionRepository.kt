@@ -52,7 +52,14 @@ class SessionRepository(
 
     val authToken: Flow<String?> = context.dataStore.data.map { it[AUTH_TOKEN] }
 
-    val isLoggedIn: Flow<Boolean> = authToken.map { it != null }
+    val isLoggedIn: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        val uid = prefs[COOKIES]
+            ?.split("; ")
+            ?.firstOrNull { it.startsWith("virtuagym_u=") }
+            ?.substringAfter("=", "")
+            ?.toLongOrNull() ?: 0
+        uid > 1
+    }
 
     val userName: Flow<String?> = context.dataStore.data.map { it[USER_NAME] }
 

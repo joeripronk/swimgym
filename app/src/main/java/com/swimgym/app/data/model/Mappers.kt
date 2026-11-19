@@ -26,7 +26,9 @@ object Mappers {
             description = description,
             cost = cost,
             totalSpots = totalSpots,
-            cancelPolicy = cancelPolicy
+            cancelPolicy = cancelPolicy,
+            eventId = eventId,
+            calendarId = calendarId
         )
     }
 
@@ -69,7 +71,8 @@ object Mappers {
         description = description,
         cost = cost,
         totalSpots = totalSpots,
-        cancelPolicy = cancelPolicy
+        cancelPolicy = cancelPolicy,
+        eventId = eventId
     )
 
     fun TrainingEntity.toDomain() = Training(

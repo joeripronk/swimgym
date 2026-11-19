@@ -215,14 +215,21 @@ class BookingSchedulerImpl(
         val bookResult = apiClient.bookTraining(training)
         return bookResult.fold(
             onSuccess = {
-                scheduledBookingRepo.incrementBookingCount(booking.id, training)
-                val nextBooking = booking.copy(startTime = addDaysToSeconds(training.startTime, 7))
+                val nextBooking = booking.copy(
+                    bookedCount = booking.bookedCount + 1,
+                    startTime = addDaysToSeconds(training.startTime, 7),
+                    instructor = training.instructor,
+                    trainingId = training.id
+                )
                 scheduledBookingRepo.saveBooking(nextBooking)
-                val maxRepeat = booking.maxRepeatCount
-                if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
+                val maxRepeat = nextBooking.maxRepeatCount
+                if (maxRepeat != null && nextBooking.bookedCount >= maxRepeat) {
                     scheduledBookingRepo.completeBooking(booking.id)
                 } else if (scheduleNextAlarm) {
-                    alarmScheduler.scheduleBooking(booking.id, alarmScheduler.bookingAlarmTimeMillis(nextBooking))
+                    alarmScheduler.scheduleBooking(
+                        booking.id,
+                        alarmScheduler.bookingAlarmTimeMillis(nextBooking)
+                    )
                 }
                 notificationManager.showBookingConfirmation(
                     trainingName = training.title,

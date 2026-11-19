@@ -206,7 +206,9 @@ class ScheduleParserImpl(
             cost = cost,
             isJoined = isJoined,
             imageUrl = imageUrl,
-            cancelPolicy = cancelPolicy
+            cancelPolicy = cancelPolicy,
+            eventId = baseTraining.eventId,
+            calendarId = baseTraining.calendarId
         )
     }
 

@@ -202,13 +202,12 @@ class CalendarServiceImpl(
             Log.d(TAG, "Removed $removedCount calendar events")
 
             // Update local database entries to remove eventId
-            val trainings = dao.getAllTrainingsList() ?: emptyList()
-            val matchingTrainings = trainings.filter { t ->
+            val matchingTrainings = dao.getAllTrainingsList().filter { t ->
                 t.startTime == startTime && t.title.equals(title, ignoreCase = true) && t.eventId.isNotBlank()
             }
             for (training in matchingTrainings) {
-                dao.deleteTrainingById(training.id)
-                Log.d(TAG, "Removed training from DB: ${training.id}")
+                dao.insertTraining(training.copy(eventId = "", calendarId = ""))
+                Log.d(TAG, "Cleared calendar event id for training: ${training.id}")
             }
             cursor?.close()
         } catch (e: Exception) {
