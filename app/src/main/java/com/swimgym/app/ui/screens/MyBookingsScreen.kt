@@ -94,7 +94,7 @@ fun MyBookingsScreen(
                     items(scheduledBookings) { scheduled ->
                         ScheduledBookingCard(
                             scheduled = scheduled,
-                            onClick = { onScheduledBookingClick(scheduled.trainingId) },
+                            onClick = onScheduledBookingClick,
                             onPause = { onPauseScheduled(scheduled.id) },
                             onResume = { onResumeScheduled(scheduled.id) },
                             onDelete = { onDeleteScheduled(scheduled.id) }
@@ -211,40 +211,13 @@ private fun BookingCard(
 @Composable
 private fun ScheduledBookingCard(
     scheduled: ScheduledBooking,
-    onClick: () -> Unit,
+    onClick: (String) -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val dayFormat = remember { SimpleDateFormat("EEE HH:mm", Locale.getDefault()) }
     val dateFormat = remember { SimpleDateFormat("EEEE", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-    val weekday = if (scheduled.startTime > 0) {
-        dateFormat.format(Date(scheduled.startTime*1000))
-    } else {
-        ""
-    }
-    val startTimeStr = if (scheduled.startTime > 0) {
-        timeFormat.format(Date(scheduled.startTime * 1000))
-    } else {
-        "invalid"
-    }
-
-    val nextBookingTime = remember(scheduled.startTime) {
-        if (scheduled.startTime > 0) {
-            scheduled.startTime
-        } else {
-            0L
-        }
-    }
-
-    val timeUntilNext = remember(nextBookingTime) {
-        if (nextBookingTime > 0) {
-            formatTimeUntilNext(nextBookingTime)
-        } else {
-            ""
-        }
-    }
 
     var dryRunResult by remember { mutableStateOf<DryRunResult?>(null) }
 
@@ -252,13 +225,43 @@ private fun ScheduledBookingCard(
         dryRunResult = SwimGymAppContainer.getInstance().bookingScheduler.simulateBooking(scheduled)
     }
 
+    // The dry run resolves the exact cached training that will be booked next. The
+    // stored trainingId points at last week's class, so never navigate with it when
+    // a concrete next training is available.
+    val nextTraining = when (val result = dryRunResult) {
+        is DryRunResult.Ok -> result.training
+        is DryRunResult.Conflict -> result.training
+        else -> null
+    }
+    val displayStartTime = nextTraining?.startTime ?: scheduled.startTime
+    val displayTitle = nextTraining?.title ?: scheduled.className
+    val displayInstructor = nextTraining?.instructor?.takeIf { it.isNotBlank() }
+        ?: scheduled.instructor
+
+    val weekday = if (displayStartTime > 0) {
+        dateFormat.format(Date(displayStartTime * 1000))
+    } else {
+        ""
+    }
+    val startTimeStr = if (displayStartTime > 0) {
+        timeFormat.format(Date(displayStartTime * 1000))
+    } else {
+        "invalid"
+    }
+    val timeUntilNext = if (displayStartTime > 0) {
+        formatTimeUntilNext(displayStartTime)
+    } else {
+        ""
+    }
     val conflictEvents = (dryRunResult as? DryRunResult.Conflict)
         ?.conflicts
-        ?.takeIf { scheduled.startTime > System.currentTimeMillis() / 1000 + 7 * 86400 }
+        ?.takeIf { displayStartTime > System.currentTimeMillis() / 1000 + 7 * 86400 }
         ?: emptyList()
 
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick(nextTraining?.id ?: scheduled.trainingId) }
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -270,12 +273,12 @@ private fun ScheduledBookingCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "${dayFormat.format(Date(scheduled.startTime*1000))} ${scheduled.className}",
+                        text = displayTitle,
                         style = MaterialTheme.typography.titleMedium
                     )
-                    if (scheduled.instructor.isNotEmpty()) {
+                    if (displayInstructor.isNotEmpty()) {
                         Text(
-                            text = "Trainer: ${scheduled.instructor}",
+                            text = "Trainer: $displayInstructor",
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -377,6 +380,17 @@ private fun ScheduledBookingCard(
                         style = MaterialTheme.typography.bodySmall
                     )
 
+                }
+
+                if (!nextTraining?.imageUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = nextTraining.imageUrl,
+                        contentDescription = "Instructor image",
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
                 }
 
                 Row {
