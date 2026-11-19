@@ -54,6 +54,7 @@ class BookingSchedulerTest {
         dao = mockk(relaxUnitFun = true)
         scheduledBookingRepo = mockk(relaxUnitFun = true)
         alarmScheduler = mockk(relaxUnitFun = true)
+        every { alarmScheduler.bookingAlarmTimeMillis(any()) } returns 0L
         scheduler = BookingSchedulerImpl(
             dao = dao,
             scheduledBookingRepo = scheduledBookingRepo,

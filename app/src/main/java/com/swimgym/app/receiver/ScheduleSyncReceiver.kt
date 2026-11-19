@@ -30,6 +30,14 @@ class ScheduleSyncReceiver : BroadcastReceiver() {
                 }
                 if (container.sessionRepository.isLoggedIn.first()) {
                     container.bookingScheduler.checkCalendarConflicts()
+                    // The booking alarm is a one-shot armed for the exact moment the
+                    // window opens. If it was missed (device off, Doze, clock change),
+                    // the daily sync is the safety net that still books the class.
+                    try {
+                        container.bookingScheduler.checkBookings()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Scheduled booking check failed", e)
+                    }
                 }
                 container.alarmScheduler.scheduleSyncAlarm()
             } catch (e: Exception) {

@@ -65,6 +65,7 @@ class BookingSchedulerDstTest {
         dao = mockk(relaxUnitFun = true)
         scheduledBookingRepo = mockk(relaxUnitFun = true)
         alarmScheduler = mockk(relaxUnitFun = true)
+        every { alarmScheduler.bookingAlarmTimeMillis(any()) } returns 0L
         testScope = TestScope(UnconfinedTestDispatcher())
         mockkObject(com.swimgym.app.util.PermissionHelper)
         every { com.swimgym.app.util.PermissionHelper.hasCalendarReadPermission(any()) } returns true
@@ -153,15 +154,15 @@ class BookingSchedulerDstTest {
         )
 
     // -------------------------------------------------------------------------------------
-    // The alarm fires 5 minutes after the booking window opens: 7 local days before the class.
+    // The alarm fires 1 second after the booking window opens: 7 local days before the class.
     // -------------------------------------------------------------------------------------
 
     @Test
     fun `class exactly 7 local days ahead is bookable when the autumn transition is in between`() = testScope.runTest {
-        // The alarm for the class of 2026-10-27 19:00 fires at 2026-10-20 19:05 local.
+        // The alarm for the class of 2026-10-27 19:00 fires at 2026-10-20 19:00:01 local.
         // The transition happens on 2026-10-25, so in absolute time the class is
-        // 7 days + 55 minutes away, which still is "7 days" in the gym's wall-clock world.
-        val now = DstTimeFixtures.epochAt("2026-10-20 19:05")
+        // just over 7 days away, which still is "7 days" in the gym's wall-clock world.
+        val now = DstTimeFixtures.epochAt("2026-10-20 19:00:01")
         val classTime = DstTimeFixtures.epochAt("2026-10-27 19:00")
         scheduler = schedulerAt(now)
         coEvery { dao.getAllTrainingsList() } returns listOf(createTraining("t1", "Laps Swimming", classTime))
@@ -176,8 +177,8 @@ class BookingSchedulerDstTest {
 
     @Test
     fun `class exactly 7 local days ahead is bookable when the spring transition is in between`() = testScope.runTest {
-        // The alarm for the class of 2026-03-29 19:00 fires at 2026-03-22 19:05 local.
-        val now = DstTimeFixtures.epochAt("2026-03-22 19:05")
+        // The alarm for the class of 2026-03-29 19:00 fires at 2026-03-22 19:00:01 local.
+        val now = DstTimeFixtures.epochAt("2026-03-22 19:00:01")
         val classTime = DstTimeFixtures.epochAt("2026-03-29 19:00")
         scheduler = schedulerAt(now)
         coEvery { dao.getAllTrainingsList() } returns listOf(createTraining("t1", "Laps Swimming", classTime))
@@ -192,7 +193,7 @@ class BookingSchedulerDstTest {
 
     @Test
     fun `class 8 local days ahead is not bookable`() = testScope.runTest {
-        val now = DstTimeFixtures.epochAt("2026-10-19 19:05")
+        val now = DstTimeFixtures.epochAt("2026-10-19 19:00:01")
         val classTime = DstTimeFixtures.epochAt("2026-10-27 19:00")
         scheduler = schedulerAt(now)
         coEvery { dao.getAllTrainingsList() } returns listOf(createTraining("t1", "Laps Swimming", classTime))
@@ -207,7 +208,7 @@ class BookingSchedulerDstTest {
 
     @Test
     fun `class 3 local days ahead is bookable when the autumn transition is in between`() = testScope.runTest {
-        val now = DstTimeFixtures.epochAt("2026-10-24 19:05")
+        val now = DstTimeFixtures.epochAt("2026-10-24 19:00:01")
         val classTime = DstTimeFixtures.epochAt("2026-10-27 19:00")
         scheduler = schedulerAt(now)
         coEvery { dao.getAllTrainingsList() } returns listOf(createTraining("t1", "Laps Swimming", classTime))
@@ -222,7 +223,7 @@ class BookingSchedulerDstTest {
 
     @Test
     fun `class 1 local day ahead is not bookable`() = testScope.runTest {
-        val now = DstTimeFixtures.epochAt("2026-10-26 19:05")
+        val now = DstTimeFixtures.epochAt("2026-10-26 19:00:01")
         val classTime = DstTimeFixtures.epochAt("2026-10-27 19:00")
         scheduler = schedulerAt(now)
         coEvery { dao.getAllTrainingsList() } returns listOf(createTraining("t1", "Laps Swimming", classTime))
@@ -241,7 +242,7 @@ class BookingSchedulerDstTest {
 
     @Test
     fun `booking is made when the alarm fires 7 local days before the class across the autumn transition`() = testScope.runTest {
-        val now = DstTimeFixtures.epochAt("2026-10-20 19:05")
+        val now = DstTimeFixtures.epochAt("2026-10-20 19:00:01")
         val classTime = DstTimeFixtures.epochAt("2026-10-27 19:00")
         scheduler = schedulerAt(now)
         val booking = bookingFor("2026-10-27 19:00")
@@ -260,7 +261,7 @@ class BookingSchedulerDstTest {
 
     @Test
     fun `booking is made when the alarm fires 7 local days before the class across the spring transition`() = testScope.runTest {
-        val now = DstTimeFixtures.epochAt("2026-03-22 19:05")
+        val now = DstTimeFixtures.epochAt("2026-03-22 19:00:01")
         val classTime = DstTimeFixtures.epochAt("2026-03-29 19:00")
         scheduler = schedulerAt(now)
         val booking = bookingFor("2026-03-29 19:00")
@@ -298,7 +299,7 @@ class BookingSchedulerDstTest {
     }
 
     @Test
-    fun `the next occurrence after a booking keeps the local class time across the autumn transition`() = testScope.runTest {        val now = DstTimeFixtures.epochAt("2026-10-20 19:05")
+    fun `the next occurrence after a booking keeps the local class time across the autumn transition`() = testScope.runTest {        val now = DstTimeFixtures.epochAt("2026-10-20 19:00:01")
         val classTime = DstTimeFixtures.epochAt("2026-10-27 19:00")
         scheduler = schedulerAt(now)
         val booking = bookingFor("2026-10-27 19:00")
@@ -319,10 +320,36 @@ class BookingSchedulerDstTest {
     }
 
     @Test
+    fun `successful booking re-arms the alarm for the next window, not for the class time`() = testScope.runTest {
+        val now = DstTimeFixtures.epochAt("2026-10-20 19:00:01")
+        val classTime = DstTimeFixtures.epochAt("2026-10-27 19:00")
+        scheduler = schedulerAt(now)
+        val booking = bookingFor("2026-10-27 19:00")
+        coEvery { scheduledBookingRepo.getBooking(1L) } returns booking
+        coEvery { dao.getAllTrainingsList() } returns listOf(createTraining("t1", "Laps Swimming", classTime))
+        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns true
+        coEvery { calendarService.findConflictingEvents(any(), any(), any(), any()) } returns emptyList()
+        apiClient.htmlToReturn = trainingDetailsDocument("Laps Swimming")
+        apiClient.bookResult = Result.success(Unit)
+
+        // The next occurrence is 2026-11-03 19:00; its window opens 2026-10-27 19:00:01.
+        val expectedAlarmMillis = DstTimeFixtures.epochAt("2026-10-27 19:00") * 1000 + 1000
+        val checked = mutableListOf<ScheduledBooking>()
+        every { alarmScheduler.bookingAlarmTimeMillis(capture(checked)) } returns expectedAlarmMillis
+        val requested = mutableListOf<Long>()
+        coEvery { alarmScheduler.scheduleBooking(1L, capture(requested)) } returns Unit
+
+        scheduler.processSingleBooking(1L)
+
+        assertEquals(DstTimeFixtures.epochAt("2026-11-03 19:00"), checked.last().startTime)
+        assertEquals(expectedAlarmMillis, requested.last())
+    }
+
+    @Test
     fun `a failed booking is retried 15 minutes later while the window is open across the autumn transition`() = testScope.runTest {
-        // The class of 2026-10-27 19:00 is 6d23h55m away in local time, so the booking
+        // The class of 2026-10-27 19:00 is just under 7 local days away, so the booking
         // window is open and the booking has to be retried shortly.
-        val now = DstTimeFixtures.epochAt("2026-10-20 19:05")
+        val now = DstTimeFixtures.epochAt("2026-10-20 19:00:01")
         val classTime = DstTimeFixtures.epochAt("2026-10-27 19:00")
         scheduler = schedulerAt(now)
         val booking = bookingFor("2026-10-27 19:00")
@@ -341,14 +368,14 @@ class BookingSchedulerDstTest {
         scheduler.processSingleBooking(1L)
 
         assertTrue("expected a retry alarm", requested.isNotEmpty())
-        assertEquals("2026-10-20 19:20", DstTimeFixtures.local(requested.last() / 1000))
+        assertEquals("2026-10-20 19:15", DstTimeFixtures.local(requested.last() / 1000))
     }
 
     @Test
     fun `a class 7 local days ahead is not treated as a far out conflict across the autumn transition`() = testScope.runTest {
-        // The class of 2026-10-27 19:00 is 6d23h55m away in local time: still inside the
+        // The class of 2026-10-27 19:00 is just under 7 local days away: still inside the
         // booking window, so it is not a "far out" booking that needs a conflict warning.
-        val now = DstTimeFixtures.epochAt("2026-10-20 19:05")
+        val now = DstTimeFixtures.epochAt("2026-10-20 19:00:01")
         val classTime = DstTimeFixtures.epochAt("2026-10-27 19:00")
         scheduler = schedulerAt(now)
         val booking = bookingFor("2026-10-27 19:00")

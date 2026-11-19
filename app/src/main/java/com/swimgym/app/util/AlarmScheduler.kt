@@ -21,7 +21,7 @@ class AlarmScheduler(
     companion object {
         const val TAG = "AlarmScheduler"
         private const val SYNC_REQUEST_CODE = 0x7E57
-        private const val BOOKING_LEAD_MILLIS = 5 * 60 * 1000L
+        const val BOOKING_LEAD_MILLIS = 1000L
     }
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -131,7 +131,7 @@ class AlarmScheduler(
 
     /**
      * Re-arms the one-shot booking alarm for every ACTIVE scheduled booking.
-     * The alarm fires 5 minutes after the booking window opens (7 days before
+     * The alarm fires 1 second after the booking window opens (7 days before
      * the class). Bookings whose window is already open fire immediately.
      */
     suspend fun rescheduleBookingAlarms(bookings: List<ScheduledBooking>) {
@@ -147,7 +147,7 @@ class AlarmScheduler(
     }
 
     /**
-     * Alarm time (epoch millis) for a booking: 5 minutes after its booking
+     * Alarm time (epoch millis) for a booking: 1 second after its booking
      * window opens, i.e. 7 local days before the next weekly occurrence.
      * The advance uses wall-clock lead (not raw epoch) so a DST transition
      * does not shift the alarm by an hour.

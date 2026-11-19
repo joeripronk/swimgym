@@ -98,14 +98,14 @@ class TimeUtilsDstTest {
 
     @Test
     fun `seven local days ahead of the alarm moment keeps the local alarm time across the autumn transition`() {
-        // 2026-10-20 19:05 local (still summer time), the class is a week later at 19:00
-        // local (winter time). 7 local days ahead is 2026-10-27 19:05 local, which is
-        // 7 days + 55 minutes of absolute time.
-        val alarmMoment = DstTimeFixtures.epochAt("2026-10-20 19:05")
+        // 2026-10-20 19:00:01 local (still summer time), the class is a week later at 19:00
+        // local (winter time). 7 local days ahead is 2026-10-27 19:00:01 local, which is
+        // 7 days + 1 hour of absolute time.
+        val alarmMoment = DstTimeFixtures.epochAt("2026-10-20 19:00:01")
 
         val windowBound = addDaysToSeconds(alarmMoment, 7)
 
-        assertEquals("2026-10-27 19:05", DstTimeFixtures.local(windowBound))
+        assertEquals("2026-10-27 19:00", DstTimeFixtures.local(windowBound))
         assertEquals(7 * 86400 + 3600, windowBound - alarmMoment)
     }
 

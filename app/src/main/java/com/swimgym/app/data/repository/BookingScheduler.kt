@@ -222,7 +222,7 @@ class BookingSchedulerImpl(
                 if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
                     scheduledBookingRepo.completeBooking(booking.id)
                 } else if (scheduleNextAlarm) {
-                    alarmScheduler.scheduleBooking(booking.id, nextBooking.startTime * 1000)
+                    alarmScheduler.scheduleBooking(booking.id, alarmScheduler.bookingAlarmTimeMillis(nextBooking))
                 }
                 notificationManager.showBookingConfirmation(
                     trainingName = training.title,
@@ -298,7 +298,7 @@ class BookingSchedulerImpl(
             while (wallClockDeltaSeconds(now, startSeconds) < 7 * 86400) {
                 startSeconds = addDaysToSeconds(startSeconds, 7)
             }
-            val nextAlarmTime = addDaysToSeconds(startSeconds, -7) * 1000L + 5 * 60 * 1000L
+            val nextAlarmTime = addDaysToSeconds(startSeconds, -7) * 1000L + AlarmScheduler.BOOKING_LEAD_MILLIS
             val nowMillis = nowSeconds() * 1000
             if (nextAlarmTime > nowMillis) {
                 alarmScheduler.scheduleBooking(booking.id, nextAlarmTime)
