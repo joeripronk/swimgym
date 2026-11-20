@@ -1,11 +1,19 @@
 package com.swimgym.app.util
 
 import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import com.swimgym.app.data.repository.ScheduledBooking
 import com.swimgym.app.data.repository.SessionRepository
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.spyk
+import io.mockk.unmockkAll
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -39,6 +47,7 @@ class AlarmSchedulerDstTest {
 
     @After
     fun tearDown() {
+        unmockkAll()
         TimeZone.setDefault(originalTz)
     }
 
@@ -156,5 +165,23 @@ class AlarmSchedulerDstTest {
         val alarm = scheduler.bookingAlarmTimeMillis(bookingFor("2026-11-08 19:00"))
 
         assertAlarmAt("2026-11-01 19:00", alarm)
+    }
+
+    @Test
+    fun `rescheduling alarms keeps a future retry deadline instead of firing immediately`() = runTest {
+        val now = DstTimeFixtures.epochAt("2026-10-20 19:00:01")
+        coEvery { sessionRepository.getExactAlarmEnabled() } returns false
+        mockkStatic(PendingIntent::class)
+        every { PendingIntent.getBroadcast(any(), any(), any<Intent>(), any<Int>()) } returns mockk(relaxed = true)
+        val scheduler = spyk(schedulerAt(now))
+        val retryAt = now + 900
+        val booking = bookingFor("2026-10-27 19:00").copy(
+            retryCount = 2,
+            nextRetryAt = retryAt
+        )
+
+        scheduler.rescheduleBookingAlarms(listOf(booking))
+
+        coVerify { scheduler.scheduleBooking(1L, retryAt * 1000) }
     }
 }

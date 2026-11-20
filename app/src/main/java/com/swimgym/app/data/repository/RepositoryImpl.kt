@@ -21,7 +21,6 @@ import java.text.SimpleDateFormat
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.temporal.TemporalAdjusters
 import java.util.Date
 import java.util.Locale
 
@@ -75,8 +74,14 @@ class TrainingRepositoryImpl(
             if (cachedTrainings.isEmpty()) {
                 Log.d("TrainingRepo", "No cached trainings, triggering refresh")
                 val refreshResult = refreshSchedule()
-                if (refreshResult.isSuccess) {
-                    cachedTrainings = dao.getAllTrainingsList()
+                // A partial refresh still persists the weeks that succeeded.
+                // Re-read regardless of the result and only fail when nothing
+                // usable was stored.
+                cachedTrainings = dao.getAllTrainingsList()
+                if (refreshResult.isFailure && cachedTrainings.isEmpty()) {
+                    return Result.failure(
+                        refreshResult.exceptionOrNull() ?: Exception("Schedule refresh failed")
+                    )
                 }
             }
 
@@ -145,12 +150,9 @@ class TrainingRepositoryImpl(
                 }
             } catch (e: Exception) {
                 android.util.Log.e("TrainingRepo", "getTrainingDetails failed for $trainingId: ${e.message}", e)
-                val cached = dao.getTrainingById(trainingId)
-                if (cached != null) {
-                    Result.success(cached.toDomain())
-                } else {
-                    Result.failure(e)
-                }
+                // Never present stale cached data as freshly verified details: the
+                // booking flow uses this call to confirm a booking actually succeeded.
+                Result.failure(e)
             }
         }
     }
@@ -228,25 +230,31 @@ class TrainingRepositoryImpl(
         return withContext(Dispatchers.IO) {
             try {
                 Log.d("TrainingRepo", "Starting schedule fetch")
-                val existingIds = dao.getAllTrainingIds()
-                Log.d("TrainingRepo", "Found ${existingIds.size} existing trainings")
-                val trainings = fetchAndSaveSchedule()
-                Log.d("TrainingRepo", "Fetched ${trainings.size} trainings")
-                if (trainings.isNotEmpty()) {
-                    dao.insertTrainings(trainings.map { it.toEntity() })
-                    Log.d("TrainingRepo", "Inserted ${trainings.size} trainings into DB")
-                    val newIds = trainings.map { it.id }.toSet()
-                    val deletedIds = existingIds.filter { it !in newIds }
-                    Log.d("TrainingRepo", "${deletedIds.size} deleted trainings to remove")
-                    for (id in deletedIds) {
-                        dao.deleteTrainingById(id)
-                        Log.d("TrainingRepo", "Deleted training: $id")
+                val fetch = fetchAndSaveSchedule()
+                Log.d("TrainingRepo", "Fetched ${fetch.trainings.size} trainings")
+                if (fetch.trainings.isNotEmpty()) {
+                    dao.insertTrainings(fetch.trainings.map { it.toEntity() })
+                    Log.d("TrainingRepo", "Inserted ${fetch.trainings.size} trainings into DB")
+                    // A partial fetch must never delete classes from the weeks that
+                    // failed to load; they are still valid and may be booked.
+                    if (fetch.allWeeksSucceeded) {
+                        val newIds = fetch.trainings.map { it.id }.toSet()
+                        val deletedIds = dao.getAllTrainingIds().filter { it !in newIds }
+                        Log.d("TrainingRepo", "${deletedIds.size} deleted trainings to remove")
+                        for (id in deletedIds) {
+                            dao.deleteTrainingById(id)
+                            Log.d("TrainingRepo", "Deleted training: $id")
+                        }
                     }
                 } else {
                     Log.d("TrainingRepo", "No trainings fetched, skipping insert")
                 }
                 updateSyncStatus()
-                Result.success(Unit)
+                if (fetch.allWeeksSucceeded) {
+                    Result.success(Unit)
+                } else {
+                    Result.failure(fetch.error ?: Exception("Partial schedule fetch"))
+                }
             } catch (e: Exception) {
                 Log.e("TrainingRepo", "refreshSchedule failed", e)
                 Result.failure(e)
@@ -254,31 +262,42 @@ class TrainingRepositoryImpl(
         }
     }
 
+    private data class ScheduleFetch(
+        val trainings: List<com.swimgym.app.data.model.TrainingDto>,
+        val allWeeksSucceeded: Boolean,
+        val error: Exception?
+    )
+
     override fun getSyncStatus(): Flow<SyncStatus> = syncStatusFlow
 
-    private suspend fun fetchAndSaveSchedule(): List<com.swimgym.app.data.model.TrainingDto> {
+    private suspend fun fetchAndSaveSchedule(): ScheduleFetch {
         val trainings = mutableListOf<com.swimgym.app.data.model.TrainingDto>()
+        var allWeeksSucceeded = true
+        var firstError: Exception? = null
 
         for (weekOffset in 0 until 3) {
+            // Anchor on this week's Monday first, then step by whole weeks. Applying
+            // nextOrSame after minusWeeks made the range depend on today's weekday.
             val formattedDate = LocalDate.now(ZoneId.systemDefault())
+                .with(DayOfWeek.MONDAY)
                 .minusWeeks((1 - weekOffset).toLong())
-                .with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY))
 
-            trainings.addAll(fetchWeek(formattedDate.toString(), weekOffset))
+            try {
+                trainings.addAll(fetchWeek(formattedDate.toString(), weekOffset))
+            } catch (e: Exception) {
+                allWeeksSucceeded = false
+                if (firstError == null) firstError = e
+                Log.e("TrainingRepo", "Failed to fetch schedule week $formattedDate", e)
+            }
         }
 
-        return trainings
+        return ScheduleFetch(trainings, allWeeksSucceeded, firstError)
     }
 
     private suspend fun fetchWeek(date: String, weekOffset: Int = 0): List<com.swimgym.app.data.model.TrainingDto> {
         val now = System.currentTimeMillis() / 1000
-        return try {
-            val doc = apiClient.fetchHtml("https://swimgym.virtuagym.com/classes/week/$date?event_type=8")
-            parser.parseSchedule(doc, weekOffset, now, apiClient)
-        } catch (e: Exception) {
-            Log.e("TrainingRepo", "Failed to fetch schedule week $date", e)
-            emptyList()
-        }
+        val doc = apiClient.fetchHtml("https://swimgym.virtuagym.com/classes/week/$date?event_type=8")
+        return parser.parseSchedule(doc, weekOffset, now, apiClient)
     }
 
     private suspend fun updateSyncStatus() {

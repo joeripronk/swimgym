@@ -135,10 +135,22 @@ class AlarmScheduler(
      * the class). Bookings whose window is already open fire immediately.
      */
     suspend fun rescheduleBookingAlarms(bookings: List<ScheduledBooking>) {
+        val nowSeconds = nowMillisProvider() / 1000
         bookings
             .filter { it.status == ScheduledBookingStatus.ACTIVE }
             .forEach { booking ->
-                val alarmTimeMillis = bookingAlarmTimeMillis(booking)
+                // A booking that is mid-retry already has a deadline. Firing it
+                // immediately on every cold start/boot would burn the retry
+                // budget without waiting for the backoff.
+                val alarmTimeMillis = if (
+                    booking.retryCount > 0 &&
+                    booking.nextRetryAt != null &&
+                    booking.nextRetryAt > nowSeconds
+                ) {
+                    booking.nextRetryAt * 1000
+                } else {
+                    bookingAlarmTimeMillis(booking)
+                }
                 // An alarm time in the past means the booking window is already
                 // open; scheduleBooking fires the booking immediately in that case.
                 Log.d(TAG, "Rescheduling booking alarm ${booking.id} for ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(alarmTimeMillis)}")
@@ -194,6 +206,8 @@ class AlarmScheduler(
 
     private fun fireImmediately(bookingId: Long) {
         Log.d(TAG, "Booking alarm $bookingId fired immediately (pendingIntent cancelled or alarm time already passed)")
+        // Clear any previously armed alarm so a clock change cannot fire a duplicate.
+        alarmManager.cancel(createPendingIntent(bookingId))
         val intent = Intent(context, ScheduledBookingReceiver::class.java).apply {
             putExtra("booking_id", bookingId)
         }

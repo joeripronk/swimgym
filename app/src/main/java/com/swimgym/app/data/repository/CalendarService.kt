@@ -68,6 +68,21 @@ class CalendarServiceImpl(
                 return@withContext null
             }
 
+            // Reuse an event that was already added manually, otherwise booking a
+            // class creates a second calendar entry and leaks the first one.
+            val existingEventId = findCalendarEventId(
+                startTimeMillis = training.startTime * 1000,
+                title = training.title,
+                calendarId = selectedCalendarId
+            )
+            if (existingEventId != null) {
+                dao.insertTraining(training.copy(
+                    eventId = existingEventId,
+                    calendarId = selectedCalendarId.toString()
+                ))
+                return@withContext existingEventId
+            }
+
             val reminderEnabled = sessionRepository.getReminderEnabled()
             val reminderTimes = sessionRepository.getReminderTimes()
 
@@ -212,6 +227,19 @@ class CalendarServiceImpl(
             cursor?.close()
         } catch (e: Exception) {
             Log.e(TAG, "Error removing training by time and title", e)
+        }
+    }
+
+    private fun findCalendarEventId(startTimeMillis: Long, title: String, calendarId: Long): String? {
+        val cursor = context.contentResolver.query(
+            CalendarContract.Events.CONTENT_URI,
+            arrayOf(CalendarContract.Events._ID),
+            "${CalendarContract.Events.TITLE} = ? AND ${CalendarContract.Events.DTSTART} = ? AND ${CalendarContract.Events.CALENDAR_ID} = ?",
+            arrayOf(title, startTimeMillis.toString(), calendarId.toString()),
+            null
+        ) ?: return null
+        return cursor.use {
+            if (it.moveToFirst()) it.getLong(0).toString() else null
         }
     }
 

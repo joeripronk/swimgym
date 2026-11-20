@@ -26,7 +26,7 @@ class BookingNotificationManager(
     const val SYNC_ID = 5000
     const val BOOKING_RETRY_ID = 20000
     const val CALENDAR_CONFLICT_ID = 4001
-    const val BOOKING_NOT_AVAILABLE_ID = 4002
+    const val BOOKING_NOT_AVAILABLE_ID = 4300
         private const val SYNC_CHANNEL_ID = "swimgym_notifications"
     }
 

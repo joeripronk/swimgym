@@ -166,7 +166,7 @@ class ScheduleParserImpl(
                 ?.text() ?: "invalid"
         val imageUrl = doc.selectFirst(".event-image-holder img")?.attr("src") ?: ""
         val description = doc.selectFirst(".event-description-holder")?.text() ?: ""
-        val cost = doc.selectFirst(".event-details-icon.ticket-star .icon-text")?.text() ?: ""
+        val cost = doc.selectFirst(".event-details-icon:has(.ticket-star) .icon-text")?.text() ?: ""
         val isJoined = doc.selectFirst(".booking-text.green") != null
         val cancelPolicy =
             doc.selectFirst(".event-actions > div:not(.booking-text)")?.text() ?: ""

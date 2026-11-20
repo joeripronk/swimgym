@@ -226,14 +226,11 @@ private fun TrainingCard(
     onClick: () -> Unit,
     onAddToCalendar: () -> Unit
 ) {
-    val now = remember { System.currentTimeMillis()/1000 }
+    val now = System.currentTimeMillis() / 1000
     val dateFormat = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
     val dayFormat = remember { SimpleDateFormat("EEE HH:mm", Locale.getDefault()) }
 
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-
-    // Cache image URL per card to avoid redundant AsyncImage instances
-    val cachedImageUrl = remember { mutableStateOf(training.imageUrl) }
 
     Card(
         onClick = onClick,
@@ -318,7 +315,7 @@ private fun TrainingCard(
             }
             if (training.imageUrl.isNotEmpty()) {
                 AsyncImage(
-                    model = cachedImageUrl.value,
+                    model = training.imageUrl,
                     contentDescription = "Instructor image",
 
                     modifier = Modifier

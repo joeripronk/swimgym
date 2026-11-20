@@ -39,10 +39,16 @@ class ScheduleSyncReceiver : BroadcastReceiver() {
                         Log.e(TAG, "Scheduled booking check failed", e)
                     }
                 }
-                container.alarmScheduler.scheduleSyncAlarm()
             } catch (e: Exception) {
                 Log.e(TAG, "Schedule sync failed", e)
             } finally {
+                // The sync alarm is one-shot. Re-arm it even when a step above
+                // threw, otherwise daily syncing stops after that failure.
+                try {
+                    container.alarmScheduler.scheduleSyncAlarm()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to re-arm sync alarm", e)
+                }
                 pendingResult.finish()
             }
         }

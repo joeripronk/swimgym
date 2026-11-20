@@ -80,7 +80,8 @@ class VirtuagymApiClientImpl(
             .post(body)
             .build()
         val response = client.newCall(request).execute()
-        response.use { extractCookiesFromResponse(it) }
+        // Do not close the response here: callers own the returned body.
+        extractCookiesFromResponse(response)
         return response
     }
 
@@ -90,7 +91,7 @@ class VirtuagymApiClientImpl(
             .post(body)
             .build()
         val response = client.newCall(request).execute()
-        response.use { extractCookiesFromResponse(it) }
+        extractCookiesFromResponse(response)
         return response
     }
 
@@ -249,15 +250,21 @@ class VirtuagymApiClientImpl(
 
     private suspend fun extractCookiesFromResponse(response: Response) {
         val cookieMap = cookies.toMutableMap()
+        // Walk the redirect chain oldest -> newest so fresh cookies win over
+        // cookies set by an earlier hop.
+        val chain = mutableListOf<Response>()
         var current: Response? = response
         while (current != null) {
-            current.headers("Set-Cookie").forEach { header ->
+            chain.add(current)
+            current = current.priorResponse
+        }
+        for (hop in chain.asReversed()) {
+            hop.headers("Set-Cookie").forEach { header ->
                 val (name, value) = parseCookie(header)
                 if (name.isNotBlank()) {
                     cookieMap[name] = value
                 }
             }
-            current = current.priorResponse
         }
         if (!cookiesLoggedIn(cookieMap)) {
             triggerLoginRequired()

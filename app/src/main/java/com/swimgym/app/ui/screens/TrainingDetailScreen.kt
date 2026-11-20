@@ -46,7 +46,6 @@ import java.util.*
         onNavigateToMyBookings: () -> Unit,
         onRefresh: (String) -> Unit,
         onBookingSuccess: (String) -> Unit,
-        onCancellationSuccess: (String) -> Unit,
         calendarRefreshVersion: Int = 0,
         isBookingInProgress: Boolean,
         isCancellingInProgress: Boolean,
@@ -101,7 +100,7 @@ import java.util.*
         }
     }
 
-    LaunchedEffect(training?.id, calendarRefreshVersion) {
+    LaunchedEffect(training?.id, training?.startTime, training?.eventId, calendarRefreshVersion) {
         if (training != null) {
             val calendarService = SwimGymAppContainer.getInstance().calendarService
             isInCalendar = calendarService.isTrainingInCalendar(training.id, training.startTime, training.title)
@@ -344,7 +343,6 @@ import java.util.*
               Button(
                           onClick = {
                               onCancel(training)
-                              onCancellationSuccess(training.id)
                           },
                           enabled = !isCancellingInProgress,
                           modifier = Modifier
@@ -482,11 +480,15 @@ import java.util.*
 
     if (calendarAddError != null) {
         AlertDialog(
-            onDismissRequest = { onClearCalendarError() },
+            onDismissRequest = {
+                calendarAddError = null
+                onClearCalendarError()
+            },
             title = { Text("Calendar Error") },
             text = { Text(calendarAddError!!) },
             confirmButton = {
                 Button(onClick = {
+                    calendarAddError = null
                     onClearCalendarError()
                     retryTraining?.let { training ->
                         trainingToAddToCalendar = training
@@ -497,7 +499,10 @@ import java.util.*
                 }
             },
             dismissButton = {
-                Button(onClick = { onClearCalendarError() }) {
+                Button(onClick = {
+                    calendarAddError = null
+                    onClearCalendarError()
+                }) {
                     Text("Cancel")
                 }
             }

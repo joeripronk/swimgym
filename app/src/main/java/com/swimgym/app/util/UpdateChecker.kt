@@ -107,33 +107,30 @@ object UpdateChecker {
         }
 
     fun isNewerVersion(current: String, latest: String): Boolean {
-        val currentClean = current.trimStart('v')
-        val latestClean = latest.trimStart('v')
-        return compareVersions(currentClean, latestClean) < 0
+        val c = parseVersion(current)
+        val l = parseVersion(latest)
+        return compareValuesBy(c, l,
+            { it.major }, { it.minor }, { it.patch }
+        ) < 0
     }
 
-    private fun compareVersions(current: String, latest: String): Int {
-        val currentParts = current.split(".").map { it.trim() }
-        val latestParts = latest.split(".").map { it.trim() }
-        val maxLen = maxOf(currentParts.size, latestParts.size)
-        for (i in 0 until maxLen) {
-            val c = currentParts.getOrElse(i) { "0" }
-            val l = latestParts.getOrElse(i) { "0" }
-            val cNum = parseVersionPart(c)
-            val lNum = parseVersionPart(l)
-            if (cNum < lNum) return -1
-            if (cNum > lNum) return 1
-        }
-        return 0
-    }
+    private data class VersionParts(val major: Int, val minor: Int, val patch: Int)
 
-    private fun parseVersionPart(part: String): Int {
-        val clean = part.trimStart('v')
-        val pIndex = clean.indexOf('p')
-        return if (pIndex >= 0) {
-            clean.substring(pIndex + 1).toIntOrNull() ?: 0
-        } else {
-            clean.toIntOrNull() ?: 0
+    private fun parseVersion(value: String): VersionParts {
+        val clean = value.trim().trimStart('v')
+        val match = Regex("""(\d+)\.(\d+)p(\d+)""").find(clean)
+        if (match != null) {
+            return VersionParts(
+                match.groupValues[1].toInt(),
+                match.groupValues[2].toInt(),
+                match.groupValues[3].toInt()
+            )
         }
+        val parts = clean.split(".", "p").mapNotNull { it.toIntOrNull() }
+        return VersionParts(
+            parts.getOrElse(0) { 0 },
+            parts.getOrElse(1) { 0 },
+            parts.getOrElse(2) { 0 }
+        )
     }
 }

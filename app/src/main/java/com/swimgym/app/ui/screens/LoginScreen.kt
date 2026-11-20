@@ -16,7 +16,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,30 +24,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.swimgym.app.data.repository.SessionRepository
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit,
-    sessionRepository: SessionRepository,
+    onLoginSuccess: (Map<String, String>) -> Unit,
     baseUrl: String = "https://swimgym.virtuagym.com"
 ) {
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var hasNavigated by remember { mutableStateOf(false) }
-    var cookiesToSave by remember { mutableStateOf<Map<String, String>?>(null) }
+    var webView by remember { mutableStateOf<WebView?>(null) }
     val cookieManager = CookieManager.getInstance()
-
-    LaunchedEffect(cookiesToSave) {
-        cookiesToSave?.let { cookies ->
-            sessionRepository.saveCookies(cookies)
-        }
-    }
 
     AndroidView(
         factory = { ctx ->
             WebView(ctx).apply {
+                webView = this
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -63,15 +55,16 @@ fun LoginScreen(
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
                         isLoading = false
+                        if (url != null && url.startsWith(baseUrl)) {
+                            errorMessage = null
+                        }
 
                         val cookies = cookieManager.getCookie(url) ?: ""
                         val cookieMap = parseCookiesFromString(cookies)
                         val userId = cookieMap["virtuagym_u"]?.toLongOrNull() ?: 0
                         if (userId > 1 && !hasNavigated) {
-                            cookiesToSave = cookieMap
-
                             hasNavigated = true
-                            onLoginSuccess()
+                            onLoginSuccess(cookieMap)
                         }
                     }
 
@@ -81,8 +74,8 @@ fun LoginScreen(
                         description: String?,
                         failingUrl: String?
                     ) {
-                        loadUrl(baseUrl)
-                        if (errorCode != -1) {
+                        if (errorCode != -1 && (failingUrl == null || failingUrl.startsWith(baseUrl))) {
+                            isLoading = false
                             errorMessage = "Error loading page: $description"
                         }
                     }
@@ -116,7 +109,11 @@ fun LoginScreen(
                     color = MaterialTheme.colorScheme.error
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = { /* Reload handled by WebView */ }) {
+                Button(onClick = {
+                    errorMessage = null
+                    isLoading = true
+                    webView?.loadUrl(baseUrl)
+                }) {
                     Text("Retry")
                 }
             }

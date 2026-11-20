@@ -21,7 +21,9 @@ import com.swimgym.app.ui.screens.TrainingDetailScreen
 import com.swimgym.app.ui.screens.SettingsScreen
 import com.swimgym.app.ui.viewmodel.ScheduleViewModel
 import com.swimgym.app.ui.viewmodel.SettingsViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.internal.toLongOrDefault
 
 @ExperimentalComposeUiApi
@@ -45,8 +47,11 @@ fun SwimGymNavigation(
         }
         hasCookies = lid > 1
         if (!hasCookies) {
-            navController.navigate(Screen.Login.route) {
-                popUpTo(Screen.Schedule.route) { inclusive = true }
+            if (navController.currentDestination?.route != Screen.Login.route) {
+                navController.navigate(Screen.Login.route) {
+                    popUpTo(Screen.Schedule.route) { inclusive = true }
+                    launchSingleTop = true
+                }
             }
         } else if (navController.currentDestination?.route != Screen.Schedule.route) {
             navController.navigate(Screen.Schedule.route) {
@@ -56,9 +61,10 @@ fun SwimGymNavigation(
     }
     
     LaunchedEffect(loginRequiredCount) {
-        if (loginRequiredCount > 0) {
+        if (loginRequiredCount > 0 && navController.currentDestination?.route != Screen.Login.route) {
             navController.navigate(Screen.Login.route) {
                 popUpTo(Screen.Schedule.route) { inclusive = true }
+                launchSingleTop = true
             }
         }
     }
@@ -101,11 +107,18 @@ fun SwimGymNavigation(
     ) {
         composable(Screen.Login.route) {
             LoginScreen(
-                sessionRepository = container.sessionRepository,
-                onLoginSuccess = {
-                    scheduleViewModel.refreshSchedule()
-                    navController.navigate(Screen.Schedule.route) {
-                        popUpTo(Screen.Login.route) { inclusive = true }
+                onLoginSuccess = { cookies ->
+                    scope.launch {
+                        // Save in NavHost's scope: LoginScreen is removed from the
+                        // composition by the navigation below, which would cancel
+                        // any DataStore write started from its own LaunchedEffect.
+                        withContext(Dispatchers.IO) {
+                            container.sessionRepository.saveCookies(cookies)
+                        }
+                        scheduleViewModel.refreshSchedule()
+                        navController.navigate(Screen.Schedule.route) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                        }
                     }
                 }
             )
@@ -206,9 +219,7 @@ fun SwimGymNavigation(
                  onBookingSuccess = { trainingId ->
                      scheduleViewModel.loadTrainingDetails(trainingId)
                  },
-                 onCancellationSuccess = { trainingId ->
-                     scheduleViewModel.loadTrainingDetails(trainingId)
-                 },
+
                  isBookingInProgress = uiState.isBookingInProgress,
                  isCancellingInProgress = uiState.isCancellingInProgress,
                  bookingError = uiState.bookingError,

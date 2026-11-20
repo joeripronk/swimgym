@@ -192,10 +192,11 @@ class ScheduleViewModel(
 
     fun loadSchedule(
         level: SwodLevel = _uiState.value.selectedLevel,
-        hideFullyBooked: Boolean = _uiState.value.hideFullyBooked
+        hideFullyBooked: Boolean = _uiState.value.hideFullyBooked,
+        preserveError: String? = null
     ) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null, currentStartDate = null, weeksLoaded = 1) }
+            _uiState.update { it.copy(isLoading = true, error = preserveError, currentStartDate = null, weeksLoaded = 1) }
             getScheduleUseCase(level, hideFullyBooked, null)
                 .onSuccess { trainings ->
                     var filteredTrainings = trainings.filter { it.startTime > System.currentTimeMillis()/1000 }
@@ -205,10 +206,10 @@ class ScheduleViewModel(
                         filteredTrainings = filterByWorkTime(filteredTrainings)
                     }
                     
-                    _uiState.update { it.copy(isLoading = false, trainings = filteredTrainings, selectedLevel = level, hideFullyBooked = hideFullyBooked, currentStartDate = null, weeksLoaded = 1) }
+                    _uiState.update { it.copy(isLoading = false, trainings = filteredTrainings, selectedLevel = level, hideFullyBooked = hideFullyBooked, currentStartDate = null, weeksLoaded = 1, error = preserveError) }
                 }
                 .onFailure { e ->
-                    _uiState.update { it.copy(isLoading = false, error = e.message) }
+                    _uiState.update { it.copy(isLoading = false, error = e.message ?: preserveError) }
                 }
         }
     }
@@ -411,7 +412,11 @@ class ScheduleViewModel(
                     } else {
                         currentTrainings.add(training)
                     }
+                    _selectedTraining.value = _selectedTraining.value?.copy(isJoined = false)
                     _uiState.update { it.copy(bookings = current, trainings = currentTrainings, isCancellingInProgress = false, cancelError = null, calendarRefreshVersion = _uiState.value.calendarRefreshVersion + 1) }
+                    // Refresh only after cancellation completes, otherwise the detail
+                    // reload can read the still-joined state from the server.
+                    loadTrainingDetails(booking.trainingId)
                 }
                 .onFailure { e ->
                     android.util.Log.e("CancelBooking", "Cancellation use case failed for ${booking.trainingId}: ${e.message}")
@@ -578,7 +583,13 @@ class ScheduleViewModel(
                     bookingScheduler.checkCalendarConflicts()
                 }
                 .onFailure { e ->
-                    _uiState.update { it.copy(isLoading = false, error = e.message) }
+                    // A partial refresh persisted some weeks; show them and keep
+                    // the refresh error visible instead of leaving an empty screen.
+                    loadSchedule(
+                        level = _uiState.value.selectedLevel,
+                        hideFullyBooked = _uiState.value.hideFullyBooked,
+                        preserveError = e.message
+                    )
                 }
         }
     }
