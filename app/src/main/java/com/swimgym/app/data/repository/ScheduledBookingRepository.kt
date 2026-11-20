@@ -23,6 +23,17 @@ class ScheduledBookingRepository(
         saveAllBookings(current)
     }
 
+    suspend fun advanceToOccurrence(bookingId: Long, occurrence: Long) {
+        val booking = getBooking(bookingId) ?: return
+        if (booking.startTime == occurrence) return
+        saveBooking(booking.copy(
+            startTime = occurrence,
+            retryCount = 0,
+            lastFailureReason = null,
+            nextRetryAt = null
+        ))
+    }
+
     suspend fun getAllBookings(): List<ScheduledBooking> {
         return try {
             val prefs = context.scheduledBookingDataStore.data.first()
@@ -58,7 +69,8 @@ class ScheduledBookingRepository(
             instructor = training.instructor,
             trainingId = training.id,
             retryCount = 0,
-            lastFailureReason = null
+            lastFailureReason = null,
+            nextRetryAt = null
         ))
     }
 
@@ -67,9 +79,17 @@ class ScheduledBookingRepository(
         saveBooking(booking.copy(retryCount = retryCount, lastFailureReason = reason))
     }
 
+    suspend fun setNextRetryAt(bookingId: Long, nextRetryAt: Long) {
+        val booking = getBooking(bookingId) ?: return
+        saveBooking(booking.copy(nextRetryAt = nextRetryAt))
+    }
+
     suspend fun stopRetries(bookingId: Long) {
         val booking = getBooking(bookingId) ?: return
-        saveBooking(booking.copy(status = ScheduledBookingStatus.STOPPED))
+        saveBooking(booking.copy(
+            status = ScheduledBookingStatus.STOPPED,
+            nextRetryAt = null
+        ))
     }
 
     suspend fun markBookingAsInvalid(bookingId: Long) {
@@ -92,7 +112,8 @@ class ScheduledBookingRepository(
         saveBooking(booking.copy(
             status = ScheduledBookingStatus.ACTIVE,
             retryCount = 0,
-            lastFailureReason = null
+            lastFailureReason = null,
+            nextRetryAt = null
         ))
     }
 
@@ -132,6 +153,7 @@ class ScheduledBookingRepository(
         append(",\"retryCount\":").append(booking.retryCount)
         append(",\"lastFailureReason\":")
         append(booking.lastFailureReason?.let { "\"${escapeJson(it.name)}\"" } ?: "null")
+        append(",\"nextRetryAt\":").append(booking.nextRetryAt ?: "null")
         append(",\"createdAt\":").append(booking.createdAt)
         append("}")
     }
@@ -167,6 +189,7 @@ class ScheduledBookingRepository(
                 val maxRepeatCount = if (maxRepeatStr == "null") null else maxRepeatStr?.toIntOrNull()
                 val retryCount = obj.findValue("retryCount")?.toIntOrNull() ?: 0
                 val lastFailureReason = RetryFailureReason.fromName(obj.findValue("lastFailureReason"))
+                val nextRetryAt = obj.findValue("nextRetryAt")?.toLongOrNull()
                 val createdAt = obj.findValue("createdAt")?.toLongOrNull() ?: System.currentTimeMillis()
 
                 val status = try {
@@ -189,6 +212,7 @@ class ScheduledBookingRepository(
                         maxRepeatCount = maxRepeatCount,
                         retryCount = retryCount,
                         lastFailureReason = lastFailureReason,
+                        nextRetryAt = nextRetryAt,
                         createdAt = createdAt
                     )
                 )

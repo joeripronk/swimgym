@@ -402,18 +402,18 @@ private fun ScheduledBookingCard(
 
                 }
 
-                if (!nextTraining?.imageUrl.isNullOrEmpty()) {
-                    AsyncImage(
-                        model = nextTraining.imageUrl,
-                        contentDescription = "Instructor image",
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape),
-                        contentScale = ContentScale.Crop
-                    )
-                }
+                Column(horizontalAlignment = Alignment.End) {
+                    if (!nextTraining?.imageUrl.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = nextTraining.imageUrl,
+                            contentDescription = "Instructor image",
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
 
-                Row {
                     if (scheduled.status == ScheduledBookingStatus.ACTIVE) {
                         if (scheduled.retryCount > 0) {
                             TextButton(onClick = onStopRetrying) {

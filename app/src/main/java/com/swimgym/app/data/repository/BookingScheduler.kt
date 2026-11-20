@@ -55,14 +55,26 @@ class BookingSchedulerImpl(
         val bookings = scheduledBookingRepo.getAllBookings()
         if (bookings.isNullOrEmpty()) return@withContext
 
-        val activeBookings = bookings.filter { it.status == ScheduledBookingStatus.ACTIVE }
+        // A booking that is already retrying belongs to its own 15-minute alarm.
+        // Letting the twice-daily sync attempt it too would burn the retry budget
+        // twice as fast and replace the alarm the retry just scheduled. If the
+        // alarm was dropped (Doze/OEM), its deadline is in the past and the sync
+        // acts as the fallback instead.
+        val activeBookings = bookings.filter { booking ->
+            if (booking.status != ScheduledBookingStatus.ACTIVE) return@filter false
+            if (booking.retryCount == 0) return@filter true
+            // Bookings persisted before nextRetryAt existed have no deadline;
+            // let the sync act as their fallback too.
+            val deadline = booking.nextRetryAt ?: return@filter true
+            deadline <= now
+        }
 
         activeBookings.forEach { booking ->
             val adjustedStartTime = nextOccurrence(booking.startTime, now)
-            val adjustedBooking = booking.copy(startTime = adjustedStartTime)
-            if (adjustedStartTime != booking.startTime) {
-                scheduledBookingRepo.saveBooking(adjustedBooking)
-            }
+            val adjustedBooking = if (adjustedStartTime != booking.startTime) {
+                scheduledBookingRepo.advanceToOccurrence(booking.id, adjustedStartTime)
+                booking.copy(startTime = adjustedStartTime, retryCount = 0, lastFailureReason = null)
+            } else booking
             when (val dryRun = simulateBooking(adjustedBooking)) {
                 is DryRunResult.Ok -> if (dryRun.bookable) attemptBooking(adjustedBooking, dryRun.training, scheduleNextAlarm = false)
                 is DryRunResult.Conflict -> if (dryRun.bookable) attemptBooking(adjustedBooking, dryRun.training, scheduleNextAlarm = false)
@@ -78,8 +90,10 @@ class BookingSchedulerImpl(
 
         val now = nowSeconds()
         val adjustedStartTime = nextOccurrence(booking.startTime, now)
-        val updatedBooking = booking.copy(startTime = adjustedStartTime)
-        scheduledBookingRepo.saveBooking(updatedBooking)
+        val updatedBooking = if (adjustedStartTime != booking.startTime) {
+            scheduledBookingRepo.advanceToOccurrence(booking.id, adjustedStartTime)
+            booking.copy(startTime = adjustedStartTime, retryCount = 0, lastFailureReason = null)
+        } else booking
 
         when (val dryRun = simulateBooking(updatedBooking)) {
             is DryRunResult.Ok -> dryRun.bookable && attemptBooking(updatedBooking, dryRun.training, scheduleNextAlarm = true)
@@ -206,7 +220,8 @@ class BookingSchedulerImpl(
             val nextBooking = booking.copy(
                 startTime = addDaysToSeconds(training.startTime, 7),
                 instructor = training.instructor,
-                trainingId = training.id
+                trainingId = training.id,
+                nextRetryAt = null
             )
             val maxRepeat = booking.maxRepeatCount
             if (maxRepeat != null && booking.bookedCount + 1 >= maxRepeat) {
@@ -235,7 +250,8 @@ class BookingSchedulerImpl(
                     instructor = training.instructor,
                     trainingId = training.id,
                     retryCount = 0,
-                    lastFailureReason = null
+                    lastFailureReason = null,
+                    nextRetryAt = null
                 )
                 scheduledBookingRepo.saveBooking(nextBooking)
                 val maxRepeat = nextBooking.maxRepeatCount
@@ -269,30 +285,35 @@ class BookingSchedulerImpl(
     override suspend fun stopRetries(bookingId: Long) = withContext(Dispatchers.IO) {
         scheduledBookingRepo.stopRetries(bookingId)
         alarmScheduler.cancelBooking(bookingId)
-        notificationManager.dismissRetryNotification()
+        notificationManager.dismissRetryNotification(bookingId)
     }
 
     /**
      * Records why this attempt failed, then either schedules another attempt or
      * stops the retry sequence once the limit is reached. Returns false in both
      * cases so callers can report the attempt as unsuccessful.
+     *
+     * Re-reads the booking before writing so a concurrent "Stop retrying" cannot
+     * have its state overwritten or have a new alarm re-armed behind its back.
      */
     private suspend fun handleFailure(booking: ScheduledBooking, reason: RetryFailureReason): Boolean {
-        val attempt = booking.retryCount + 1
-        scheduledBookingRepo.recordRetryFailure(booking.id, attempt, reason)
+        val current = scheduledBookingRepo.getBooking(booking.id) ?: return false
+        if (current.status != ScheduledBookingStatus.ACTIVE) return false
+        val attempt = current.retryCount + 1
+        scheduledBookingRepo.recordRetryFailure(current.id, attempt, reason)
         if (attempt >= MAX_RETRIES) {
-            scheduledBookingRepo.stopRetries(booking.id)
-            alarmScheduler.cancelBooking(booking.id)
+            scheduledBookingRepo.stopRetries(current.id)
+            alarmScheduler.cancelBooking(current.id)
             notificationManager.showRetriesStopped(
-                bookingId = booking.id,
-                trainingName = booking.className,
+                bookingId = current.id,
+                trainingName = current.className,
                 reason = reason,
                 retryCount = attempt
             )
             return false
         }
-        showRetryNotification(booking, reason, attempt)
-        rescheduleAlarmForRetry(booking)
+        showRetryNotification(current, reason, attempt)
+        rescheduleAlarmForRetry(current)
         return false
     }
 
@@ -343,21 +364,19 @@ class BookingSchedulerImpl(
     private suspend fun rescheduleAlarmForRetry(booking: ScheduledBooking) {
         val now = nowSeconds()
         val lead = wallClockDeltaSeconds(now, booking.startTime)
-        val windowOpen = lead > 2 * 86400 && lead < 7 * 86400
-        if (!windowOpen) {
+        val windowOpen = lead >= MIN_LEAD_SECONDS && lead <= WEEK_SECONDS
+        val alarmTimeMillis = if (!windowOpen) {
             var startSeconds = booking.startTime
-            while (wallClockDeltaSeconds(now, startSeconds) < 7 * 86400) {
+            while (wallClockDeltaSeconds(now, startSeconds) < WEEK_SECONDS) {
                 startSeconds = addDaysToSeconds(startSeconds, 7)
             }
-            val nextAlarmTime = addDaysToSeconds(startSeconds, -7) * 1000L + AlarmScheduler.BOOKING_LEAD_MILLIS
-            val nowMillis = nowSeconds() * 1000
-            if (nextAlarmTime > nowMillis) {
-                alarmScheduler.scheduleBooking(booking.id, nextAlarmTime)
-            }
-            return
+            addDaysToSeconds(startSeconds, -7) * 1000L + AlarmScheduler.BOOKING_LEAD_MILLIS
+        } else {
+            nowSeconds() * 1000 + 15 * 60000L
         }
-        val retryTime = nowSeconds() * 1000 + 15 * 60000L
-        alarmScheduler.scheduleBooking(booking.id, retryTime)
+        // Persist the deadline so the twice-daily sync can recover a dropped alarm.
+        scheduledBookingRepo.setNextRetryAt(booking.id, alarmTimeMillis / 1000)
+        alarmScheduler.scheduleBooking(booking.id, alarmTimeMillis)
     }
 
     private suspend fun showRetryNotification(

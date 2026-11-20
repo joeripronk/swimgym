@@ -15,7 +15,8 @@ class ScheduledBookingRepositoryJsonTest {
         bookedCount = 2,
         maxRepeatCount = 5,
         retryCount = 3,
-        lastFailureReason = RetryFailureReason.CLASS_FULL
+        lastFailureReason = RetryFailureReason.CLASS_FULL,
+        nextRetryAt = 1700003600L
     )
 
     @Test
@@ -33,6 +34,7 @@ class ScheduledBookingRepositoryJsonTest {
         assertEquals(testBooking.maxRepeatCount, parsed[0].maxRepeatCount)
         assertEquals(testBooking.retryCount, parsed[0].retryCount)
         assertEquals(testBooking.lastFailureReason, parsed[0].lastFailureReason)
+        assertEquals(testBooking.nextRetryAt, parsed[0].nextRetryAt)
     }
 
     @Test
@@ -87,7 +89,7 @@ class ScheduledBookingRepositoryJsonTest {
 
     private fun serialize(bookings: List<ScheduledBooking>): String =
         bookings.joinToString(",", "[", "]") { b ->
-            """{"id":"${b.id}","trainingId":"${b.trainingId}","className":"${b.className}","startTime":${b.startTime},"instructor":"${b.instructor}","status":"${b.status.name}","bookedCount":${b.bookedCount},"maxRepeatCount":${b.maxRepeatCount?.let { "\"$it\"" } ?: "null"},"retryCount":${b.retryCount},"lastFailureReason":${b.lastFailureReason?.let { "\"${it.name}\"" } ?: "null"},"createdAt":${b.createdAt}}"""
+            """{"id":"${b.id}","trainingId":"${b.trainingId}","className":"${b.className}","startTime":${b.startTime},"instructor":"${b.instructor}","status":"${b.status.name}","bookedCount":${b.bookedCount},"maxRepeatCount":${b.maxRepeatCount?.let { "\"$it\"" } ?: "null"},"retryCount":${b.retryCount},"lastFailureReason":${b.lastFailureReason?.let { "\"${it.name}\"" } ?: "null"},"nextRetryAt":${b.nextRetryAt ?: "null"},"createdAt":${b.createdAt}}"""
         }
 
     private fun parseBookingsFromJson(json: String): List<ScheduledBooking> {
@@ -107,6 +109,7 @@ class ScheduledBookingRepositoryJsonTest {
                 val maxRepeatCount = if (maxRepeatStr == "null") null else maxRepeatStr?.toIntOrNull()
                 val retryCount = obj.findValue("retryCount")?.toIntOrNull() ?: 0
                 val lastFailureReason = RetryFailureReason.fromName(obj.findValue("lastFailureReason"))
+                val nextRetryAt = obj.findValue("nextRetryAt")?.toLongOrNull()
                 val createdAt = obj.findValue("createdAt")?.toLongOrNull() ?: System.currentTimeMillis()
 
                 val status = try {
@@ -129,6 +132,7 @@ class ScheduledBookingRepositoryJsonTest {
                         maxRepeatCount = maxRepeatCount,
                         retryCount = retryCount,
                         lastFailureReason = lastFailureReason,
+                        nextRetryAt = nextRetryAt,
                         createdAt = createdAt
                     )
                 )

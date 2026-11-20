@@ -19,5 +19,6 @@ data class ScheduledBooking(
     val maxRepeatCount: Int? = null,
     val retryCount: Int = 0,
     val lastFailureReason: RetryFailureReason? = null,
+    val nextRetryAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis()
 )

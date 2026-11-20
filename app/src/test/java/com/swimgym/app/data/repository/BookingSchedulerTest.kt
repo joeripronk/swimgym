@@ -553,6 +553,163 @@ class BookingSchedulerTest {
 
         coVerify { scheduledBookingRepo.stopRetries(7L) }
         coVerify { alarmScheduler.cancelBooking(7L) }
-        verify { notificationManager.dismissRetryNotification() }
+        verify { notificationManager.dismissRetryNotification(7L) }
+    }
+
+    @Test
+    fun `sync records a failure and schedules a retry for a booking that was not already retrying`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 3 * 86400
+        val booking = ScheduledBooking(id = 8L, trainingId = "t1", className = "Laps Swimming", startTime = startTime)
+        val training = createTraining("t1", "Laps Swimming", startTime)
+
+        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns false
+        coEvery { scheduledBookingRepo.getAllBookings() } returns listOf(booking)
+        coEvery { scheduledBookingRepo.getBooking(8L) } returns booking
+        coEvery { dao.getAllTrainingsList() } returns listOf(training)
+        coEvery { dao.getTrainingById("t1") } returns null
+        apiClient.htmlToReturn = trainingDetailsDocument("Laps Swimming")
+        apiClient.bookResult = Result.failure(Exception("boom"))
+
+        scheduler.checkBookings()
+
+        coVerify { scheduledBookingRepo.recordRetryFailure(8L, 1, RetryFailureReason.UNKNOWN) }
+        coVerify(exactly = 1) { alarmScheduler.scheduleBooking(8L, any()) }
+    }
+
+    @Test
+    fun `sync skips bookings that are already retrying`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 3 * 86400
+        val booking = ScheduledBooking(
+            id = 9L,
+            trainingId = "t1",
+            className = "Laps Swimming",
+            startTime = startTime,
+            retryCount = 3,
+            lastFailureReason = RetryFailureReason.CLASS_FULL,
+            nextRetryAt = now + 900
+        )
+
+        coEvery { scheduledBookingRepo.getAllBookings() } returns listOf(booking)
+        coEvery { scheduledBookingRepo.getBooking(9L) } returns booking
+
+        scheduler.checkBookings()
+
+        coVerify(exactly = 0) { dao.getAllTrainingsList() }
+        assertFalse(apiClient.bookTrainingCalled)
+    }
+
+    @Test
+    fun `sync recovers a retry whose deadline has passed`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 3 * 86400
+        val booking = ScheduledBooking(
+            id = 12L,
+            trainingId = "t1",
+            className = "Laps Swimming",
+            startTime = startTime,
+            retryCount = 2,
+            lastFailureReason = RetryFailureReason.CLASS_FULL,
+            nextRetryAt = now - 60
+        )
+        val training = createTraining("t1", "Laps Swimming", startTime)
+
+        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns false
+        coEvery { scheduledBookingRepo.getAllBookings() } returns listOf(booking)
+        coEvery { scheduledBookingRepo.getBooking(12L) } returns booking
+        coEvery { dao.getAllTrainingsList() } returns listOf(training)
+        coEvery { dao.getTrainingById("t1") } returns null
+        apiClient.htmlToReturn = trainingDetailsDocument("Laps Swimming")
+        apiClient.bookResult = Result.failure(Exception("boom"))
+
+        scheduler.checkBookings()
+
+        coVerify { scheduledBookingRepo.recordRetryFailure(12L, 3, RetryFailureReason.UNKNOWN) }
+        coVerify { scheduledBookingRepo.setNextRetryAt(12L, any()) }
+        coVerify(exactly = 1) { alarmScheduler.scheduleBooking(12L, any()) }
+    }
+
+    @Test
+    fun `sync skips a retry whose deadline is still in the future`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 3 * 86400
+        val booking = ScheduledBooking(
+            id = 13L,
+            trainingId = "t1",
+            className = "Laps Swimming",
+            startTime = startTime,
+            retryCount = 2,
+            lastFailureReason = RetryFailureReason.CLASS_FULL,
+            nextRetryAt = now + 900
+        )
+
+        coEvery { scheduledBookingRepo.getAllBookings() } returns listOf(booking)
+        coEvery { scheduledBookingRepo.getBooking(13L) } returns booking
+
+        scheduler.checkBookings()
+
+        coVerify(exactly = 0) { dao.getAllTrainingsList() }
+        assertFalse(apiClient.bookTrainingCalled)
+    }
+
+    @Test
+    fun `advancing to a new weekly occurrence resets retry state`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now - 86400
+        val booking = ScheduledBooking(
+            id = 10L,
+            trainingId = "t1",
+            className = "Laps Swimming",
+            startTime = startTime,
+            retryCount = 7,
+            lastFailureReason = RetryFailureReason.CLASS_FULL
+        )
+        val occurrence = scheduler.nextOccurrence(startTime, now)
+        val training = createTraining("t1", "Laps Swimming", occurrence)
+
+        var getBookingCalls = 0
+        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns false
+        coEvery { scheduledBookingRepo.getBooking(10L) } answers {
+            if (getBookingCalls++ == 0) {
+                booking
+            } else {
+                booking.copy(startTime = occurrence, retryCount = 0, lastFailureReason = null)
+            }
+        }
+        coEvery { dao.getAllTrainingsList() } returns listOf(training)
+        coEvery { dao.getTrainingById("t1") } returns null
+        apiClient.htmlToReturn = trainingDetailsDocument("Laps Swimming")
+        apiClient.bookResult = Result.failure(Exception("boom"))
+
+        scheduler.processSingleBooking(10L)
+
+        coVerify { scheduledBookingRepo.advanceToOccurrence(10L, occurrence) }
+        coVerify { scheduledBookingRepo.recordRetryFailure(10L, 1, RetryFailureReason.UNKNOWN) }
+    }
+
+    @Test
+    fun `a booking stopped mid-attempt is not written back or retried`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 3 * 86400
+        val active = ScheduledBooking(id = 11L, trainingId = "t1", className = "Laps Swimming", startTime = startTime)
+        val training = createTraining("t1", "Laps Swimming", startTime)
+
+        var getBookingCalls = 0
+        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns false
+        coEvery { scheduledBookingRepo.getBooking(11L) } answers {
+            if (getBookingCalls++ == 0) active else active.copy(status = ScheduledBookingStatus.STOPPED)
+        }
+        coEvery { dao.getAllTrainingsList() } returns listOf(training)
+        coEvery { dao.getTrainingById("t1") } returns null
+        apiClient.htmlToReturn = trainingDetailsDocument("Laps Swimming")
+        apiClient.bookResult = Result.failure(Exception("boom"))
+
+        val result = scheduler.processSingleBooking(11L)
+
+        assertFalse(result)
+        coVerify(exactly = 0) { scheduledBookingRepo.recordRetryFailure(any(), any(), any()) }
+        coVerify(exactly = 0) { alarmScheduler.scheduleBooking(any(), any()) }
+        verify(exactly = 0) { notificationManager.showBookingRetry(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 }

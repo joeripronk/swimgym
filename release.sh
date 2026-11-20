@@ -41,6 +41,13 @@ fail() {
   fi
 }
 
+push_failed() {
+  warn "The release commit and tag $TAG exist locally but were not fully pushed."
+  warn "Re-run '$0 --now' after fixing the remote, or push manually with:"
+  warn "  git push origin $BRANCH && git push origin $TAG"
+  die "$1"
+}
+
 if [[ "$DRY_RUN" == true ]]; then
   info "DRY RUN — no files, commits, tags or pushes"
 else
@@ -66,10 +73,18 @@ else
   info "On branch $BRANCH ✓"
 fi
 
+local_head=$(git rev-parse HEAD)
+remote_head=""
 if git rev-parse --verify --quiet origin/"$BRANCH" &>/dev/null; then
-  if [[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/"$BRANCH")" ]]; then
+  remote_head=$(git rev-parse origin/"$BRANCH")
+  if [[ "$local_head" == "$remote_head" ]]; then
     info "Branch is in sync with origin/$BRANCH ✓"
   else
+    subject=$(git log -1 --pretty=%s)
+    if [[ "$subject" == "release swimgym v"* ]]; then
+      release_tag="${subject##* }"
+      fail "local $BRANCH has an unpushed release commit — push it with 'git push origin $BRANCH && git push origin $release_tag'"
+    fi
     fail "local $BRANCH is not in sync with origin/$BRANCH — push first"
   fi
 else
@@ -84,7 +99,9 @@ version_code=$(grep -oP '(?<=versionCode = )\d+' "$BUILD_FILE" | head -1)
 version_prefix=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' "$BUILD_FILE" | head -1)
 [[ -n "$version_code" && -n "$version_prefix" ]] || die "Could not parse version from $BUILD_FILE"
 
-info "Current version: ${version_prefix}${version_code} (code $version_code)"
+current_version_name="${version_prefix}${version_code}"
+current_tag="v${current_version_name}"
+info "Current version: $current_version_name (code $version_code)"
 
 if [[ "$version_prefix" =~ ^([0-9]+)\.([0-9]+)(.*)$ ]]; then
   major="${BASH_REMATCH[1]}"
@@ -95,16 +112,15 @@ else
   minor=""
   suffix=""
 fi
+[[ -n "$major" && -n "$minor" ]] || die "unparseable versionName prefix '$version_prefix' (expected e.g. '1.0p')"
 
 case "$RELEASE_TYPE" in
   major)
-    [[ -n "$major" ]] || die "cannot bump major: versionName prefix '$version_prefix' is not numeric"
-    major=$((major + 1))
+    major=$((10#$major + 1))
     minor=0
     ;;
   minor)
-    [[ -n "$minor" ]] || die "cannot bump minor: versionName prefix '$version_prefix' is not numeric"
-    minor=$((minor + 1))
+    minor=$((10#$minor + 1))
     ;;
   patch)
     ;;
@@ -114,19 +130,34 @@ case "$RELEASE_TYPE" in
 esac
 
 new_prefix="${major}.${minor}${suffix}"
-new_version_code=$((version_code + 1))
+new_version_code=$((10#$version_code + 1))
 new_version_name="${new_prefix}${new_version_code}"
 TAG="v${new_version_name}"
+
+# A previous run may have committed and tagged but failed to push. Never bump
+# on top of that state: it would create a second, orphaned release.
+if [[ "$(git log -1 --pretty=%s)" == "release swimgym v${current_version_name}" ]]; then
+  git ls-remote --exit-code --tags origin "refs/tags/$current_tag" &>/dev/null
+  previous_tag_rc=$?
+  if [[ "$previous_tag_rc" == 0 && -n "$remote_head" && "$local_head" == "$remote_head" ]]; then
+    info "Previous release $current_version_name is fully pushed ✓"
+  else
+    fail "release $current_version_name is only partly pushed — push it first with 'git push origin $BRANCH && git push origin $current_tag'"
+  fi
+fi
 
 grep -qF "versionCode = $version_code" "$BUILD_FILE" || die "versionCode line not found verbatim"
 grep -qF "versionName = \"$version_prefix\"" "$BUILD_FILE" || die "versionName line not found verbatim"
 
+git ls-remote --exit-code --tags origin "refs/tags/$TAG" &>/dev/null
+tag_rc=$?
+case "$tag_rc" in
+  0) fail "tag $TAG already exists on the remote" ;;
+  2) info "Tag $TAG is available ✓" ;;
+  *) fail "could not check remote tags (git ls-remote exited $tag_rc)" ;;
+esac
 if git rev-parse --verify --quiet "refs/tags/$TAG" &>/dev/null; then
   fail "tag $TAG already exists locally"
-elif git ls-remote --exit-code --tags origin "refs/tags/$TAG" &>/dev/null; then
-  fail "tag $TAG already exists on the remote"
-else
-  info "Tag $TAG is available ✓"
 fi
 
 info "New version: $new_version_name (code $new_version_code), tag $TAG"
@@ -139,7 +170,7 @@ if [[ "$DRY_RUN" == true ]]; then
   echo "  Bump:   $BUILD_FILE — versionCode $version_code → $new_version_code, versionName \"$version_prefix\" → \"$new_prefix\""
   echo "  Commit: release swimgym v${new_version_name}"
   echo "  Tag:    $TAG (annotated — 'Release $new_version_name')"
-  echo "  Push:   git push && git push origin $TAG"
+  echo "  Push:   git push origin $BRANCH && git push origin $TAG"
   echo ""
   echo "No changes were made. To perform it, run: $0 --now $RELEASE_TYPE"
   exit 0
@@ -160,6 +191,6 @@ git tag -a "$TAG" -m "Release $new_version_name" || die "Failed to create tag $T
 info "Tag created: $TAG"
 
 info "Pushing commit and tag …"
-git push || die "Failed to push commit"
-git push origin "$TAG" || die "Failed to push tag $TAG"
+git push origin "$BRANCH" || push_failed "Failed to push commit"
+git push origin "$TAG" || push_failed "Failed to push tag $TAG"
 info "Done ✓"

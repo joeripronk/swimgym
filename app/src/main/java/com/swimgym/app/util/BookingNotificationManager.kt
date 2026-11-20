@@ -24,7 +24,7 @@ class BookingNotificationManager(
     const val NOTIFICATION_ID_BASE = 1000
     const val LOGIN_REQUIRED_ID = 9999
     const val SYNC_ID = 5000
-    const val BOOKING_RETRY_ID = 2000
+    const val BOOKING_RETRY_ID = 20000
     const val CALENDAR_CONFLICT_ID = 4001
     const val BOOKING_NOT_AVAILABLE_ID = 4002
         private const val SYNC_CHANNEL_ID = "swimgym_notifications"
@@ -152,7 +152,7 @@ class BookingNotificationManager(
             .addAction(0, "Retry Now", retryPendingIntent)
             .addAction(0, "Stop retrying", stopPendingIntent)
 
-        notificationManager.notify(BOOKING_RETRY_ID, builder.build())
+        notificationManager.notify(retryNotificationId(bookingId), builder.build())
     }
 
     fun showRetriesStopped(
@@ -187,13 +187,16 @@ class BookingNotificationManager(
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
 
-        notificationManager.notify(BOOKING_RETRY_ID, builder.build())
+        notificationManager.notify(retryNotificationId(bookingId), builder.build())
     }
 
-    fun dismissRetryNotification() {
+    fun dismissRetryNotification(bookingId: Long) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.cancel(BOOKING_RETRY_ID)
+        notificationManager.cancel(retryNotificationId(bookingId))
     }
+
+    private fun retryNotificationId(bookingId: Long): Int =
+        BOOKING_RETRY_ID + (bookingId.hashCode() and 0x3FFF)
 
     fun showTrainingRenamed(oldName: String, newName: String) {
         if (!hasNotificationPermission(context)) return

@@ -17,6 +17,7 @@ import com.swimgym.app.domain.repository.SyncStatus
 import com.swimgym.app.domain.usecase.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 data class LoginUiState(
     val email: String = "",
@@ -440,7 +441,7 @@ class ScheduleViewModel(
             var locinstructor = training.instructor
             var loctitle=training.title
             var loctrainingId=training.id
-            val bookingId = System.currentTimeMillis()/1000
+            val bookingId = UUID.randomUUID().mostSignificantBits and Long.MAX_VALUE
 
             if (training !=null && training!!.isJoined) {
                 // if the training is already joined skip this one
