@@ -61,9 +61,11 @@ class ScheduleParserImpl(
                         Log.d("ScheduleParser", "Parsing class: $classId - $className")
                 val timeText = classElement.selectFirst(".time")?.text() ?: ""
                 val instructor = classElement.selectFirst(".instructor i")?.text() ?: "TBA"
-                val isFull = classElement.selectFirst(".full")?.text() == "VOL"
+                val isFull = classElement.selectFirst(".full")?.text()?.trim()?.let {
+                    it.equals("VOL", ignoreCase = true) || it.equals("FULL", ignoreCase = true)
+                } == true
                 val isJoined = classElement.selectFirst("div.joined") != null
-                val eventDate = extractDateFromClass(classElement) ?: dayName
+                val eventDate = resolveEventDate(extractDateFromClass(classElement), dayName, weeksOffset)
                 val (startTime, endTime) = parseTimes(timeText, eventDate)
 
                 if (classId.isNotBlank() && startTime > now) {
@@ -85,9 +87,15 @@ class ScheduleParserImpl(
                         classDate = eventDate
                     )
 
-                    var cachedTraining = dao.getTrainingById(classId)?.toDto()
+                    val cachedEntity = dao.getTrainingById(classId)
+                    var cachedTraining = cachedEntity?.toDto()
                     var imageUrl = dao.getInstructor(instructor)?.instructorImage
-                    if (imageUrl == null) {
+                    // Refresh detail fields (spots, description, cancel policy, ...)
+                    // periodically too, not just when the instructor image is missing;
+                    // otherwise a cached image leaves those fields stale indefinitely.
+                    val detailsStale = cachedEntity == null ||
+                        System.currentTimeMillis() - cachedEntity.lastFetched > 12 * 60 * 60 * 1000L
+                    if (detailsStale) {
                         try {
                             val detailsResult = parseTrainingDetails(classId, trainingEntity, apiClient)
                             cachedTraining = detailsResult.toDto()
@@ -163,7 +171,7 @@ class ScheduleParserImpl(
                 ?.text() ?: "SwimGym"
         val spotsText =
             doc.selectFirst("div.event-details-icons:nth-child(2) > div.event-details-icon:nth-child(3) > div.icon-text:nth-child(2)")
-                ?.text() ?: "invalid"
+                ?.text()
         val imageUrl = doc.selectFirst(".event-image-holder img")?.attr("src") ?: ""
         val description = doc.selectFirst(".event-description-holder")?.text() ?: ""
         val cost = doc.selectFirst(".event-details-icon:has(.ticket-star) .icon-text")?.text() ?: ""
@@ -171,12 +179,18 @@ class ScheduleParserImpl(
         val cancelPolicy =
             doc.selectFirst(".event-actions > div:not(.booking-text)")?.text() ?: ""
 
-        val spotsParts = spotsText.split("/").map { it.trim() }
-        val spotsTaken = spotsParts.getOrNull(0)?.toIntOrNull() ?: 0
-        var totalSpots = spotsParts.getOrNull(1)?.toIntOrNull() ?: 0
-
-        val spotsAvailable = totalSpots - spotsTaken
-        val isFull = spotsAvailable == 0
+        val spotsParts = spotsText?.split("/")?.map { it.trim() }
+        val spotsTaken = spotsParts?.getOrNull(0)?.toIntOrNull()
+        val totalSpotsParsed = spotsParts?.getOrNull(1)?.toIntOrNull()
+        val spotsKnown = spotsTaken != null && totalSpotsParsed != null
+        val totalSpots = if (spotsKnown) totalSpotsParsed!! else 0
+        // Unknown spots must not be reported as "full": a markup change would
+        // otherwise hide every class and trigger needless retry failures.
+        val spotsAvailable = if (spotsKnown) maxOf(0, totalSpots - spotsTaken!!) else 0
+        val explicitFull = doc.selectFirst(".full")?.text()?.trim()?.let {
+            it.equals("VOL", ignoreCase = true) || it.equals("FULL", ignoreCase = true)
+        } == true
+        val isFull = !isJoined && (explicitFull || (spotsKnown && spotsAvailable == 0))
 
         Log.d("ScheduleParser", "Parsed training details: id=$trainingId, title=$title, instructor=$instructor, location=$location, spots=$spotsAvailable/$totalSpots, joined=$isJoined")
 
@@ -212,6 +226,48 @@ class ScheduleParserImpl(
         )
     }
 
+    /**
+     * Falls back to the "d MMM" portion of the day header when Virtuagym omits
+     * the internal-event-day token, so classes are not silently dropped because
+     * SimpleDateFormat cannot parse a weekday label such as "maandag 27 apr".
+     */
+    private fun resolveEventDate(token: String?, dayName: String, weeksOffset: Int): String {
+        if (!token.isNullOrBlank()) return token
+        val match = Regex("""(\d{1,2})\s+([^\s]+)""").find(dayName) ?: return dayName
+        val day = match.groupValues[1].toIntOrNull() ?: return dayName
+        val month = monthNames[match.groupValues[2].lowercase(Locale.getDefault())] ?: return dayName
+        // weeksOffset: 0 = last week, 1 = this week, 2 = next week.
+        val anchor = LocalDate.now(ZoneId.systemDefault())
+            .with(DayOfWeek.MONDAY)
+            .plusWeeks((weeksOffset - 1).toLong())
+        val resolved = listOf(anchor.year - 1, anchor.year, anchor.year + 1)
+            .mapNotNull { year ->
+                try {
+                    LocalDate.of(year, month, day)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            .minByOrNull { kotlin.math.abs(java.time.temporal.ChronoUnit.DAYS.between(anchor, it)) }
+            ?: return dayName
+        return "%02d-%02d-%04d".format(resolved.dayOfMonth, resolved.monthValue, resolved.year)
+    }
+
+    private val monthNames = mapOf(
+        "jan" to 1, "januari" to 1,
+        "feb" to 2, "februari" to 2,
+        "mrt" to 3, "maart" to 3,
+        "apr" to 4, "april" to 4,
+        "mei" to 5, "may" to 5,
+        "jun" to 6, "juni" to 6,
+        "jul" to 7, "juli" to 7,
+        "aug" to 8, "augustus" to 8,
+        "sep" to 9, "sept" to 9, "september" to 9,
+        "okt" to 10, "oktober" to 10,
+        "nov" to 11, "november" to 11,
+        "dec" to 12, "december" to 12
+    )
+
     private fun extractDateFromClass(classElement: org.jsoup.nodes.Element): String? {
         val classAttr = classElement.className()
         val match = Regex("""internal-event-day-(\d{2})-(\d{2})-(\d{4})""").find(classAttr)
@@ -223,7 +279,7 @@ class ScheduleParserImpl(
 
     private fun parseTimes(timeText: String, dateStr: String): Pair<Long, Long> {
         try {
-            val parts = timeText.trim().split(Regex("-"))
+            val parts = timeText.trim().split(Regex("[-–—]"))
             if (parts.size >= 2) {
                 val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
                 val dateFormat = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())

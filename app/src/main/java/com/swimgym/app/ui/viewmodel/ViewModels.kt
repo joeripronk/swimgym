@@ -16,6 +16,7 @@ import com.swimgym.app.domain.repository.SwodLevel
 import com.swimgym.app.domain.repository.SyncStatus
 import com.swimgym.app.domain.usecase.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -83,6 +84,8 @@ class ScheduleViewModel(
     private val _uiState = MutableStateFlow(ScheduleUiState())
     val uiState: StateFlow<ScheduleUiState> = _uiState.asStateFlow()
 
+    private var loadScheduleJob: Job? = null
+
     private val _selectedTraining = MutableStateFlow<Training?>(null)
     val selectedTraining: StateFlow<Training?> = _selectedTraining.asStateFlow()
 
@@ -96,15 +99,23 @@ class ScheduleViewModel(
     val imageLoader get() = trainerImageCache.imageLoader
 
     init {
-        // Load trainings from database immediately on startup
-        loadSchedule(SwodLevel.ALL, _uiState.value.hideFullyBooked)
-        
+        viewModelScope.launch {
+            val savedLevel = sessionRepository.selectedLevel.first()?.let { levelStr ->
+                try { SwodLevel.valueOf(levelStr) } catch (e: Exception) { SwodLevel.ALL }
+            } ?: SwodLevel.ALL
+            _uiState.update { it.copy(selectedLevel = savedLevel) }
+            loadSchedule(savedLevel, _uiState.value.hideFullyBooked)
+        }
+
         viewModelScope.launch {
             sessionRepository.selectedLevel.collect { savedLevel ->
                 val level = savedLevel?.let { levelStr ->
-                    try { com.swimgym.app.domain.repository.SwodLevel.valueOf(levelStr) } catch (e: Exception) { com.swimgym.app.domain.repository.SwodLevel.ALL }
-                } ?: com.swimgym.app.domain.repository.SwodLevel.ALL
-                _uiState.update { it.copy(selectedLevel = level) }
+                    try { SwodLevel.valueOf(levelStr) } catch (e: Exception) { SwodLevel.ALL }
+                } ?: SwodLevel.ALL
+                if (level != _uiState.value.selectedLevel) {
+                    _uiState.update { it.copy(selectedLevel = level) }
+                    loadSchedule(level, _uiState.value.hideFullyBooked)
+                }
             }
         }
         observeBookings()
@@ -195,7 +206,8 @@ class ScheduleViewModel(
         hideFullyBooked: Boolean = _uiState.value.hideFullyBooked,
         preserveError: String? = null
     ) {
-        viewModelScope.launch {
+        loadScheduleJob?.cancel()
+        loadScheduleJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = preserveError, currentStartDate = null, weeksLoaded = 1) }
             getScheduleUseCase(level, hideFullyBooked, null)
                 .onSuccess { trainings ->
@@ -559,20 +571,8 @@ class ScheduleViewModel(
         }
     }
 
-    fun resolveTrainerImage(instructorName: String, remoteImageUrl: String): String {
-        if (trainerImageCache.hasLocalImage(instructorName)) {
-            val localImage = trainerImageCache.resolveTrainerImageUrl(instructorName, remoteImageUrl)
-            if (localImage.isNotEmpty()) return localImage
-        }
-        // Cache miss, fetch from database in background
-        viewModelScope.launch {
-            val cachedImage = trainerImageCache.resolveTrainerImageUrlWithCache(instructorName, remoteImageUrl)
-            if (cachedImage.isNotEmpty()) {
-                // Update the training with cached image
-            }
-        }
-        return remoteImageUrl
-    }
+    fun resolveTrainerImage(instructorName: String, remoteImageUrl: String): String =
+        trainerImageCache.resolveTrainerImageUrl(instructorName, remoteImageUrl)
 
     fun refreshSchedule() {
         viewModelScope.launch {

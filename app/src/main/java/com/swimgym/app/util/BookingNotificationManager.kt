@@ -242,8 +242,9 @@ class BookingNotificationManager(
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel(notificationManager)
 
-        // Unique id per scheduled booking so multiple conflicts don't overwrite each other.
-        val notificationId = CALENDAR_CONFLICT_ID + (bookingId.hashCode() and 0xFF)
+         // Deterministic per-booking id; hashCode() only hashed the low bits of
+        // sequential ids and let different bookings overwrite each other.
+        val notificationId = CALENDAR_CONFLICT_ID + (bookingId % 200).toInt()
 
         val title = "Calendar Conflict - Recurring Booking"
         val trainingDetails = formatTrainingDetails(trainingName, classTime, classDate, instructor)
@@ -281,7 +282,7 @@ class BookingNotificationManager(
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createNotificationChannel(notificationManager)
 
-        val notificationId = BOOKING_NOT_AVAILABLE_ID + (bookingId.hashCode() and 0xFF)
+        val notificationId = BOOKING_NOT_AVAILABLE_ID + (bookingId % 200).toInt()
 
         val title = "Recurring Booking Not Available"
         val content = "Your recurring booking \"$trainingName\" more than a week ahead cannot be booked: $reason"
@@ -312,6 +313,7 @@ class BookingNotificationManager(
         if (!hasNotificationPermission(context)) return
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        createNotificationChannel(notificationManager)
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -398,6 +400,17 @@ class BookingNotificationManager(
             }
 
             notificationManager.createNotificationChannel(channel)
+
+            // showSyncNotification() posts to this channel; without creating it
+            // the notification is silently dropped on Android 8+.
+            val syncChannel = NotificationChannel(
+                SYNC_CHANNEL_ID,
+                "Schedule Sync",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Results of the daily schedule sync"
+            }
+            notificationManager.createNotificationChannel(syncChannel)
         }
     }
 

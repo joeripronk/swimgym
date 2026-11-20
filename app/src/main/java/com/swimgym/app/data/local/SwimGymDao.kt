@@ -77,6 +77,12 @@ interface SwimGymDao {
     @Query("SELECT id FROM trainings")
     suspend fun getAllTrainingIds(): List<String>
 
+    @Query("SELECT id FROM trainings WHERE isJoined = 1")
+    suspend fun getJoinedTrainingIds(): List<String>
+
+    @Query("SELECT trainingId FROM bookings")
+    suspend fun getBookedTrainingIds(): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertInstructor(instructor: InstructorEntity)
 

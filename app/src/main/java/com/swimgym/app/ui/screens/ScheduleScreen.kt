@@ -65,7 +65,6 @@ fun ScheduleScreen(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         if (permissions[Manifest.permission.WRITE_CALENDAR] == true &&
-            permissions[Manifest.permission.READ_CALENDAR] == true &&
             trainingToAddToCalendar != null) {
             val training = trainingToAddToCalendar!!
             trainingToAddToCalendar = null

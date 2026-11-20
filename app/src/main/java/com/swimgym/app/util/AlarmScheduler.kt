@@ -135,19 +135,17 @@ class AlarmScheduler(
      * the class). Bookings whose window is already open fire immediately.
      */
     suspend fun rescheduleBookingAlarms(bookings: List<ScheduledBooking>) {
-        val nowSeconds = nowMillisProvider() / 1000
         bookings
             .filter { it.status == ScheduledBookingStatus.ACTIVE }
             .forEach { booking ->
-                // A booking that is mid-retry already has a deadline. Firing it
-                // immediately on every cold start/boot would burn the retry
-                // budget without waiting for the backoff.
-                val alarmTimeMillis = if (
-                    booking.retryCount > 0 &&
-                    booking.nextRetryAt != null &&
-                    booking.nextRetryAt > nowSeconds
-                ) {
-                    booking.nextRetryAt * 1000
+                // A booking that is mid-retry already has a deadline. Reuse it while
+                // it is in the future; if it has already passed (alarm dropped by
+                // Doze/OEM, or a cold start), start a fresh backoff instead of firing
+                // immediately, which would burn the retry budget in seconds.
+                val alarmTimeMillis = if (booking.retryCount > 0 && booking.nextRetryAt != null) {
+                    val deadline = booking.nextRetryAt!! * 1000
+                    if (deadline > nowMillisProvider()) deadline
+                    else nowMillisProvider() + 15 * 60 * 1000L
                 } else {
                     bookingAlarmTimeMillis(booking)
                 }

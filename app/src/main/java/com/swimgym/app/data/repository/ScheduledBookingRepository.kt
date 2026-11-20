@@ -163,80 +163,57 @@ class ScheduledBookingRepository(
     }
 
     private fun parseBookingsFromJson(json: String): List<ScheduledBooking> {
-        // Simple JSON parsing - extract objects between { and }
         val result = mutableListOf<ScheduledBooking>()
-        val regex = Regex("""\{([^}]+)\}""")
-        regex.findAll(json).forEach { match ->
-            try {
-                val obj = match.value
-                val id = obj.findValue("id")?.toLongOrNull() ?: 0L
-                val trainingId = obj.findValue("trainingId")
-                val className = obj.findValue("className")
-                val startTimeStr = obj.findValue("startTime")
-                if (startTimeStr == null) {
-                    android.util.Log.w("ScheduledBookingRepo", "dropping corrupt booking entry (no startTime): $obj")
-                    return@forEach
-                }
-                val startTime = startTimeStr.toLongOrNull()
-                if (startTime == null) {
-                    android.util.Log.w("ScheduledBookingRepo", "dropping corrupt booking entry (bad startTime): $obj")
-                    return@forEach
-                }
-                val instructor = obj.findValue("instructor") ?: ""
-                val statusStr = obj.findValue("status")
-                val bookedCount = obj.findValue("bookedCount")?.toIntOrNull() ?: 0
-                val maxRepeatStr = obj.findValue("maxRepeatCount")
-                val maxRepeatCount = if (maxRepeatStr == "null") null else maxRepeatStr?.toIntOrNull()
-                val retryCount = obj.findValue("retryCount")?.toIntOrNull() ?: 0
-                val lastFailureReason = RetryFailureReason.fromName(obj.findValue("lastFailureReason"))
-                val nextRetryAt = obj.findValue("nextRetryAt")?.toLongOrNull()
-                val createdAt = obj.findValue("createdAt")?.toLongOrNull() ?: System.currentTimeMillis()
-
-                val status = try {
-                    ScheduledBookingStatus.valueOf(statusStr ?: "ACTIVE")
-                } catch (e: Exception) {
-                    ScheduledBookingStatus.ACTIVE
-                }
-
-                if (id == 0L) return@forEach
-                if (trainingId == null || className == null) return@forEach
-                result.add(
-                    ScheduledBooking(
-                        id = id,
-                        trainingId = trainingId,
-                        className = className,
-                        startTime = startTime,
-                        instructor = instructor,
-                        status = status,
-                        bookedCount = bookedCount,
-                        maxRepeatCount = maxRepeatCount,
-                        retryCount = retryCount,
-                        lastFailureReason = lastFailureReason,
-                        nextRetryAt = nextRetryAt,
-                        createdAt = createdAt
+        try {
+            val array = com.google.gson.JsonParser.parseString(json).asJsonArray
+            for (element in array) {
+                if (!element.isJsonObject) continue
+                try {
+                    val obj = element.asJsonObject
+                    val id = obj.longOrNull("id") ?: 0L
+                    val trainingId = obj.stringOrNull("trainingId")
+                    val className = obj.stringOrNull("className")
+                    val startTime = obj.longOrNull("startTime")
+                    if (id == 0L || trainingId == null || className == null || startTime == null) {
+                        android.util.Log.w("ScheduledBookingRepo", "dropping corrupt booking entry: $element")
+                        continue
+                    }
+                    val instructor = obj.stringOrNull("instructor") ?: ""
+                    val status = runCatching {
+                        ScheduledBookingStatus.valueOf(obj.stringOrNull("status") ?: "ACTIVE")
+                    }.getOrDefault(ScheduledBookingStatus.ACTIVE)
+                    result.add(
+                        ScheduledBooking(
+                            id = id,
+                            trainingId = trainingId,
+                            className = className,
+                            startTime = startTime,
+                            instructor = instructor,
+                            status = status,
+                            bookedCount = obj.intOrNull("bookedCount") ?: 0,
+                            maxRepeatCount = obj.intOrNull("maxRepeatCount"),
+                            retryCount = obj.intOrNull("retryCount") ?: 0,
+                            lastFailureReason = RetryFailureReason.fromName(obj.stringOrNull("lastFailureReason")),
+                            nextRetryAt = obj.longOrNull("nextRetryAt"),
+                            createdAt = obj.longOrNull("createdAt") ?: System.currentTimeMillis()
+                        )
                     )
-                )
-            } catch (e: Exception) {
-                // Skip malformed entries
+                } catch (e: Exception) {
+                    // Skip a single malformed entry without losing the rest.
+                }
             }
+        } catch (e: Exception) {
+            android.util.Log.w("ScheduledBookingRepo", "Failed to parse bookings JSON: ${e.message}")
         }
         return result
     }
 
-    private fun String.findValue(key: String): String? {
-        val quotedRegex = Regex("\"$key\":\"(.*?)\"(?=[,}]|$)")
-        val unquotedRegex = Regex("\"$key\":\\s*([^,}]+)")
-        return quotedRegex.find(this)?.groupValues?.get(1)?.unescapeJson()
-            ?: unquotedRegex.find(this)?.groupValues?.get(1)?.trim()?.unescapeJson()
-    }
+    private fun com.google.gson.JsonObject.stringOrNull(key: String): String? =
+        get(key)?.takeIf { it.isJsonPrimitive }?.asString
 
-    private fun String.removeSurroundingQuotes(): String {
-        return if (startsWith("\"") && endsWith("\"")) {
-            substring(1, length - 1)
-        } else this
-    }
+    private fun com.google.gson.JsonObject.longOrNull(key: String): Long? =
+        stringOrNull(key)?.toLongOrNull()
 
-    private fun String.unescapeJson(): String {
-        return replace("\\\"", "\"").replace("\\\\", "\\")
-    }
+    private fun com.google.gson.JsonObject.intOrNull(key: String): Int? =
+        stringOrNull(key)?.toIntOrNull()
 }

@@ -44,9 +44,8 @@ import java.util.*
         onSchedule: (com.swimgym.app.domain.model.Training, Int?) -> Unit,
         onAddToCalendar: (Training) -> Unit,
         onNavigateToMyBookings: () -> Unit,
-        onRefresh: (String) -> Unit,
-        onBookingSuccess: (String) -> Unit,
-        calendarRefreshVersion: Int = 0,
+         onRefresh: (String) -> Unit,
+         calendarRefreshVersion: Int = 0,
         isBookingInProgress: Boolean,
         isCancellingInProgress: Boolean,
         bookingError: String? = null,
@@ -377,10 +376,7 @@ import java.util.*
                     )
 
                 Button(
-                         onClick = {
-                             onBook(training)
-                             onBookingSuccess(training.id)
-                         },
+                          onClick = { onBook(training) },
                          enabled = !isBookingInProgress,
                          modifier = Modifier
                              .fillMaxWidth()

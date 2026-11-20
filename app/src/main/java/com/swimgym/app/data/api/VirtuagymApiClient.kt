@@ -54,6 +54,7 @@ class VirtuagymApiClientImpl(
 
         val html = response.body?.string() ?: ""
         if (isLoginPage(html)) {
+            response.close()
             triggerLoginRequired()
             throw Exception("need to login")
         }
@@ -223,6 +224,11 @@ class VirtuagymApiClientImpl(
         }
     }
 
+    private suspend fun clearCookiesFromCache() {
+        cookies = emptyMap()
+        sessionRepository.clearCookies()
+    }
+
     private fun buildRequest(url: String): Request.Builder {
         val builder = Request.Builder().url(url)
         var cookieHeader = ""
@@ -260,26 +266,59 @@ class VirtuagymApiClientImpl(
         }
         for (hop in chain.asReversed()) {
             hop.headers("Set-Cookie").forEach { header ->
-                val (name, value) = parseCookie(header)
-                if (name.isNotBlank()) {
-                    cookieMap[name] = value
-                }
+                val parsed = parseCookie(header) ?: return@forEach
+                val (name, value) = parsed
+                // A null value means the cookie was explicitly expired by the
+                // server; drop it instead of storing an empty auth token.
+                if (value == null) cookieMap.remove(name) else cookieMap[name] = value
             }
         }
         if (!cookiesLoggedIn(cookieMap)) {
+            // Persist the logged-out state, otherwise the stale session cookie
+            // is reloaded on the next call and the app never leaves "logged in".
+            response.close()
+            clearCookiesFromCache()
             triggerLoginRequired()
             throw Exception("you are logged out")
         }
         saveCookiesToCache(cookieMap)
     }
 
-    private fun parseCookie(cookieValue: String): Pair<String, String> {
-        val part = cookieValue.split(";")[0]
-        val idx = part.indexOf('=')
-        return if (idx >= 0) {
-            Pair(part.substring(0, idx), part.substring(idx + 1))
-        } else {
-            Pair("", "")
+    /** Returns (name, value), or (name, null) for an expired cookie. */
+    private fun parseCookie(header: String): Pair<String, String?>? {
+        val parts = header.split(";").map { it.trim() }
+        val nameValue = parts.firstOrNull() ?: return null
+        val idx = nameValue.indexOf('=')
+        if (idx <= 0) return null
+        val name = nameValue.substring(0, idx)
+        val value = nameValue.substring(idx + 1)
+        val expired = parts.any { attribute ->
+            val attr = attribute.trim()
+            when {
+                attr.startsWith("Max-Age=", ignoreCase = true) ->
+                    attr.substringAfter('=').trim().toLongOrNull()?.let { it <= 0 } == true
+                attr.startsWith("Expires=", ignoreCase = true) ->
+                    isPastExpires(attr.substringAfter('=').trim())
+                else -> false
+            }
         }
+        return name to if (expired) null else value
+    }
+
+    private fun isPastExpires(value: String): Boolean {
+        for (pattern in listOf(
+            "EEE, dd MMM yyyy HH:mm:ss 'GMT'",
+            "EEE, dd-MMM-yy HH:mm:ss 'GMT'"
+        )) {
+            try {
+                val format = java.text.SimpleDateFormat(pattern, java.util.Locale.US).apply {
+                    timeZone = java.util.TimeZone.getTimeZone("GMT")
+                }
+                val expires = format.parse(value)?.time ?: continue
+                return expires <= System.currentTimeMillis()
+            } catch (_: Exception) {
+            }
+        }
+        return false
     }
 }

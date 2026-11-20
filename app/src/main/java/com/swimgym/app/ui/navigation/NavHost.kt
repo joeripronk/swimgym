@@ -61,10 +61,14 @@ fun SwimGymNavigation(
     }
     
     LaunchedEffect(loginRequiredCount) {
-        if (loginRequiredCount > 0 && navController.currentDestination?.route != Screen.Login.route) {
-            navController.navigate(Screen.Login.route) {
-                popUpTo(Screen.Schedule.route) { inclusive = true }
-                launchSingleTop = true
+        if (loginRequiredCount > 0) {
+            container.sessionRepository.clearCookies()
+            hasCookies = false
+            if (navController.currentDestination?.route != Screen.Login.route) {
+                navController.navigate(Screen.Login.route) {
+                    popUpTo(Screen.Schedule.route) { inclusive = true }
+                    launchSingleTop = true
+                }
             }
         }
     }
@@ -171,11 +175,8 @@ fun SwimGymNavigation(
             val uiState by scheduleViewModel.uiState.collectAsState()
             val isLoading = uiState.isLoading
             val justBookedTrainingId by scheduleViewModel.justBookedTrainingId.collectAsState()
-            val trainerImageUrl = selectedTraining?.let { t ->
-                scheduleViewModel.resolveTrainerImage(t.instructor, t.imageUrl)
-            }
-            if (selectedTraining != null && trainerImageUrl != null) {
-                selectedTraining!!.imageUrl = trainerImageUrl
+            val trainingForDisplay = selectedTraining?.let { t ->
+                t.copy(imageUrl = scheduleViewModel.resolveTrainerImage(t.instructor, t.imageUrl))
             }
             // Close view if booking was just verified
             LaunchedEffect(justBookedTrainingId) {
@@ -186,7 +187,7 @@ fun SwimGymNavigation(
             }
 
             TrainingDetailScreen(
-                 training = selectedTraining,
+                 training = trainingForDisplay,
                  onBack = { navController.popBackStack() },
                  onBook = { training ->
                      scheduleViewModel.bookTraining(training.toEntity())
@@ -214,9 +215,6 @@ fun SwimGymNavigation(
                      navController.navigate(Screen.MyBookings.route)
                  },
                  onRefresh = { trainingId ->
-                     scheduleViewModel.loadTrainingDetails(trainingId)
-                 },
-                 onBookingSuccess = { trainingId ->
                      scheduleViewModel.loadTrainingDetails(trainingId)
                  },
 

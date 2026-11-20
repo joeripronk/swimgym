@@ -76,8 +76,8 @@ class BookingSchedulerImpl(
                 booking.copy(startTime = adjustedStartTime, retryCount = 0, lastFailureReason = null)
             } else booking
             when (val dryRun = simulateBooking(adjustedBooking)) {
-                is DryRunResult.Ok -> if (dryRun.bookable) attemptBooking(adjustedBooking, dryRun.training, scheduleNextAlarm = false)
-                is DryRunResult.Conflict -> if (dryRun.bookable) attemptBooking(adjustedBooking, dryRun.training, scheduleNextAlarm = false)
+            is DryRunResult.Ok -> if (dryRun.bookable) attemptBooking(adjustedBooking, dryRun.training, scheduleNextAlarm = true)
+            is DryRunResult.Conflict -> if (dryRun.bookable) attemptBooking(adjustedBooking, dryRun.training, scheduleNextAlarm = true)
                 is DryRunResult.Renamed -> notificationManager.showTrainingRenamed(booking.className, dryRun.newName)
                 is DryRunResult.NotAvailable -> Unit
             }
@@ -271,8 +271,8 @@ class BookingSchedulerImpl(
                     isScheduledBooking = true,
                     location = training.location,
                     spotsAvailable = training.spotsAvailable,
-                    bookingCount = booking.bookedCount,
-                    maxRepeatCount = booking.maxRepeatCount
+                    bookingCount = nextBooking.bookedCount,
+                    maxRepeatCount = nextBooking.maxRepeatCount
                 )
                 true
             },
@@ -375,6 +375,8 @@ class BookingSchedulerImpl(
             nowSeconds() * 1000 + 15 * 60000L
         }
         // Persist the deadline so the twice-daily sync can recover a dropped alarm.
+        // Skip a booking that was stopped concurrently so no stray alarm is armed.
+        if (scheduledBookingRepo.getBooking(booking.id)?.status != ScheduledBookingStatus.ACTIVE) return
         scheduledBookingRepo.setNextRetryAt(booking.id, alarmTimeMillis / 1000)
         alarmScheduler.scheduleBooking(booking.id, alarmTimeMillis)
     }
@@ -420,7 +422,7 @@ class BookingSchedulerImpl(
                     ?.text() ?: "SwimGym"
             val spotsText =
                 doc.selectFirst("div.event-details-icons:nth-child(2) > div.event-details-icon:nth-child(3) > div.icon-text:nth-child(2)")
-                    ?.text() ?: "invalid"
+                    ?.text()
             val imageUrl = doc.selectFirst(".event-image-holder img")?.attr("src") ?: ""
             val description = doc.selectFirst(".event-description-holder")?.text() ?: ""
             val cost = doc.selectFirst(".event-details-icon:has(.ticket-star) .icon-text")?.text() ?: ""
@@ -428,12 +430,17 @@ class BookingSchedulerImpl(
             val cancelPolicy =
                 doc.selectFirst(".event-actions > div:not(.booking-text)")?.text() ?: ""
 
-            val spotsParts = spotsText.split("/").map { it.trim() }
-            val spotsTaken = spotsParts.getOrNull(0)?.toIntOrNull() ?: 0
-            val totalSpots = spotsParts.getOrNull(1)?.toIntOrNull() ?: 0
-
-            val spotsAvailable = totalSpots - spotsTaken
-            val isFull = spotsAvailable == 0
+            val spotsParts = spotsText?.split("/")?.map { it.trim() }
+            val spotsTaken = spotsParts?.getOrNull(0)?.toIntOrNull()
+            val totalSpotsParsed = spotsParts?.getOrNull(1)?.toIntOrNull()
+            val spotsKnown = spotsTaken != null && totalSpotsParsed != null
+            val totalSpots = if (spotsKnown) totalSpotsParsed!! else 0
+            // Only treat a class as full when spots were actually parsed. An
+            // unparseable value must not be mistaken for "0 spots left" and burn
+            // the whole retry budget as CLASS_FULL after a markup change.
+            val spotsAvailable = if (spotsKnown) maxOf(0, totalSpots - spotsTaken!!) else 0
+            val explicitFull = doc.selectFirst(".full")?.text()?.trim()?.equals("VOL", ignoreCase = true) == true
+            val isFull = !isJoined && (explicitFull || (spotsKnown && spotsAvailable == 0))
 
             if (imageUrl.isNotEmpty()) {
                 dao.insertInstructor(

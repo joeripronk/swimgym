@@ -81,6 +81,14 @@ fun LoginScreen(
                     }
                 }
 
+                // The WebView shares the system CookieManager with any previous
+                // login. Stale cookies here would make onPageFinish immediately
+                // "succeed" with the expired session and loop back to Schedule.
+                cookieManager.getCookie(baseUrl)?.split(";")?.forEach { cookie ->
+                    val name = cookie.trim().substringBefore("=")
+                    if (name.isNotBlank()) cookieManager.setCookie(baseUrl, "$name=; Max-Age=0")
+                }
+                cookieManager.flush()
                 loadUrl(baseUrl)
             }
         },

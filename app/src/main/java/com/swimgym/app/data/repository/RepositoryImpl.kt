@@ -63,9 +63,15 @@ class TrainingRepositoryImpl(
             }
 
             if (startDate != null) {
-                val weekTrainings = fetchWeek(startDate)
-                if (weekTrainings.isNotEmpty()) {
-                    dao.insertTrainings(weekTrainings.map { it.toEntity() })
+                // A failed "load more weeks" request must not discard the
+                // schedule already cached locally.
+                try {
+                    val weekTrainings = fetchWeek(startDate)
+                    if (weekTrainings.isNotEmpty()) {
+                        dao.insertTrainings(weekTrainings.map { it.toEntity() })
+                    }
+                } catch (e: Exception) {
+                    Log.w("TrainingRepo", "Failed to load requested week $startDate", e)
                 }
             }
 
@@ -115,7 +121,6 @@ class TrainingRepositoryImpl(
                     return@withContext Result.failure(Exception("Cannot locate training for details"))
                 }
 
-                val instructor = dao.getInstructor(cached.instructor)
                 android.util.Log.d("TrainingRepo", "Fetching details from API for: ${cached.title}")
                 val result = getTrainingDetailsFromApi(cached)
 
@@ -123,6 +128,9 @@ class TrainingRepositoryImpl(
                     var instructorLink = ""
                     var instructorImage = ""
 
+                    // Look up the instructor by the name returned by the API, not
+                    // the cached one, which may have changed since the last sync.
+                    val instructor = dao.getInstructor(details.instructor)
                     if (instructor != null) {
                         instructorLink = instructor.instructorLink
                         instructorImage = instructor.instructorImage
@@ -228,6 +236,7 @@ class TrainingRepositoryImpl(
 
     override suspend fun refreshSchedule(): Result<Unit> {
         return withContext(Dispatchers.IO) {
+            syncStatusFlow.value = SyncStatus(isSyncing = true)
             try {
                 Log.d("TrainingRepo", "Starting schedule fetch")
                 val fetch = fetchAndSaveSchedule()
@@ -239,17 +248,21 @@ class TrainingRepositoryImpl(
                     // failed to load; they are still valid and may be booked.
                     if (fetch.allWeeksSucceeded) {
                         val newIds = fetch.trainings.map { it.id }.toSet()
-                        val deletedIds = dao.getAllTrainingIds().filter { it !in newIds }
+                        // Never delete a class the user already joined (or that has a
+                        // booking record): those can be outside the fetched 3-week
+                        // window yet remain confirmed server-side.
+                        val protectedIds = (dao.getJoinedTrainingIds() + dao.getBookedTrainingIds()).toSet()
+                        val deletedIds = dao.getAllTrainingIds().filter { it !in newIds && it !in protectedIds }
                         Log.d("TrainingRepo", "${deletedIds.size} deleted trainings to remove")
                         for (id in deletedIds) {
                             dao.deleteTrainingById(id)
+                            dao.deleteBookingByTrainingId(id)
                             Log.d("TrainingRepo", "Deleted training: $id")
                         }
                     }
                 } else {
                     Log.d("TrainingRepo", "No trainings fetched, skipping insert")
                 }
-                updateSyncStatus()
                 if (fetch.allWeeksSucceeded) {
                     Result.success(Unit)
                 } else {
@@ -258,6 +271,8 @@ class TrainingRepositoryImpl(
             } catch (e: Exception) {
                 Log.e("TrainingRepo", "refreshSchedule failed", e)
                 Result.failure(e)
+            } finally {
+                syncStatusFlow.value = SyncStatus(isSyncing = false)
             }
         }
     }
@@ -298,10 +313,6 @@ class TrainingRepositoryImpl(
         val now = System.currentTimeMillis() / 1000
         val doc = apiClient.fetchHtml("https://swimgym.virtuagym.com/classes/week/$date?event_type=8")
         return parser.parseSchedule(doc, weekOffset, now, apiClient)
-    }
-
-    private suspend fun updateSyncStatus() {
-        syncStatusFlow.value = SyncStatus(isSyncing = false)
     }
 
     private suspend fun getTrainingDetailsFromApi(training: TrainingEntity): Result<com.swimgym.app.data.local.entity.TrainingEntity> {

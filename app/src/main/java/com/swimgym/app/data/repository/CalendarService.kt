@@ -62,8 +62,8 @@ class CalendarServiceImpl(
                 return@withContext null
             }
 
-            val selectedCalendarId = sessionRepository.selectedCalendarId.first() ?: 1L
-            if (selectedCalendarId < 1) {
+            val selectedCalendarId = sessionRepository.selectedCalendarId.first()
+            if (selectedCalendarId == null || selectedCalendarId < 1) {
                 Log.d(TAG, "No calendar selected")
                 return@withContext null
             }
@@ -196,22 +196,24 @@ class CalendarServiceImpl(
             )
 
             var removedCount = 0
-            val eventIdIdx = cursor?.getColumnIndex(CalendarContract.Events._ID) ?: -1
-            val calendarIdIdx = cursor?.getColumnIndex(CalendarContract.Events.CALENDAR_ID) ?: -1
-            if (eventIdIdx < 0 || calendarIdIdx < 0) {
-                Log.w(TAG, "Missing required calendar columns (_ID or CALENDAR_ID)")
-            } else {
-                while (cursor?.moveToNext() == true) {
-                    val eventId = cursor.getString(eventIdIdx)
-                    val calendarId = cursor.getString(calendarIdIdx)
-                    Log.d(TAG, "Found calendar event to remove: id=$eventId, calendar=$calendarId")
+            cursor?.use { c ->
+                val eventIdIdx = c.getColumnIndex(CalendarContract.Events._ID)
+                val calendarIdIdx = c.getColumnIndex(CalendarContract.Events.CALENDAR_ID)
+                if (eventIdIdx < 0 || calendarIdIdx < 0) {
+                    Log.w(TAG, "Missing required calendar columns (_ID or CALENDAR_ID)")
+                } else {
+                    while (c.moveToNext()) {
+                        val eventId = c.getString(eventIdIdx)
+                        val calendarId = c.getString(calendarIdIdx)
+                        Log.d(TAG, "Found calendar event to remove: id=$eventId, calendar=$calendarId")
 
-                    context.contentResolver.delete(
-                        CalendarContract.Events.CONTENT_URI,
-                        "${CalendarContract.Events._ID}=? AND ${CalendarContract.Events.CALENDAR_ID}=?",
-                        arrayOf(eventId, calendarId)
-                    )
-                    removedCount++
+                        context.contentResolver.delete(
+                            CalendarContract.Events.CONTENT_URI,
+                            "${CalendarContract.Events._ID}=? AND ${CalendarContract.Events.CALENDAR_ID}=?",
+                            arrayOf(eventId, calendarId)
+                        )
+                        removedCount++
+                    }
                 }
             }
             Log.d(TAG, "Removed $removedCount calendar events")
@@ -224,7 +226,6 @@ class CalendarServiceImpl(
                 dao.insertTraining(training.copy(eventId = "", calendarId = ""))
                 Log.d(TAG, "Cleared calendar event id for training: ${training.id}")
             }
-            cursor?.close()
         } catch (e: Exception) {
             Log.e(TAG, "Error removing training by time and title", e)
         }
@@ -359,7 +360,12 @@ class CalendarServiceImpl(
 
             val conflicts = events.filter { event ->
                 val excludedById = excludeEventId != null && event.id.toString() == excludeEventId
-                val excludedByTitle = excludeTitle != null && event.title.equals(excludeTitle, ignoreCase = true)
+                // Only suppress an event by title when it is the app's own entry
+                // (same start time and title); an unrelated personal event with
+                // the same title must still be reported as a conflict.
+                val excludedByTitle = excludeTitle != null &&
+                    event.startMillis == startMillis + 3600_000L &&
+                    event.title.equals(excludeTitle, ignoreCase = true)
                 !excludedById && !excludedByTitle
             }
             Log.d(TAG, "Found ${conflicts.size} conflicting events in window [$startMillis, $endMillis]")

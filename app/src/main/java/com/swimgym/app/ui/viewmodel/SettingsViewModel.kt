@@ -289,10 +289,11 @@ class SettingsViewModel(
     }
 
     fun checkForUpdates(context: android.content.Context) {
+        val appContext = context.applicationContext
         viewModelScope.launch {
             _uiState.update { it.copy(isCheckingUpdate = true, updateCheckError = null) }
             try {
-                val result = com.swimgym.app.util.UpdateChecker.checkForUpdates(context)
+                val result = com.swimgym.app.util.UpdateChecker.checkForUpdates(appContext)
                 result.onSuccess { release ->
                     val currentVersion = BuildConfig.VERSION_NAME
                     val isNewer = com.swimgym.app.util.UpdateChecker.isNewerVersion(currentVersion, release.tagName)
@@ -327,6 +328,7 @@ class SettingsViewModel(
     }
 
     fun installUpdate(context: android.content.Context) {
+        val appContext = context.applicationContext
         viewModelScope.launch {
             _uiState.update { it.copy(isDownloading = true, installError = null) }
             val downloadUrl = _uiState.value.apkDownloadUrl
@@ -336,21 +338,21 @@ class SettingsViewModel(
             }
 
             try {
-                val result = com.swimgym.app.util.UpdateChecker.downloadApk(context, downloadUrl)
+                val result = com.swimgym.app.util.UpdateChecker.downloadApk(appContext, downloadUrl)
                 result.onSuccess { apkFile ->
                     _uiState.update { it.copy(isDownloading = false, isInstalling = true) }
                     val installIntent = android.content.Intent(android.content.Intent.ACTION_VIEW)
                         .setDataAndType(
                             androidx.core.content.FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.fileprovider",
+                                appContext,
+                                "${appContext.packageName}.fileprovider",
                                 apkFile
                             ),
                             "application/vnd.android.package-archive"
                         )
                         .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                         .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    context.startActivity(installIntent)
+                    appContext.startActivity(installIntent)
                     _uiState.update { it.copy(isInstalling = false) }
                 }.onFailure { e ->
                     _uiState.update {
