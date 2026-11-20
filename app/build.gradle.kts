@@ -49,6 +49,7 @@ android {
     }
     lint {
         disable += "AutoboxingStateCreation"
+        disable += "MutableCollectionMutableState"
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
