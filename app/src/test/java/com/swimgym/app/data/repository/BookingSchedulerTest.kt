@@ -465,4 +465,94 @@ class BookingSchedulerTest {
         verify { notificationManager.showScheduledBookingNotAvailable(1L, "Laps Swimming", "no cached trainings") }
         coVerify { sessionRepository.saveConflictNotifiedIds(setOf("na-1-${startTime / (7 * 86400)}")) }
     }
+
+    @Test
+    fun `failure reasons are classified from errors`() {
+        assertEquals(RetryFailureReason.CLASS_FULL, RetryFailureReason.from(Exception("Booking was not confirmed")))
+        assertEquals(RetryFailureReason.CLASS_FULL, RetryFailureReason.from(Exception("class full")))
+        assertEquals(RetryFailureReason.AUTH_FAILED, RetryFailureReason.from(Exception("you are logged out")))
+        assertEquals(RetryFailureReason.AUTH_FAILED, RetryFailureReason.from(Exception("not logged in")))
+        assertEquals(RetryFailureReason.SERVICE_DOWN, RetryFailureReason.from(Exception("Booking failed: 503")))
+        assertEquals(RetryFailureReason.SERVICE_DOWN, RetryFailureReason.from(Exception("failed to fetch data")))
+        assertEquals(RetryFailureReason.CONNECTION_ERROR, RetryFailureReason.from(java.io.IOException("timeout")))
+        assertEquals(RetryFailureReason.UNKNOWN, RetryFailureReason.from(Exception("boom")))
+    }
+
+    @Test
+    fun `failed automatic booking records reason and shows it in the retry notification`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 3 * 86400
+        val booking = ScheduledBooking(id = 7L, trainingId = "t1", className = "Laps Swimming", startTime = startTime)
+        val training = createTraining("t1", "Laps Swimming", startTime)
+
+        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns false
+        coEvery { scheduledBookingRepo.getBooking(7L) } returns booking
+        coEvery { dao.getAllTrainingsList() } returns listOf(training)
+        coEvery { dao.getTrainingById("t1") } returns null
+        apiClient.htmlToReturn = trainingDetailsDocument("Laps Swimming")
+        apiClient.bookResult = Result.failure(Exception("Booking failed: 503"))
+
+        val result = scheduler.processSingleBooking(7L)
+
+        assertFalse(result)
+        coVerify { scheduledBookingRepo.recordRetryFailure(7L, 1, RetryFailureReason.SERVICE_DOWN) }
+        verify {
+            notificationManager.showBookingRetry(
+                bookingId = 7L,
+                trainingName = "Laps Swimming",
+                classDate = "",
+                classTime = "",
+                instructor = "",
+                reason = RetryFailureReason.SERVICE_DOWN,
+                retryCount = 1,
+                maxRetries = BookingSchedulerImpl.MAX_RETRIES
+            )
+        }
+    }
+
+    @Test
+    fun `retries stop automatically after the retry limit`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 3 * 86400
+        val booking = ScheduledBooking(
+            id = 7L,
+            trainingId = "t1",
+            className = "Laps Swimming",
+            startTime = startTime,
+            retryCount = BookingSchedulerImpl.MAX_RETRIES - 1
+        )
+        val training = createTraining("t1", "Laps Swimming", startTime)
+
+        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns false
+        coEvery { scheduledBookingRepo.getBooking(7L) } returns booking
+        coEvery { dao.getAllTrainingsList() } returns listOf(training)
+        coEvery { dao.getTrainingById("t1") } returns null
+        apiClient.htmlToReturn = trainingDetailsDocument("Laps Swimming")
+        apiClient.bookResult = Result.failure(Exception("Booking was not confirmed"))
+
+        val result = scheduler.processSingleBooking(7L)
+
+        assertFalse(result)
+        coVerify { scheduledBookingRepo.recordRetryFailure(7L, BookingSchedulerImpl.MAX_RETRIES, RetryFailureReason.CLASS_FULL) }
+        coVerify { scheduledBookingRepo.stopRetries(7L) }
+        coVerify { alarmScheduler.cancelBooking(7L) }
+        coVerify(exactly = 0) { alarmScheduler.scheduleBooking(any(), any()) }
+        verify {
+            notificationManager.showRetriesStopped(
+                7L,
+                "Laps Swimming",
+                RetryFailureReason.CLASS_FULL,
+                BookingSchedulerImpl.MAX_RETRIES
+            )
+        }
+    }
+
+    @Test
+    fun `stopRetries marks the booking stopped and cancels its alarm`() = testScope.runTest {
+        scheduler.stopRetries(7L)
+
+        coVerify { scheduledBookingRepo.stopRetries(7L) }
+        coVerify { alarmScheduler.cancelBooking(7L) }
+        verify { notificationManager.dismissRetryNotification() }
+    }
 }

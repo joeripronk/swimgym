@@ -16,6 +16,7 @@ interface BookingScheduler {
     suspend fun processSingleBooking(bookingId: Long): Boolean
     suspend fun checkCalendarConflicts()
     suspend fun simulateBooking(booking: ScheduledBooking): DryRunResult
+    suspend fun stopRetries(bookingId: Long)
 }
 
 sealed interface DryRunResult {
@@ -46,6 +47,7 @@ class BookingSchedulerImpl(
         private const val CALENDAR_CONFLICT_BUFFER_SECONDS = 60 * 60
         private const val WEEK_SECONDS = 7 * 86400
         private const val MIN_LEAD_SECONDS = 2 * 86400
+        const val MAX_RETRIES = 20
     }
 
     override suspend fun checkBookings() = withContext(Dispatchers.IO) {
@@ -196,9 +198,7 @@ class BookingSchedulerImpl(
     ): Boolean {
         val res = getTrainingDetails(training)
         if (!res.isSuccess) {
-            showRetryNotification(booking)
-            rescheduleAlarmForRetry(booking)
-            return false
+            return handleFailure(booking, RetryFailureReason.from(res.exceptionOrNull()))
         }
         val updtraining = res.getOrThrow()
         if (updtraining.isJoined) {
@@ -220,18 +220,22 @@ class BookingSchedulerImpl(
             return true
         }
         if (updtraining.isFull) {
-            showRetryNotification(booking)
-            rescheduleAlarmForRetry(booking)
-            return false
+            return handleFailure(booking, RetryFailureReason.CLASS_FULL)
         }
-        val bookResult = apiClient.bookTraining(training)
+        val bookResult = try {
+            apiClient.bookTraining(training)
+        } catch (e: Exception) {
+            Result.failure<Unit>(e)
+        }
         return bookResult.fold(
             onSuccess = {
                 val nextBooking = booking.copy(
                     bookedCount = booking.bookedCount + 1,
                     startTime = addDaysToSeconds(training.startTime, 7),
                     instructor = training.instructor,
-                    trainingId = training.id
+                    trainingId = training.id,
+                    retryCount = 0,
+                    lastFailureReason = null
                 )
                 scheduledBookingRepo.saveBooking(nextBooking)
                 val maxRepeat = nextBooking.maxRepeatCount
@@ -256,12 +260,40 @@ class BookingSchedulerImpl(
                 )
                 true
             },
-            onFailure = {
-                showRetryNotification(booking)
-                rescheduleAlarmForRetry(booking)
-                false
+            onFailure = { error ->
+                handleFailure(booking, RetryFailureReason.from(error))
             }
         )
+    }
+
+    override suspend fun stopRetries(bookingId: Long) = withContext(Dispatchers.IO) {
+        scheduledBookingRepo.stopRetries(bookingId)
+        alarmScheduler.cancelBooking(bookingId)
+        notificationManager.dismissRetryNotification()
+    }
+
+    /**
+     * Records why this attempt failed, then either schedules another attempt or
+     * stops the retry sequence once the limit is reached. Returns false in both
+     * cases so callers can report the attempt as unsuccessful.
+     */
+    private suspend fun handleFailure(booking: ScheduledBooking, reason: RetryFailureReason): Boolean {
+        val attempt = booking.retryCount + 1
+        scheduledBookingRepo.recordRetryFailure(booking.id, attempt, reason)
+        if (attempt >= MAX_RETRIES) {
+            scheduledBookingRepo.stopRetries(booking.id)
+            alarmScheduler.cancelBooking(booking.id)
+            notificationManager.showRetriesStopped(
+                bookingId = booking.id,
+                trainingName = booking.className,
+                reason = reason,
+                retryCount = attempt
+            )
+            return false
+        }
+        showRetryNotification(booking, reason, attempt)
+        rescheduleAlarmForRetry(booking)
+        return false
     }
 
     /**
@@ -328,13 +360,26 @@ class BookingSchedulerImpl(
         alarmScheduler.scheduleBooking(booking.id, retryTime)
     }
 
-    private suspend fun showRetryNotification(booking: ScheduledBooking) = withContext(Dispatchers.IO) {
+    private suspend fun showRetryNotification(
+        booking: ScheduledBooking,
+        reason: RetryFailureReason,
+        retryCount: Int
+    ) = withContext(Dispatchers.IO) {
         val training = dao.getTrainingById(booking.trainingId)
         val classDate = training?.classDate ?: ""
         val classTime = training?.classTime ?: ""
         val className = training?.title ?: booking.className
         val instructor = training?.instructor ?: ""
-        notificationManager.showBookingRetry(booking.id, className, classDate, classTime, instructor)
+        notificationManager.showBookingRetry(
+            bookingId = booking.id,
+            trainingName = className,
+            classDate = classDate,
+            classTime = classTime,
+            instructor = instructor,
+            reason = reason,
+            retryCount = retryCount,
+            maxRetries = MAX_RETRIES
+        )
     }
 
     private suspend fun getTrainingDetails(training: TrainingEntity): Result<TrainingEntity> = withContext(Dispatchers.IO) {

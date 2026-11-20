@@ -1,7 +1,6 @@
 package com.swimgym.app.data.repository
 
 import org.junit.Assert.*
-import org.junit.Before
 import org.junit.Test
 
 class ScheduledBookingRepositoryJsonTest {
@@ -14,14 +13,14 @@ class ScheduledBookingRepositoryJsonTest {
         instructor = "John",
         status = ScheduledBookingStatus.ACTIVE,
         bookedCount = 2,
-        maxRepeatCount = 5
+        maxRepeatCount = 5,
+        retryCount = 3,
+        lastFailureReason = RetryFailureReason.CLASS_FULL
     )
 
     @Test
     fun `serialize and deserialize booking`() {
-        val json = listOf(testBooking).joinToString(",", "[", "]") { booking ->
-            """{"id":"${booking.id}","trainingId":"${booking.trainingId}","className":"${booking.className}","startTime":${booking.startTime},"instructor":"${booking.instructor}","status":"${booking.status.name}","bookedCount":${booking.bookedCount},"maxRepeatCount":${booking.maxRepeatCount?.let { "\"$it\"" } ?: "null"},"createdAt":${booking.createdAt}}"""
-        }
+        val json = serialize(listOf(testBooking))
 
         val parsed = parseBookingsFromJson(json)
         assertEquals(1, parsed.size)
@@ -32,19 +31,19 @@ class ScheduledBookingRepositoryJsonTest {
         assertEquals(testBooking.status, parsed[0].status)
         assertEquals(testBooking.bookedCount, parsed[0].bookedCount)
         assertEquals(testBooking.maxRepeatCount, parsed[0].maxRepeatCount)
+        assertEquals(testBooking.retryCount, parsed[0].retryCount)
+        assertEquals(testBooking.lastFailureReason, parsed[0].lastFailureReason)
     }
 
     @Test
     fun `serialize and deserialize multiple bookings`() {
         val bookings = listOf(
             testBooking,
-            testBooking.copy(id = 99L, className = "Water Polo")
+            testBooking.copy(id = 99L, className = "Water Polo", lastFailureReason = null)
         )
-        val json = bookings.joinToString(",", "[", "]") { booking ->
-            """{"id":"${booking.id}","trainingId":"${booking.trainingId}","className":"${booking.className}","startTime":${booking.startTime},"instructor":"${booking.instructor}","status":"${booking.status.name}","bookedCount":${booking.bookedCount},"maxRepeatCount":${booking.maxRepeatCount?.let { "\"$it\"" } ?: "null"},"createdAt":${booking.createdAt}}"""
-        }
 
-        val parsed = parseBookingsFromJson(json)
+        val parsed = parseBookingsFromJson(serialize(bookings))
+
         assertEquals(2, parsed.size)
     }
 
@@ -63,11 +62,9 @@ class ScheduledBookingRepositoryJsonTest {
     @Test
     fun `booking with null maxRepeatCount`() {
         val booking = testBooking.copy(maxRepeatCount = null)
-        val json = listOf(booking).joinToString(",", "[", "]") { b ->
-            """{"id":"${b.id}","trainingId":"${b.trainingId}","className":"${b.className}","startTime":${b.startTime},"instructor":"${b.instructor}","status":"${b.status.name}","bookedCount":${b.bookedCount},"maxRepeatCount":${b.maxRepeatCount?.let { "\"$it\"" } ?: "null"},"createdAt":${b.createdAt}}"""
-        }
 
-        val parsed = parseBookingsFromJson(json)
+        val parsed = parseBookingsFromJson(serialize(listOf(booking)))
+
         assertEquals(null, parsed[0].maxRepeatCount)
     }
 
@@ -78,6 +75,20 @@ class ScheduledBookingRepositoryJsonTest {
         assertEquals(1, parsed.size)
         assertEquals(12345L, parsed[0].id)
     }
+
+    @Test
+    fun `unknown failure reason is ignored on deserialize`() {
+        val json = """[{"id":"1","trainingId":"t","className":"C","startTime":1,"status":"STOPPED","retryCount":4,"lastFailureReason":"SOMETHING_NEW"}]"""
+        val parsed = parseBookingsFromJson(json)
+        assertEquals(ScheduledBookingStatus.STOPPED, parsed[0].status)
+        assertEquals(4, parsed[0].retryCount)
+        assertNull(parsed[0].lastFailureReason)
+    }
+
+    private fun serialize(bookings: List<ScheduledBooking>): String =
+        bookings.joinToString(",", "[", "]") { b ->
+            """{"id":"${b.id}","trainingId":"${b.trainingId}","className":"${b.className}","startTime":${b.startTime},"instructor":"${b.instructor}","status":"${b.status.name}","bookedCount":${b.bookedCount},"maxRepeatCount":${b.maxRepeatCount?.let { "\"$it\"" } ?: "null"},"retryCount":${b.retryCount},"lastFailureReason":${b.lastFailureReason?.let { "\"${it.name}\"" } ?: "null"},"createdAt":${b.createdAt}}"""
+        }
 
     private fun parseBookingsFromJson(json: String): List<ScheduledBooking> {
         val result = mutableListOf<ScheduledBooking>()
@@ -94,6 +105,8 @@ class ScheduledBookingRepositoryJsonTest {
                 val bookedCount = obj.findValue("bookedCount")?.toIntOrNull() ?: 0
                 val maxRepeatStr = obj.findValue("maxRepeatCount")
                 val maxRepeatCount = if (maxRepeatStr == "null") null else maxRepeatStr?.toIntOrNull()
+                val retryCount = obj.findValue("retryCount")?.toIntOrNull() ?: 0
+                val lastFailureReason = RetryFailureReason.fromName(obj.findValue("lastFailureReason"))
                 val createdAt = obj.findValue("createdAt")?.toLongOrNull() ?: System.currentTimeMillis()
 
                 val status = try {
@@ -114,6 +127,8 @@ class ScheduledBookingRepositoryJsonTest {
                         status = status,
                         bookedCount = bookedCount,
                         maxRepeatCount = maxRepeatCount,
+                        retryCount = retryCount,
+                        lastFailureReason = lastFailureReason,
                         createdAt = createdAt
                     )
                 )

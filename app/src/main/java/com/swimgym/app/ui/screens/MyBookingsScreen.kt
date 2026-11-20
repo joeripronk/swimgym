@@ -51,6 +51,7 @@ fun MyBookingsScreen(
     onPauseScheduled: (Long) -> Unit,
     onResumeScheduled: (Long) -> Unit,
     onDeleteScheduled: (Long) -> Unit,
+    onStopRetrying: (Long) -> Unit,
     onScheduledBookingClick: (String) -> Unit,
     onBookingClick: (Booking) -> Unit
 ) {
@@ -97,7 +98,8 @@ fun MyBookingsScreen(
                             onClick = onScheduledBookingClick,
                             onPause = { onPauseScheduled(scheduled.id) },
                             onResume = { onResumeScheduled(scheduled.id) },
-                            onDelete = { onDeleteScheduled(scheduled.id) }
+                            onDelete = { onDeleteScheduled(scheduled.id) },
+                            onStopRetrying = { onStopRetrying(scheduled.id) }
                         )
                     }
                 }
@@ -214,7 +216,8 @@ private fun ScheduledBookingCard(
     onClick: (String) -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onStopRetrying: () -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("EEEE", Locale.getDefault()) }
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
@@ -297,9 +300,26 @@ private fun ScheduledBookingCard(
                             scheduled.status == ScheduledBookingStatus.PAUSED -> MaterialTheme.colorScheme.tertiary
                             scheduled.status == ScheduledBookingStatus.COMPLETED -> MaterialTheme.colorScheme.outline
                             scheduled.status == ScheduledBookingStatus.INVALIDATED -> MaterialTheme.colorScheme.error
+                            scheduled.status == ScheduledBookingStatus.STOPPED -> MaterialTheme.colorScheme.error
                             else -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
                     )
+                    if (scheduled.retryCount > 0 && scheduled.lastFailureReason != null) {
+                        val summary = if (scheduled.status == ScheduledBookingStatus.STOPPED) {
+                            "Retries stopped after ${scheduled.retryCount} attempts: ${scheduled.lastFailureReason.displayName}"
+                        } else {
+                            "Retry attempt ${scheduled.retryCount}: ${scheduled.lastFailureReason.displayName}"
+                        }
+                        Text(
+                            text = summary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (scheduled.status == ScheduledBookingStatus.ACTIVE) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
                     when (val dryRun = dryRunResult) {
                         is DryRunResult.Ok -> {
                             Text(
@@ -395,10 +415,17 @@ private fun ScheduledBookingCard(
 
                 Row {
                     if (scheduled.status == ScheduledBookingStatus.ACTIVE) {
+                        if (scheduled.retryCount > 0) {
+                            TextButton(onClick = onStopRetrying) {
+                                Text("Stop retrying")
+                            }
+                        }
                         TextButton(onClick = onPause) {
                             Text("Pause")
                         }
-                    } else if (scheduled.status == ScheduledBookingStatus.PAUSED) {
+                    } else if (scheduled.status == ScheduledBookingStatus.PAUSED ||
+                        scheduled.status == ScheduledBookingStatus.STOPPED
+                    ) {
                         TextButton(onClick = onResume) {
                             Text("Resume")
                         }

@@ -496,6 +496,12 @@ class ScheduleViewModel(
         }
     }
 
+    fun stopRetrying(bookingId: Long) {
+        viewModelScope.launch {
+            bookingScheduler.stopRetries(bookingId)
+        }
+    }
+
     fun updateMaxRepeat(bookingId: Long, newMax: Int?) {
         viewModelScope.launch {
             scheduledBookingRepo.updateMaxRepeat(bookingId, newMax)

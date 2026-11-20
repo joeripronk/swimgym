@@ -56,8 +56,20 @@ class ScheduledBookingRepository(
 	    // the only verified source for starttime is from training
 	    startTime = addDaysToSeconds(training.startTime, 7),
             instructor = training.instructor,
-            trainingId = training.id
+            trainingId = training.id,
+            retryCount = 0,
+            lastFailureReason = null
         ))
+    }
+
+    suspend fun recordRetryFailure(bookingId: Long, retryCount: Int, reason: RetryFailureReason) {
+        val booking = getBooking(bookingId) ?: return
+        saveBooking(booking.copy(retryCount = retryCount, lastFailureReason = reason))
+    }
+
+    suspend fun stopRetries(bookingId: Long) {
+        val booking = getBooking(bookingId) ?: return
+        saveBooking(booking.copy(status = ScheduledBookingStatus.STOPPED))
     }
 
     suspend fun markBookingAsInvalid(bookingId: Long) {
@@ -77,7 +89,11 @@ class ScheduledBookingRepository(
 
     suspend fun resumeBooking(bookingId: Long) {
         val booking = getBooking(bookingId) ?: return
-        saveBooking(booking.copy(status = ScheduledBookingStatus.ACTIVE))
+        saveBooking(booking.copy(
+            status = ScheduledBookingStatus.ACTIVE,
+            retryCount = 0,
+            lastFailureReason = null
+        ))
     }
 
     suspend fun deleteBooking(bookingId: Long) {
@@ -97,12 +113,27 @@ class ScheduledBookingRepository(
     }
 
     private suspend fun saveAllBookings(bookings: List<ScheduledBooking>) {
-        val json = bookings.joinToString(",", "[", "]") { booking ->
-            """{"id":"${escapeJson(booking.id.toString())}","trainingId":"${escapeJson(booking.trainingId)}","className":"${escapeJson(booking.className)}","startTime":${booking.startTime},"instructor":"${escapeJson(booking.instructor)}","status":"${escapeJson(booking.status.name)}","bookedCount":${booking.bookedCount},"maxRepeatCount":${booking.maxRepeatCount?.let { "\"$it\"" } ?: "null"},"createdAt":${booking.createdAt}}"""
-        }
+        val json = bookings.joinToString(",", "[", "]") { serializeBooking(it) }
         context.scheduledBookingDataStore.edit { prefs ->
             prefs[bookingsKey] = json
         }
+    }
+
+    private fun serializeBooking(booking: ScheduledBooking): String = buildString {
+        append("{\"id\":\"").append(escapeJson(booking.id.toString())).append("\"")
+        append(",\"trainingId\":\"").append(escapeJson(booking.trainingId)).append("\"")
+        append(",\"className\":\"").append(escapeJson(booking.className)).append("\"")
+        append(",\"startTime\":").append(booking.startTime)
+        append(",\"instructor\":\"").append(escapeJson(booking.instructor)).append("\"")
+        append(",\"status\":\"").append(escapeJson(booking.status.name)).append("\"")
+        append(",\"bookedCount\":").append(booking.bookedCount)
+        append(",\"maxRepeatCount\":")
+        append(booking.maxRepeatCount?.let { "\"$it\"" } ?: "null")
+        append(",\"retryCount\":").append(booking.retryCount)
+        append(",\"lastFailureReason\":")
+        append(booking.lastFailureReason?.let { "\"${escapeJson(it.name)}\"" } ?: "null")
+        append(",\"createdAt\":").append(booking.createdAt)
+        append("}")
     }
 
     private fun escapeJson(value: String): String {
@@ -134,6 +165,8 @@ class ScheduledBookingRepository(
                 val bookedCount = obj.findValue("bookedCount")?.toIntOrNull() ?: 0
                 val maxRepeatStr = obj.findValue("maxRepeatCount")
                 val maxRepeatCount = if (maxRepeatStr == "null") null else maxRepeatStr?.toIntOrNull()
+                val retryCount = obj.findValue("retryCount")?.toIntOrNull() ?: 0
+                val lastFailureReason = RetryFailureReason.fromName(obj.findValue("lastFailureReason"))
                 val createdAt = obj.findValue("createdAt")?.toLongOrNull() ?: System.currentTimeMillis()
 
                 val status = try {
@@ -154,6 +187,8 @@ class ScheduledBookingRepository(
                         status = status,
                         bookedCount = bookedCount,
                         maxRepeatCount = maxRepeatCount,
+                        retryCount = retryCount,
+                        lastFailureReason = lastFailureReason,
                         createdAt = createdAt
                     )
                 )

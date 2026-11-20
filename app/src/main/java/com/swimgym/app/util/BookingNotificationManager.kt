@@ -9,6 +9,8 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.swimgym.app.MainActivity
 import com.swimgym.app.R
+import com.swimgym.app.data.repository.RetryFailureReason
+import com.swimgym.app.receiver.ScheduledBookingReceiver
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -85,7 +87,16 @@ class BookingNotificationManager(
         notificationManager.notify(NOTIFICATION_ID_BASE, builder.build())
     }
 
-    fun showBookingRetry(bookingId: Long, trainingName: String, classDate: String, classTime: String, instructor: String) {
+    fun showBookingRetry(
+        bookingId: Long,
+        trainingName: String,
+        classDate: String,
+        classTime: String,
+        instructor: String,
+        reason: RetryFailureReason,
+        retryCount: Int,
+        maxRetries: Int
+    ) {
         if (!hasNotificationPermission(context)) return
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -93,7 +104,8 @@ class BookingNotificationManager(
 
         val title = "Booking Failed - Retry Available"
         val trainingDetails = formatTrainingDetails(trainingName, classTime, classDate, instructor)
-        val content = "Your booking could not be completed. Tap to retry now or wait for automatic retry in 15 minutes.\n\n$trainingDetails"
+        val content = "Retrying \"$trainingName\" (${reason.displayName}, attempt $retryCount of $maxRetries). " +
+            "Tap to retry now or wait for the automatic retry in 15 minutes.\n\n$trainingDetails"
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -106,8 +118,8 @@ class BookingNotificationManager(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val retryIntent = Intent(context, com.swimgym.app.receiver.ScheduledBookingReceiver::class.java).apply {
-            setAction("com.swimgym.app.RETRY_BOOKING")
+        val retryIntent = Intent(context, ScheduledBookingReceiver::class.java).apply {
+            action = ScheduledBookingReceiver.ACTION_RETRY_BOOKING
             putExtra("booking_id", bookingId)
         }
 
@@ -115,6 +127,18 @@ class BookingNotificationManager(
             context,
             bookingId.toInt(),
             retryIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val stopIntent = Intent(context, ScheduledBookingReceiver::class.java).apply {
+            action = ScheduledBookingReceiver.ACTION_STOP_RETRY_BOOKING
+            putExtra("booking_id", bookingId)
+        }
+
+        val stopPendingIntent = PendingIntent.getBroadcast(
+            context,
+            bookingId.toInt() + 1_000_000,
+            stopIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -126,8 +150,49 @@ class BookingNotificationManager(
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .addAction(0, "Retry Now", retryPendingIntent)
+            .addAction(0, "Stop retrying", stopPendingIntent)
 
         notificationManager.notify(BOOKING_RETRY_ID, builder.build())
+    }
+
+    fun showRetriesStopped(
+        bookingId: Long,
+        trainingName: String,
+        reason: RetryFailureReason,
+        retryCount: Int
+    ) {
+        if (!hasNotificationPermission(context)) return
+
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        createNotificationChannel(notificationManager)
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            bookingId.toInt(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val content = "Automatic retries for \"$trainingName\" stopped after $retryCount failed " +
+            "attempts (last reason: ${reason.displayName}). Open My Bookings to resume."
+
+        val builder = NotificationCompat.Builder(context, BOOKING_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("Booking retries stopped")
+            .setContentText(content)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+
+        notificationManager.notify(BOOKING_RETRY_ID, builder.build())
+    }
+
+    fun dismissRetryNotification() {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancel(BOOKING_RETRY_ID)
     }
 
     fun showTrainingRenamed(oldName: String, newName: String) {

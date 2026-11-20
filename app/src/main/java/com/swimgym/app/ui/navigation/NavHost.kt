@@ -247,6 +247,9 @@ fun SwimGymNavigation(
                 onDeleteScheduled = { bookingId ->
                     scheduleViewModel.deleteScheduledBooking(bookingId)
                 },
+                onStopRetrying = { bookingId ->
+                    scheduleViewModel.stopRetrying(bookingId)
+                },
                 onScheduledBookingClick = { trainingId ->
                     navController.navigate(Screen.TrainingDetail.createRoute(trainingId))
                 },

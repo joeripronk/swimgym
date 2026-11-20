@@ -4,7 +4,8 @@ enum class ScheduledBookingStatus {
     ACTIVE,
     PAUSED,
     COMPLETED,
-    INVALIDATED
+    INVALIDATED,
+    STOPPED
 }
 
 data class ScheduledBooking(
@@ -16,5 +17,7 @@ data class ScheduledBooking(
     val status: ScheduledBookingStatus = ScheduledBookingStatus.ACTIVE,
     val bookedCount: Int = 0,
     val maxRepeatCount: Int? = null,
+    val retryCount: Int = 0,
+    val lastFailureReason: RetryFailureReason? = null,
     val createdAt: Long = System.currentTimeMillis()
 )
