@@ -26,13 +26,16 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.ContentScale.Companion.Fit
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat.startActivity
+import com.swimgym.app.R
 import com.swimgym.app.data.repository.CalendarService
 import com.swimgym.app.di.SwimGymAppContainer
 import com.swimgym.app.domain.model.Training
@@ -88,7 +91,14 @@ fun ScheduleScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Training Schedule") },
+                title = {
+                    Icon(
+                        painter = painterResource(id = R.mipmap.ic_launcher),
+                        contentDescription = "SwimGym",
+                        modifier = Modifier.size(28.dp),
+                        tint = Color.Unspecified
+                    )
+                },
                 actions = {
                     Box {
                         TextButton(onClick = { showLevelMenu = true }) {
