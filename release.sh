@@ -42,9 +42,15 @@ fail() {
 }
 
 push_failed() {
-  warn "The release commit and tag $TAG exist locally but were not fully pushed."
-  warn "Re-run '$0 --now' after fixing the remote, or push manually with:"
-  warn "  git push origin $BRANCH && git push origin $TAG"
+  warn "Push failed: $1"
+  if [[ -n "${TAG:-}" ]]; then
+    warn "The release commit and tag $TAG exist locally but were not fully pushed."
+    warn "Re-run '$0 --now' after fixing the remote, or push manually with:"
+    warn "  git push origin $BRANCH && git push origin $TAG"
+  else
+    warn "Re-run '$0 --now' after fixing the remote, or push manually with:"
+    warn "  git push origin $BRANCH"
+  fi
   die "$1"
 }
 
@@ -75,20 +81,40 @@ fi
 
 local_head=$(git rev-parse HEAD)
 remote_head=""
+
+git fetch --quiet origin "$BRANCH" || fail "could not fetch origin/$BRANCH"
 if git rev-parse --verify --quiet origin/"$BRANCH" &>/dev/null; then
   remote_head=$(git rev-parse origin/"$BRANCH")
-  if [[ "$local_head" == "$remote_head" ]]; then
-    info "Branch is in sync with origin/$BRANCH ✓"
-  else
-    subject=$(git log -1 --pretty=%s)
-    if [[ "$subject" == "release swimgym v"* ]]; then
-      release_tag="${subject##* }"
-      fail "local $BRANCH has an unpushed release commit — push it with 'git push origin $BRANCH && git push origin $release_tag'"
-    fi
-    fail "local $BRANCH is not in sync with origin/$BRANCH — push first"
-  fi
 else
   warn "origin/$BRANCH not found locally — skipping remote sync check"
+fi
+
+if [[ -z "$remote_head" ]]; then
+  info "Remote branch unknown — skipping remote sync check"
+elif [[ "$local_head" == "$remote_head" ]]; then
+  info "Branch is in sync with origin/$BRANCH ✓"
+elif git merge-base --is-ancestor "$remote_head" HEAD; then
+  # Local is strictly ahead, so pushing is a fast-forward. Do it automatically
+  # instead of aborting; only a diverged/behind branch needs manual recovery.
+  pending_tags=$(git tag --no-merged "$remote_head" | tr '\n' ' ')
+  pending_tags="${pending_tags% }"
+  if [[ "$DRY_RUN" == true ]]; then
+    info "Local $BRANCH is ahead by $(git rev-list --count "$remote_head"..HEAD) commit(s) — would push${pending_tags:+ with tag(s): $pending_tags}"
+    # Treat the push as done so the remaining pre-flight checks reflect the
+    # state after the real run.
+    remote_head="$local_head"
+  else
+    info "Local $BRANCH is ahead — pushing pending commit(s) first …"
+    git push origin "$BRANCH" || push_failed "Failed to push commit"
+    for tag in $pending_tags; do
+      git push origin "$tag" || push_failed "Failed to push tag $tag"
+    done
+    remote_head=$(git rev-parse origin/"$BRANCH")
+    [[ "$remote_head" == "$local_head" ]] || fail "push did not bring origin/$BRANCH up to date"
+    info "Branch and any pending tags are pushed ✓"
+  fi
+else
+  fail "local $BRANCH has diverged from or is behind origin/$BRANCH — reconcile it before releasing"
 fi
 
 # ── read current version ─────────────────────────────────────────────────────
