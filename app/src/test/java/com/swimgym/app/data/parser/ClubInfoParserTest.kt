@@ -161,12 +161,16 @@ class ClubInfoParserTest {
                   <td><a data-cy="creditItemAmount" href="/user/x/credits/access">0 Credits</a></td>
                 </tr>
                 <tr>
-                  <td><a data-cy="creditItemName" href="/user/x/credits/entree">n/a</a></td>
+                  <td><a data-cy="creditItemName" href="/user/x/credits/entree">Entree</a></td>
                   <td><a data-cy="creditItemAmount" href="/user/x/credits/entree">Onbeperkt</a></td>
                 </tr>
                 <tr>
                   <td><span data-cy="creditItemNameMobile">Dryland</span></td>
                   <td><span data-cy="creditItemAmountMobile">1 Credits</span></td>
+                </tr>
+                <tr>
+                  <td><a data-cy="creditItemName" href="/user/x/credits/entree">n/a</a></td>
+                  <td><a data-cy="creditItemAmount" href="/user/x/credits/entree">Onbeperkt</a></td>
                 </tr>
               </tbody>
             </table>
@@ -183,6 +187,7 @@ class ClubInfoParserTest {
         assertTrue(credits[1].isUnlimited)
         assertEquals("Dryland", credits[2].name)
         assertEquals(1, credits[2].count)
+        assertTrue(credits.none { it.name.equals("n/a", ignoreCase = true) })
     }
 
     @Test
@@ -212,8 +217,8 @@ class ClubInfoParserTest {
             Jsoup.parse(page.readText(), "https://swimgym.virtuagym.com/user/swimgymfinv-4b03c25e/myservices")
         )
 
-        assertEquals(6, credits.size)
-        assertTrue(credits.any { it.isUnlimited })
+        assertEquals(5, credits.size)
+        assertTrue(credits.none { it.name.equals("n/a", ignoreCase = true) })
         assertTrue(credits.any { it.count == 1 })
     }
 

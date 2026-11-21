@@ -143,7 +143,10 @@ class ClubInfoParserImpl : ClubInfoParser {
                 ?.text()?.trim()
                 ?: cells.getOrNull(1)?.text()?.trim()
                 ?: ""
+            // Virtuagym renders a "n/a" service row without a usable label;
+            // it is not a credit the user can inspect or spend.
             if (name.isBlank() && amount.isBlank()) return@mapNotNull null
+            if (isNotAvailable(name) || isNotAvailable(amount)) return@mapNotNull null
 
             CreditItem(
                 name = name,
@@ -155,6 +158,9 @@ class ClubInfoParserImpl : ClubInfoParser {
             )
         }
     }
+
+    private fun isNotAvailable(value: String): Boolean =
+        value.trim().equals("n/a", ignoreCase = true)
 
     private fun parseDate(value: String): Long = try {
         SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.US)
