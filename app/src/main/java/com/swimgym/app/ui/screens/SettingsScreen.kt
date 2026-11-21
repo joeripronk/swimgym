@@ -1186,7 +1186,10 @@ fun TimePickerDialog(
     val hoursList = (0..23).toList()
     val minutesList = listOf(0, 15, 30, 45)
     val safeHour = initialHour.coerceIn(hoursList.indices)
-    val minuteIndex = minutesList.indexOf(initialMinute).coerceAtLeast(0)
+    // Stored values are not guaranteed to be quarter hours; snap to the
+    // nearest option instead of silently falling back to 00 for every value.
+    val minuteIndex = minutesList.indices
+        .minByOrNull { kotlin.math.abs(minutesList[it] - initialMinute) } ?: 0
 
     var hour by remember { mutableStateOf(safeHour) }
     var minute by remember { mutableStateOf(minutesList[minuteIndex]) }

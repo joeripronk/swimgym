@@ -37,26 +37,28 @@ object UpdateChecker {
                 .header("Accept", "application/vnd.github.v3+json")
                 .build()
 
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext Result.failure(IOException("HTTP ${response.code}"))
-            }
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                }
+                val body = response.body?.string()
+                    ?: return@withContext Result.failure(IOException("Empty response body"))
 
-            val json = JSONObject(response.body?.string() ?: "")
-            val assets = json.optJSONArray("assets")
-            val apkDownloadUrl = if (assets != null) {
-                findApkAsset(assets)
-            } else {
-                null
+                return@withContext try {
+                    val json = JSONObject(body)
+                    val apkDownloadUrl = json.optJSONArray("assets")?.let { findApkAsset(it) }
+                    Result.success(
+                        ReleaseInfo(
+                            tagName = json.getString("tag_name"),
+                            htmlUrl = json.getString("html_url"),
+                            body = json.optString("body", ""),
+                            apkDownloadUrl = apkDownloadUrl
+                        )
+                    )
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
             }
-
-            val releaseInfo = ReleaseInfo(
-                tagName = json.getString("tag_name"),
-                htmlUrl = json.getString("html_url"),
-                body = json.optString("body", ""),
-                apkDownloadUrl = apkDownloadUrl
-            )
-            Result.success(releaseInfo)
         }
 
     private fun findApkAsset(assets: JSONArray): String? {
@@ -82,28 +84,31 @@ object UpdateChecker {
                 .header("Accept", "application/octet-stream")
                 .build()
 
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext Result.failure(IOException("Download failed: HTTP ${response.code}"))
-            }
-
-            val cacheDir = context.cacheDir
-            val apkDir = File(cacheDir, "apk")
-            apkDir.mkdirs()
-            val apkFile = File(apkDir, "swimgym-release.apk")
-
-            val body = response.body
-            if (body == null) {
-                return@withContext Result.failure(IOException("No response body"))
-            }
-
-            FileOutputStream(apkFile).use { out ->
-                body.byteStream().use { input ->
-                    input.copyTo(out)
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException("Download failed: HTTP ${response.code}"))
                 }
-            }
 
-            Result.success(apkFile)
+                val cacheDir = context.cacheDir
+                val apkDir = File(cacheDir, "apk")
+                apkDir.mkdirs()
+                val apkFile = File(apkDir, "swimgym-release.apk")
+
+                val body = response.body
+                    ?: return@withContext Result.failure(IOException("No response body"))
+
+                try {
+                    FileOutputStream(apkFile).use { out ->
+                        body.byteStream().use { input ->
+                            input.copyTo(out)
+                        }
+                    }
+                } catch (e: IOException) {
+                    return@withContext Result.failure(e)
+                }
+
+                Result.success(apkFile)
+            }
         }
 
     fun isNewerVersion(current: String, latest: String): Boolean {

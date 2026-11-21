@@ -28,7 +28,9 @@ object Mappers {
             totalSpots = totalSpots,
             cancelPolicy = cancelPolicy,
             eventId = eventId,
-            calendarId = calendarId
+            calendarId = calendarId,
+            instructorLink = instructorLink,
+            lastFetched = lastFetched
         )
     }
 
@@ -36,7 +38,7 @@ object Mappers {
         id = id,
         title = title,
         instructor = instructor,
-        instructorLink = "",
+        instructorLink = instructorLink,
         startTime = startTime,
         endTime = endTime,
         location = location,
@@ -51,7 +53,8 @@ object Mappers {
         totalSpots = totalSpots,
         cancelPolicy = cancelPolicy,
         eventId = eventId,
-        calendarId = calendarId
+        calendarId = calendarId,
+        lastFetched = lastFetched
     )
 
     fun Training.toEntity() = TrainingEntity(
@@ -72,7 +75,8 @@ object Mappers {
         cost = cost,
         totalSpots = totalSpots,
         cancelPolicy = cancelPolicy,
-        eventId = eventId
+        eventId = eventId,
+        calendarId = calendarId
     )
 
     fun TrainingEntity.toDomain() = Training(
@@ -93,7 +97,8 @@ object Mappers {
         cost = cost,
         totalSpots = totalSpots,
         cancelPolicy = cancelPolicy,
-        eventId = eventId
+        eventId = eventId,
+        calendarId = calendarId
     )
 
     fun BookingResponse.toDomain(): Booking {
@@ -123,11 +128,8 @@ object Mappers {
     fun BookingEntity.toDomain() = Booking(
         id = id,
         trainingId = trainingId,
-        status = when (status) {
-            "CONFIRMED" -> BookingStatus.CONFIRMED
-            "CANCELLED" -> BookingStatus.CANCELLED
-            else -> BookingStatus.PENDING
-        },
+        status = runCatching { BookingStatus.valueOf(status) }
+            .getOrDefault(BookingStatus.PENDING),
         className = title,
         startTime = startTime,
         endTime = endTime

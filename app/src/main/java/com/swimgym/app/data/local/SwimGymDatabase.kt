@@ -23,6 +23,7 @@ abstract class SwimGymDatabase : RoomDatabase() {
             return INSTANCE?.let {
                 return it.dao()
             } ?: synchronized(this) {
+                INSTANCE?.let { return it.dao() }
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     SwimGymDatabase::class.java,

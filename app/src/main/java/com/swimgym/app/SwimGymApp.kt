@@ -1,9 +1,8 @@
 package com.swimgym.app
 
 import android.app.Application
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import com.swimgym.app.di.SwimGymAppContainer
+import com.swimgym.app.util.BookingNotificationManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -21,8 +20,9 @@ class SwimGymApp : Application() {
         SwimGymAppContainer.resetOnAppRestart()
         SwimGymAppContainer.getInstance()
         
-        // Create notification channel for foreground service
-        createNotificationChannel()
+        // Channels are defined once in BookingNotificationManager so startup
+        // cannot overwrite them with conflicting name/description metadata.
+        BookingNotificationManager.createNotificationChannels(this)
 
         // Arm the schedule sync alarm and any active booking alarms asynchronously
         // so the main thread is not blocked during cold start.
@@ -39,19 +39,5 @@ class SwimGymApp : Application() {
     // libwebviewchromium.so was caused by allocating a WebView under memory
     // pressure, which this override used to do.
     
-    private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            "swimgym_notifications",
-            "SwimGym Notifications",
-            android.app.NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = "Notifications for booking checks"
-            enableVibration(false)
-            lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
-        }
-        val notificationManager = getSystemService(NotificationManager::class.java)
-        notificationManager.createNotificationChannel(channel)
-    }
-
     fun getContainer(): SwimGymAppContainer = SwimGymAppContainer.getInstance()
 }

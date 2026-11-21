@@ -21,13 +21,42 @@ class BookingNotificationManager(
         private const val BOOKING_CHANNEL_ID = "swimgym_booking_channel"
         private const val BOOKING_CHANNEL_NAME = "Booking Confirmations"
         private const val BOOKING_CHANNEL_DESCRIPTION = "Notifications for training booking confirmations"
-    const val NOTIFICATION_ID_BASE = 1000
-    const val LOGIN_REQUIRED_ID = 9999
-    const val SYNC_ID = 5000
-    const val BOOKING_RETRY_ID = 20000
-    const val CALENDAR_CONFLICT_ID = 4001
-    const val BOOKING_NOT_AVAILABLE_ID = 4300
         private const val SYNC_CHANNEL_ID = "swimgym_notifications"
+        private const val SYNC_CHANNEL_NAME = "Schedule Sync"
+        private const val SYNC_CHANNEL_DESCRIPTION = "Results of the daily schedule sync"
+
+        const val NOTIFICATION_ID_BASE = 1000
+        const val LOGIN_REQUIRED_ID = 9999
+        const val SYNC_ID = 5000
+        const val BOOKING_RETRY_ID = 20000
+        const val CALENDAR_CONFLICT_ID = 4001
+        const val BOOKING_NOT_AVAILABLE_ID = 4300
+
+        /** Single source of truth for both channels, shared with app startup. */
+        fun createNotificationChannels(context: Context) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+            val notificationManager =
+                context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(
+                NotificationChannel(
+                    BOOKING_CHANNEL_ID,
+                    BOOKING_CHANNEL_NAME,
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = BOOKING_CHANNEL_DESCRIPTION
+                    enableVibration(false)
+                }
+            )
+            notificationManager.createNotificationChannel(
+                NotificationChannel(
+                    SYNC_CHANNEL_ID,
+                    SYNC_CHANNEL_NAME,
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = SYNC_CHANNEL_DESCRIPTION
+                }
+            )
+        }
     }
 
     fun showBookingConfirmation(
@@ -44,7 +73,7 @@ class BookingNotificationManager(
         if (!hasNotificationPermission(context)) return
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannel(notificationManager)
+        createNotificationChannels(context)
 
         val title = if (isScheduledBooking) {
             "$trainingName $instructor $classTime Booked (recurring) ✓"
@@ -100,7 +129,7 @@ class BookingNotificationManager(
         if (!hasNotificationPermission(context)) return
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannel(notificationManager)
+        createNotificationChannels(context)
 
         val title = "Booking Failed - Retry Available"
         val trainingDetails = formatTrainingDetails(trainingName, classTime, classDate, instructor)
@@ -164,7 +193,7 @@ class BookingNotificationManager(
         if (!hasNotificationPermission(context)) return
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannel(notificationManager)
+        createNotificationChannels(context)
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -196,13 +225,15 @@ class BookingNotificationManager(
     }
 
     private fun retryNotificationId(bookingId: Long): Int =
-        BOOKING_RETRY_ID + (bookingId.hashCode() and 0x3FFF)
+        // Keep the full 14-bit slot range so sequential ids do not collide
+        // after only a thousand bookings.
+        BOOKING_RETRY_ID + (bookingId % 16384).toInt()
 
     fun showTrainingRenamed(oldName: String, newName: String) {
         if (!hasNotificationPermission(context)) return
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannel(notificationManager)
+        createNotificationChannels(context)
 
         val title = "Training Renamed"
         val content = "Your scheduled training was renamed:\n\n$oldName → $newName"
@@ -240,7 +271,7 @@ class BookingNotificationManager(
         if (!hasNotificationPermission(context)) return
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannel(notificationManager)
+        createNotificationChannels(context)
 
          // Deterministic per-booking id; hashCode() only hashed the low bits of
         // sequential ids and let different bookings overwrite each other.
@@ -280,7 +311,7 @@ class BookingNotificationManager(
         if (!hasNotificationPermission(context)) return
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannel(notificationManager)
+        createNotificationChannels(context)
 
         val notificationId = BOOKING_NOT_AVAILABLE_ID + (bookingId % 200).toInt()
 
@@ -313,7 +344,7 @@ class BookingNotificationManager(
         if (!hasNotificationPermission(context)) return
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannel(notificationManager)
+        createNotificationChannels(context)
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -388,32 +419,6 @@ class BookingNotificationManager(
         return lines.joinToString("\n")
     }
 
-    private fun createNotificationChannel(notificationManager: NotificationManager) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                BOOKING_CHANNEL_ID,
-                BOOKING_CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = BOOKING_CHANNEL_DESCRIPTION
-                enableVibration(false)
-            }
-
-            notificationManager.createNotificationChannel(channel)
-
-            // showSyncNotification() posts to this channel; without creating it
-            // the notification is silently dropped on Android 8+.
-            val syncChannel = NotificationChannel(
-                SYNC_CHANNEL_ID,
-                "Schedule Sync",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Results of the daily schedule sync"
-            }
-            notificationManager.createNotificationChannel(syncChannel)
-        }
-    }
-
     private fun hasNotificationPermission(context: Context): Boolean {
         return PermissionHelper.hasNotificationPermission(context)
     }
@@ -422,10 +427,11 @@ class BookingNotificationManager(
         if (!hasNotificationPermission(context)) return
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannel(notificationManager)
+        createNotificationChannels(context)
 
         val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             setAction(com.swimgym.app.receiver.LoginActivity.ACTION_LOGIN_REQUIRED)
         }
 

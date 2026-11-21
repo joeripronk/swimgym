@@ -6,6 +6,7 @@ import android.content.Intent
 import com.swimgym.app.di.SwimGymAppContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 class ScheduledBookingReceiver : BroadcastReceiver() {
@@ -21,7 +22,7 @@ class ScheduledBookingReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         val container = SwimGymAppContainer.getInstance()
 
-        CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
             try {
                 if (intent.action == ACTION_STOP_RETRY_BOOKING) {
                     container.bookingScheduler.stopRetries(bookingId)

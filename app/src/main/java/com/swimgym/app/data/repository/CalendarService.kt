@@ -46,6 +46,12 @@ class CalendarServiceImpl(
         private const val TAG = "CalendarService"
     }
 
+    private fun hasCalendarReadPermission(): Boolean =
+        ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.READ_CALENDAR
+        ) == PackageManager.PERMISSION_GRANTED
+
     override suspend fun addTrainingToCalendar(training: Training): String? = withContext(Dispatchers.IO) {
         addTrainingToCalendar(training.toEntity())
     }
@@ -59,6 +65,11 @@ class CalendarServiceImpl(
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
                 Log.d(TAG, "No WRITE_CALENDAR permission")
+                return@withContext null
+            }
+            // findCalendarEventId() below queries the provider, which needs READ.
+            if (!hasCalendarReadPermission()) {
+                Log.d(TAG, "No READ_CALENDAR permission")
                 return@withContext null
             }
 
@@ -177,6 +188,10 @@ class CalendarServiceImpl(
     override suspend fun removeTrainingByTimeAndTitle(startTime: Long, title: String) = withContext(Dispatchers.IO) {
         Log.d(TAG, "Removing training by time and title: startTime=$startTime, title=$title")
         try {
+            if (!hasCalendarReadPermission()) {
+                Log.d(TAG, "No READ_CALENDAR permission")
+                return@withContext
+            }
             val selectedCalendarId = sessionRepository.selectedCalendarId.first()
             if (selectedCalendarId == null || selectedCalendarId < 1) {
                 Log.d(TAG, "No calendar selected")
@@ -245,28 +260,33 @@ class CalendarServiceImpl(
     }
 
     override suspend fun isTrainingInCalendar(trainingId: String, startTime: Long, title: String): Boolean = withContext(Dispatchers.IO) {
-        Log.d(TAG, "Checking if training is in calendar by query: title=$title, startTime=$startTime")
+        Log.d(TAG, "Checking if training $trainingId is in calendar: title=$title, startTime=$startTime")
         try {
+            if (!hasCalendarReadPermission()) {
+                Log.d(TAG, "No READ_CALENDAR permission")
+                return@withContext false
+            }
             val selectedCalendarId = sessionRepository.selectedCalendarId.first()
             if (selectedCalendarId == null || selectedCalendarId < 1) {
                 Log.d(TAG, "No calendar selected")
                 return@withContext false
             }
 
+            // Only the event recorded for this training counts. Matching on
+            // title/time alone reports an unrelated personal event as ours and
+            // can delete it when the booking is cancelled.
+            val storedEventId = dao.getTrainingById(trainingId)?.eventId?.takeIf { it.isNotBlank() }
+                ?: return@withContext false
+
             val cursor = context.contentResolver.query(
                 CalendarContract.Events.CONTENT_URI,
-                arrayOf(
-                    CalendarContract.Events._ID,
-                    CalendarContract.Events.TITLE,
-                    CalendarContract.Events.DTSTART
-                ),
-                "${CalendarContract.Events.TITLE} = ? AND ${CalendarContract.Events.DTSTART} = ? AND ${CalendarContract.Events.CALENDAR_ID} = ?",
-                arrayOf(title, (startTime * 1000).toString(), selectedCalendarId.toString()),
+                arrayOf(CalendarContract.Events._ID),
+                "${CalendarContract.Events._ID} = ? AND ${CalendarContract.Events.CALENDAR_ID} = ?",
+                arrayOf(storedEventId, selectedCalendarId.toString()),
                 null
             )
-            val found = cursor != null && cursor.moveToFirst()
+            val found = cursor?.use { it.moveToFirst() } == true
             Log.d(TAG, "Found training in calendar: $found")
-            cursor?.close()
             found
         } catch (e: Exception) {
             Log.e(TAG, "Error checking if training is in calendar", e)

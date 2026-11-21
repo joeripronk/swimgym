@@ -42,9 +42,7 @@ import java.util.*
         onBook: (com.swimgym.app.domain.model.Training) -> Unit,
         onCancel: (com.swimgym.app.domain.model.Training) -> Unit,
         onSchedule: (com.swimgym.app.domain.model.Training, Int?) -> Unit,
-        onAddToCalendar: (Training) -> Unit,
         onNavigateToMyBookings: () -> Unit,
-         onRefresh: (String) -> Unit,
          calendarRefreshVersion: Int = 0,
         isBookingInProgress: Boolean,
         isCancellingInProgress: Boolean,
@@ -69,33 +67,43 @@ import java.util.*
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        if (permissions[Manifest.permission.WRITE_CALENDAR] == true && trainingToAddToCalendar != null) {
-            val training = trainingToAddToCalendar!!
-            trainingToAddToCalendar = null
-            coroutineScope.launch {
-                val calendarService = SwimGymAppContainer.getInstance().calendarService
-                val result = calendarService.addTrainingToCalendar(training)
-                if (result == null) {
-                    calendarAddError = "Failed to add training to calendar"
-                    retryTraining = training
-                } else {
-                    isInCalendar = true
+        val pending = trainingToAddToCalendar
+        trainingToAddToCalendar = null
+        when {
+            pending == null -> Unit
+            permissions[Manifest.permission.WRITE_CALENDAR] == true &&
+                permissions[Manifest.permission.READ_CALENDAR] == true -> {
+                coroutineScope.launch {
+                    val calendarService = SwimGymAppContainer.getInstance().calendarService
+                    val result = calendarService.addTrainingToCalendar(pending)
+                    if (result == null) {
+                        calendarAddError = "Failed to add training to calendar"
+                        retryTraining = pending
+                    } else {
+                        isInCalendar = true
+                    }
                 }
             }
+            else -> calendarAddError = "Calendar permission denied"
         }
     }
 
     val removePermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        if (permissions[Manifest.permission.WRITE_CALENDAR] == true && trainingToRemoveFromCalendar != null) {
-            val training = trainingToRemoveFromCalendar!!
-            trainingToRemoveFromCalendar = null
-            coroutineScope.launch {
-                val calendarService = SwimGymAppContainer.getInstance().calendarService
-                calendarService.removeTrainingByTimeAndTitle(training.startTime, training.title)
-                isInCalendar = false
+        val pending = trainingToRemoveFromCalendar
+        trainingToRemoveFromCalendar = null
+        when {
+            pending == null -> Unit
+            permissions[Manifest.permission.WRITE_CALENDAR] == true &&
+                permissions[Manifest.permission.READ_CALENDAR] == true -> {
+                coroutineScope.launch {
+                    val calendarService = SwimGymAppContainer.getInstance().calendarService
+                    calendarService.removeTrainingByTimeAndTitle(pending.startTime, pending.title)
+                    isInCalendar = false
+                }
             }
+            else -> calendarAddError = "Calendar permission denied"
         }
     }
 
@@ -320,11 +328,20 @@ import java.util.*
                           onClick = {
                               if (isInCalendar) {
                                   trainingToRemoveFromCalendar = training
-                                  removePermissionLauncher.launch(arrayOf(Manifest.permission.WRITE_CALENDAR))
+                                  removePermissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.WRITE_CALENDAR,
+                                        Manifest.permission.READ_CALENDAR
+                                    )
+                                )
                               } else {
-                                  onAddToCalendar(training)
                                   trainingToAddToCalendar = training
-                                  permissionLauncher.launch(arrayOf(Manifest.permission.WRITE_CALENDAR))
+                                  permissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.WRITE_CALENDAR,
+                                        Manifest.permission.READ_CALENDAR
+                                    )
+                                )
                               }
                           },
                           modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -488,7 +505,12 @@ import java.util.*
                     onClearCalendarError()
                     retryTraining?.let { training ->
                         trainingToAddToCalendar = training
-                        permissionLauncher.launch(arrayOf(Manifest.permission.WRITE_CALENDAR))
+                        permissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.WRITE_CALENDAR,
+                                        Manifest.permission.READ_CALENDAR
+                                    )
+                                )
                     }
                 }) {
                     Text("Retry")

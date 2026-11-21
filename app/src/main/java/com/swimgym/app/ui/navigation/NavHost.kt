@@ -168,6 +168,10 @@ fun SwimGymNavigation(
             android.util.Log.d("NavHost", "Navigating to training details: $id")
             LaunchedEffect(id) {
                 android.util.Log.d("NavHost", "Calling loadTrainingDetails for: $id")
+                // Never show the previous training or a stale error dialog while
+                // the details for this id are being loaded.
+                scheduleViewModel.clearSelectedTraining()
+                scheduleViewModel.clearDialogErrors()
                 scheduleViewModel.loadTrainingDetails(id)
             }
             val selectedTraining by scheduleViewModel.selectedTraining.collectAsState(initial = null)
@@ -209,14 +213,10 @@ fun SwimGymNavigation(
                          maxRepeatCount = maxRepeat
                      )
                  },
-                 onAddToCalendar = { training ->
-                 },
-                 onNavigateToMyBookings = {
-                     navController.navigate(Screen.MyBookings.route)
-                 },
-                 onRefresh = { trainingId ->
-                     scheduleViewModel.loadTrainingDetails(trainingId)
-                 },
+                  onNavigateToMyBookings = {
+                      navController.navigate(Screen.MyBookings.route)
+                  },
+
 
                  isBookingInProgress = uiState.isBookingInProgress,
                  isCancellingInProgress = uiState.isCancellingInProgress,

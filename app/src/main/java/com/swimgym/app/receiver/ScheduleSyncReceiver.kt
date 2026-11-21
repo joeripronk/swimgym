@@ -7,6 +7,7 @@ import android.util.Log
 import com.swimgym.app.di.SwimGymAppContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -20,7 +21,14 @@ class ScheduleSyncReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         val container = SwimGymAppContainer.getInstance()
 
-        CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+            // Re-arm before doing any network work. The alarm is one-shot; if the
+            // process is killed during the fetch, the chain must already be intact.
+            try {
+                container.alarmScheduler.scheduleSyncAlarm()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to re-arm sync alarm", e)
+            }
             var success = false
             try {
                 success = container.trainingRepository.refreshSchedule().isSuccess
@@ -42,13 +50,6 @@ class ScheduleSyncReceiver : BroadcastReceiver() {
             } catch (e: Exception) {
                 Log.e(TAG, "Schedule sync failed", e)
             } finally {
-                // The sync alarm is one-shot. Re-arm it even when a step above
-                // threw, otherwise daily syncing stops after that failure.
-                try {
-                    container.alarmScheduler.scheduleSyncAlarm()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to re-arm sync alarm", e)
-                }
                 pendingResult.finish()
             }
         }

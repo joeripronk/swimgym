@@ -18,6 +18,9 @@ import com.swimgym.app.domain.usecase.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 
 data class LoginUiState(
@@ -36,6 +39,7 @@ data class ScheduleUiState(
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
     val error: String? = null,
+    val loadMoreError: String? = null,
     val selectedLevel: SwodLevel = SwodLevel.ALL,
     val hideFullyBooked: Boolean = true,
     val currentStartDate: String? = null,
@@ -84,6 +88,13 @@ class ScheduleViewModel(
     private val _uiState = MutableStateFlow(ScheduleUiState())
     val uiState: StateFlow<ScheduleUiState> = _uiState.asStateFlow()
 
+    companion object {
+        // Must match the initial fetch window in RepositoryImpl.fetchAndSaveSchedule.
+        private const val INITIAL_WEEKS = 4
+        private const val MAX_WEEKS = 52
+        private val ZONE_ID: ZoneId = ZoneId.systemDefault()
+    }
+
     private var loadScheduleJob: Job? = null
 
     private val _selectedTraining = MutableStateFlow<Training?>(null)
@@ -94,6 +105,14 @@ class ScheduleViewModel(
 
     fun clearJustBookedTrainingId() {
         _justBookedTrainingId.value = null
+    }
+
+    fun clearSelectedTraining() {
+        _selectedTraining.value = null
+    }
+
+    fun clearDialogErrors() {
+        _uiState.update { it.copy(bookingError = null, cancelError = null) }
     }
 
     val imageLoader get() = trainerImageCache.imageLoader
@@ -208,17 +227,35 @@ class ScheduleViewModel(
     ) {
         loadScheduleJob?.cancel()
         loadScheduleJob = viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = preserveError, currentStartDate = null, weeksLoaded = 1) }
+            _uiState.update {
+                it.copy(
+                    isLoading = true, error = preserveError, loadMoreError = null,
+                    isLoadingMore = false, currentStartDate = null, weeksLoaded = 1
+                )
+            }
             getScheduleUseCase(level, hideFullyBooked, null)
                 .onSuccess { trainings ->
                     var filteredTrainings = trainings.filter { it.startTime > System.currentTimeMillis()/1000 }
-                    
+
                     // Apply work time filter if enabled
                     if (_uiState.value.workTimeFilterEnabled) {
                         filteredTrainings = filterByWorkTime(filteredTrainings)
                     }
-                    
-                    _uiState.update { it.copy(isLoading = false, trainings = filteredTrainings, selectedLevel = level, hideFullyBooked = hideFullyBooked, currentStartDate = null, weeksLoaded = 1, error = preserveError) }
+
+                    // The refresh prefetches a fixed window of weeks. Anchor the
+                    // lazy loader at the last of those weeks so the next page
+                    // fetches the week after it, not one already cached.
+                    val lastInitialMonday = LocalDate.now(ZONE_ID)
+                        .with(DayOfWeek.MONDAY)
+                        .plusWeeks((INITIAL_WEEKS - 2).toLong())
+                        .toString()
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false, trainings = filteredTrainings, selectedLevel = level,
+                            hideFullyBooked = hideFullyBooked, currentStartDate = lastInitialMonday,
+                            weeksLoaded = INITIAL_WEEKS, error = preserveError
+                        )
+                    }
                 }
                 .onFailure { e ->
                     _uiState.update { it.copy(isLoading = false, error = e.message ?: preserveError) }
@@ -290,37 +327,43 @@ class ScheduleViewModel(
 
     fun loadNextWeek() {
         val currentState = _uiState.value
-        if (currentState.isLoadingMore) return
+        if (currentState.isLoadingMore || currentState.isLoading) return
 
-        // Limit to 4 weeks total
-        if (currentState.weeksLoaded >= 4) return
+        // Guard against runaway fetching when the list is shorter than the
+        // viewport and the scroll trigger stays true.
+        if (currentState.weeksLoaded >= MAX_WEEKS) return
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoadingMore = true, error = null) }
+            _uiState.update { it.copy(isLoadingMore = true, loadMoreError = null) }
 
             val nextStartDate = calculateNextWeekStart(currentState.currentStartDate)
             getScheduleUseCase(currentState.selectedLevel, currentState.hideFullyBooked, nextStartDate)
                 .onSuccess { newTrainings ->
-                    val filteredNew = newTrainings.filter { it.startTime > System.currentTimeMillis() / 1000 }
+                    var filteredNew = newTrainings.filter { it.startTime > System.currentTimeMillis() / 1000 }
+                    if (currentState.workTimeFilterEnabled) {
+                        filteredNew = filterByWorkTime(filteredNew)
+                    }
                     val allTrainings = (currentState.trainings + filteredNew).distinctBy { it.id }
-                    _uiState.update { it.copy(isLoadingMore = false, trainings = allTrainings, currentStartDate = nextStartDate, weeksLoaded = currentState.weeksLoaded + 1) }
+                    _uiState.update {
+                        it.copy(
+                            isLoadingMore = false, trainings = allTrainings,
+                            currentStartDate = nextStartDate, weeksLoaded = currentState.weeksLoaded + 1
+                        )
+                    }
                 }
                 .onFailure { e ->
-                    _uiState.update { it.copy(isLoadingMore = false, error = e.message) }
+                    _uiState.update {
+                        it.copy(isLoadingMore = false, loadMoreError = e.message ?: "Failed to load more weeks")
+                    }
                 }
         }
     }
 
     private fun calculateNextWeekStart(currentStartDate: String?): String {
-        val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-        val cal = java.util.Calendar.getInstance()
-        if (currentStartDate != null) {
-            try {
-                cal.time = dateFormat.parse(currentStartDate) ?: java.util.Date()
-            } catch (e: Exception) { }
-        }
-        cal.add(java.util.Calendar.WEEK_OF_YEAR, 1)
-        return dateFormat.format(cal.time)
+        val base = currentStartDate?.let {
+            try { LocalDate.parse(it) } catch (e: Exception) { null }
+        } ?: LocalDate.now(ZONE_ID).with(DayOfWeek.MONDAY)
+        return base.plusWeeks(1).with(DayOfWeek.MONDAY).toString()
     }
 
     fun setLevel(level: SwodLevel) {
@@ -397,15 +440,21 @@ class ScheduleViewModel(
         viewModelScope.launch {
             android.util.Log.d("CancelBooking", "Starting cancellation for trainingId: ${booking.trainingId}")
             _uiState.update { it.copy(isCancellingInProgress = true, cancelError = null) }
+            // The Booking domain model carries no classTime/classDate, but the
+            // cancel form POST requires them. Rebuild from the cached entity so
+            // the server receives the real values instead of empty strings.
+            val cached = dao.getTrainingById(booking.trainingId)
             val training = Training(
                 id = booking.trainingId,
                 title = booking.className,
                 instructor = booking.instructor,
                 startTime = booking.startTime,
                 endTime = booking.endTime,
-                location = "",
-                spotsAvailable = 0,
-                imageUrl = booking.imageUrl
+                location = cached?.location ?: "",
+                spotsAvailable = cached?.spotsAvailable ?: 0,
+                classTime = cached?.classTime ?: "",
+                classDate = cached?.classDate ?: "",
+                imageUrl = booking.imageUrl.ifEmpty { cached?.imageUrl ?: "" }
             )
             android.util.Log.d("CancelBooking", "Calling cancelBookingUseCase for: ${booking.trainingId}")
             cancelBookingUseCase(training.toEntity())
@@ -566,7 +615,10 @@ class ScheduleViewModel(
                 }
                 .onFailure { e ->
                     android.util.Log.e("ScheduleViewModel", "Failed to fetch updated training details: $trainingId - ${e.message}")
-                    _uiState.update { it.copy(isLoading = false, error = e.message) }
+                    // Keep the cached training on screen. Writing to the shared
+                    // error would replace the whole schedule with an error once
+                    // the user navigates back, even though the cache is valid.
+                    _uiState.update { it.copy(isLoading = false) }
                 }
         }
     }

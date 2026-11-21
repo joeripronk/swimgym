@@ -9,7 +9,8 @@ class LoginRequiredReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == LoginActivity.ACTION_LOGIN_REQUIRED) {
             val mainIntent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
                 setAction(LoginActivity.ACTION_LOGIN_REQUIRED)
             }
             context.startActivity(mainIntent)

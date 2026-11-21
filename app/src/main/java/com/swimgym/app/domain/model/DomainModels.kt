@@ -24,7 +24,8 @@ data class Training(
     val cost: String = "",
     val totalSpots: Int = 0,
     val cancelPolicy: String = "",
-    val eventId: String = ""
+    val eventId: String = "",
+    val calendarId: String = ""
 )
 
 data class Booking(

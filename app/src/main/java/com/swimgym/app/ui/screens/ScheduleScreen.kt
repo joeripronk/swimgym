@@ -64,18 +64,22 @@ fun ScheduleScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        if (permissions[Manifest.permission.WRITE_CALENDAR] == true &&
-            trainingToAddToCalendar != null) {
-            val training = trainingToAddToCalendar!!
-            trainingToAddToCalendar = null
-            coroutineScope.launch {
-                val calendarService = SwimGymAppContainer.getInstance().calendarService
-                val result = calendarService.addTrainingToCalendar(training)
-                if (result == null) {
-                    calendarAddError = "Failed to add training to calendar"
-                    retryTraining = training
+        val pending = trainingToAddToCalendar
+        trainingToAddToCalendar = null
+        when {
+            pending == null -> Unit
+            permissions[Manifest.permission.WRITE_CALENDAR] == true &&
+                permissions[Manifest.permission.READ_CALENDAR] == true -> {
+                coroutineScope.launch {
+                    val calendarService = SwimGymAppContainer.getInstance().calendarService
+                    val result = calendarService.addTrainingToCalendar(pending)
+                    if (result == null) {
+                        calendarAddError = "Failed to add training to calendar"
+                        retryTraining = pending
+                    }
                 }
             }
+            else -> calendarAddError = "Calendar permission denied"
         }
     }
 
@@ -130,7 +134,7 @@ fun ScheduleScreen(
                     CircularProgressIndicator()
                 }
             }
-            uiState.error != null -> {
+            uiState.error != null && uiState.trainings.isEmpty() -> {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -160,6 +164,18 @@ fun ScheduleScreen(
                 }
             }
             else -> {
+                val shouldLoadMore by remember {
+                    derivedStateOf {
+                        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                        lastVisible >= uiState.trainings.size - 3
+                    }
+                }
+                // weeksLoaded is part of the key: if a fetched week contributes no
+                // surviving trainings, shouldLoadMore stays true but the list size
+                // does not change, so the effect must re-fire to load the next one.
+                LaunchedEffect(shouldLoadMore, uiState.weeksLoaded) {
+                    if (shouldLoadMore) viewModel.loadNextWeek()
+                }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -182,6 +198,37 @@ fun ScheduleScreen(
                                 )
                             }
                         )
+                    }
+                    item {
+                        when {
+                            uiState.isLoadingMore -> Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Loading more weeks...")
+                            }
+                            uiState.loadMoreError != null -> Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = uiState.loadMoreError ?: "Error",
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TextButton(onClick = { viewModel.loadNextWeek() }) {
+                                    Text("Retry")
+                                }
+                            }
+                        }
                     }
                 }
             }

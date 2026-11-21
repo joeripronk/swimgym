@@ -66,7 +66,13 @@ class TrainingRepositoryImpl(
                 // A failed "load more weeks" request must not discard the
                 // schedule already cached locally.
                 try {
-                    val weekTrainings = fetchWeek(startDate)
+                    // Pass the real offset so the parser's date fallback anchors
+                    // on the requested week, not always on last week.
+                    val requestedMonday = LocalDate.parse(startDate).with(DayOfWeek.MONDAY)
+                    val thisMonday = LocalDate.now(ZoneId.systemDefault()).with(DayOfWeek.MONDAY)
+                    val weekOffset = java.time.temporal.ChronoUnit.WEEKS
+                        .between(thisMonday, requestedMonday).toInt() + 1
+                    val weekTrainings = fetchWeek(startDate, weekOffset)
                     if (weekTrainings.isNotEmpty()) {
                         dao.insertTrainings(weekTrainings.map { it.toEntity() })
                     }
@@ -290,7 +296,7 @@ class TrainingRepositoryImpl(
         var allWeeksSucceeded = true
         var firstError: Exception? = null
 
-        for (weekOffset in 0 until 3) {
+        for (weekOffset in 0 until INITIAL_WEEKS) {
             // Anchor on this week's Monday first, then step by whole weeks. Applying
             // nextOrSame after minusWeeks made the range depend on today's weekday.
             val formattedDate = LocalDate.now(ZoneId.systemDefault())
@@ -330,6 +336,9 @@ class TrainingRepositoryImpl(
     }
 
     companion object {
+        // Must match INITIAL_WEEKS in ScheduleViewModel.
+        private const val INITIAL_WEEKS = 4
+
         private fun formatDate(timestamp: Long): String {
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             return sdf.format(Date(timestamp))

@@ -80,16 +80,12 @@ class SettingsViewModel(
         loadConflictCalendarSetting()
         viewModelScope.launch {
             sessionRepository.selectedCalendar.collect { calendar ->
-                if (calendar != null) {
-                    _uiState.update { it.copy(selectedCalendar = calendar) }
-                }
+                _uiState.update { it.copy(selectedCalendar = calendar ?: "") }
             }
         }
         viewModelScope.launch {
             sessionRepository.selectedCalendarId.collect { calendarId ->
-                if (calendarId != null) {
-                    _uiState.update { it.copy(selectedCalendarId = calendarId) }
-                }
+                _uiState.update { it.copy(selectedCalendarId = calendarId ?: -1L) }
             }
         }
     }
@@ -160,7 +156,13 @@ class SettingsViewModel(
                     reminderConfig = ReminderConfig(
                         reminderMinutesBefore = minutes,
                         reminderEnabled = enabled,
-                        reminderTimes = if (times.isNotEmpty()) times else listOf(minutes),
+                        // "Disable all" persists minutes = 0 with an empty list;
+                        // turning that back into listOf(0) shows a bogus reminder.
+                        reminderTimes = when {
+                            times.isNotEmpty() -> times
+                            minutes > 0 -> listOf(minutes)
+                            else -> emptyList()
+                        },
                         customTimeEnabled = times.isNotEmpty() && (times.size > 1 || times.first() != 30)
                     )
                 )

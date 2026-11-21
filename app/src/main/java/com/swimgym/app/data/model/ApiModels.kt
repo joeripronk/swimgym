@@ -27,7 +27,9 @@ data class TrainingDto(
     var spotsAvailable: Int = 0,
     var cancelPolicy: String = "",
     var eventId: String = "",
-    var calendarId: String = ""
+    var calendarId: String = "",
+    var instructorLink: String = "",
+    var lastFetched: Long = System.currentTimeMillis()
 )
 
 data class BookingResponse(

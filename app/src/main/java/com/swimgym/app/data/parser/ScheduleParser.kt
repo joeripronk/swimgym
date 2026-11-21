@@ -13,7 +13,6 @@ import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 import java.util.Calendar
 import java.util.Locale
-import java.util.TimeZone
 
 interface ScheduleParser {
     suspend fun parseSchedule(
@@ -44,10 +43,14 @@ class ScheduleParserImpl(
         val trainings = mutableListOf<TrainingDto>()
 
         val days = doc.select("#schedule_content .cal_column")
+        // Day headers live in the sibling #schedule_header, not inside the
+        // #schedule_content columns. Pair them by index so the date fallback
+        // in resolveEventDate() is actually reachable.
+        val dayHeaders = doc.select("#schedule_header .day_head")
         Log.d("ScheduleParser", "Found ${days.size} day columns in week $weeksOffset")
 
-        days.forEach dayColumn@{ dayColumn ->
-            val dayHeader = dayColumn.selectFirst(".day_head")
+        days.forEachIndexed { index, dayColumn ->
+            val dayHeader = dayHeaders.getOrNull(index)
             val dayName = dayHeader?.selectFirst(".day_name_long")?.text()
                 ?: dayHeader?.selectFirst(".day_name_short")?.text()
                 ?: ""
@@ -69,10 +72,16 @@ class ScheduleParserImpl(
                 val (startTime, endTime) = parseTimes(timeText, eventDate)
 
                 if (classId.isNotBlank() && startTime > now) {
+                    val cachedEntity = dao.getTrainingById(classId)
+                    // parseTrainingDetails() builds a new entity from this base, so
+                    // carry over the calendar linkage (and instructor link). Otherwise
+                    // a periodic detail refresh writes blank values back and the class
+                    // is reported as no longer being in the calendar.
                     val trainingEntity = TrainingEntity(
                         id = classId,
                         title = className,
                         instructor = instructor,
+                        instructorLink = cachedEntity?.instructorLink ?: "",
                         startTime = startTime,
                         endTime = endTime,
                         location = "",
@@ -84,10 +93,12 @@ class ScheduleParserImpl(
                         description = "",
                         cost = "",
                         cancelPolicy = "",
-                        classDate = eventDate
+                        classDate = eventDate,
+                        eventId = cachedEntity?.eventId ?: "",
+                        calendarId = cachedEntity?.calendarId ?: "",
+                        lastFetched = cachedEntity?.lastFetched ?: System.currentTimeMillis()
                     )
 
-                    val cachedEntity = dao.getTrainingById(classId)
                     var cachedTraining = cachedEntity?.toDto()
                     var imageUrl = dao.getInstructor(instructor)?.instructorImage
                     // Refresh detail fields (spots, description, cancel policy, ...)
@@ -207,6 +218,7 @@ class ScheduleParserImpl(
         return TrainingEntity(
             id = trainingId,
             instructor = instructor,
+            instructorLink = instructorLink.ifEmpty { baseTraining.instructorLink },
             startTime = baseTraining.startTime,
             endTime = baseTraining.endTime,
             classDate = baseTraining.classDate,
@@ -235,9 +247,9 @@ class ScheduleParserImpl(
         if (!token.isNullOrBlank()) return token
         val match = Regex("""(\d{1,2})\s+([^\s]+)""").find(dayName) ?: return dayName
         val day = match.groupValues[1].toIntOrNull() ?: return dayName
-        val month = monthNames[match.groupValues[2].lowercase(Locale.getDefault())] ?: return dayName
+        val month = monthNames[match.groupValues[2].lowercase(Locale.ROOT)] ?: return dayName
         // weeksOffset: 0 = last week, 1 = this week, 2 = next week.
-        val anchor = LocalDate.now(ZoneId.systemDefault())
+        val anchor = LocalDate.now(GYM_ZONE_ID)
             .with(DayOfWeek.MONDAY)
             .plusWeeks((weeksOffset - 1).toLong())
         val resolved = listOf(anchor.year - 1, anchor.year, anchor.year + 1)
@@ -281,29 +293,37 @@ class ScheduleParserImpl(
         try {
             val parts = timeText.trim().split(Regex("[-–—]"))
             if (parts.size >= 2) {
-                val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-                val dateFormat = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
-                val startStr = parts[0].trim()
-                val endStr = parts[1].trim()
+                val startParts = parts[0].trim().split(":")
+                val endParts = parts[1].trim().split(":")
+                val startHour = startParts.getOrNull(0)?.toIntOrNull() ?: return Pair(0, 3600)
+                val startMinute = startParts.getOrNull(1)?.toIntOrNull() ?: 0
+                val endHour = endParts.getOrNull(0)?.toIntOrNull() ?: return Pair(0, 3600)
+                val endMinute = endParts.getOrNull(1)?.toIntOrNull() ?: 0
 
-                val startDate = dateFormat.parse(dateStr)
-                val startTime = timeFormat.parse(startStr)
-                val endTime = timeFormat.parse(endStr)
-
-                if (startDate != null && startTime != null && endTime != null) {
-                    val calendar = Calendar.getInstance()
-                    calendar.time = startDate
-
-                    calendar.set(Calendar.HOUR_OF_DAY, startTimeHours(startTime))
-                    calendar.set(Calendar.MINUTE, startTimeMinutes(startTime))
-                    val start = calendar.timeInMillis / 1000
-
-                    calendar.set(Calendar.HOUR_OF_DAY, startTimeHours(endTime))
-                    calendar.set(Calendar.MINUTE, startTimeMinutes(endTime))
-                    val end = calendar.timeInMillis / 1000
-
-                    return Pair(start, end)
+                // The schedule is published in the gym's local time, not the
+                // device's. Parsing in the device timezone shifted every class
+                // for users travelling outside the Netherlands.
+                val dateFormat = SimpleDateFormat("dd-MM-yyyy", Locale.US).apply {
+                    timeZone = GYM_TIME_ZONE
                 }
+                val startDate = dateFormat.parse(dateStr) ?: return Pair(0, 3600)
+
+                val calendar = Calendar.getInstance(GYM_TIME_ZONE).apply { time = startDate }
+                calendar.set(Calendar.HOUR_OF_DAY, startHour)
+                calendar.set(Calendar.MINUTE, startMinute)
+                val start = calendar.timeInMillis / 1000
+
+                calendar.set(Calendar.HOUR_OF_DAY, endHour)
+                calendar.set(Calendar.MINUTE, endMinute)
+                var end = calendar.timeInMillis / 1000
+                // A class that runs past midnight (e.g. 23:30 - 00:30) would
+                // otherwise get an end time before its start time.
+                if (end <= start) {
+                    calendar.add(Calendar.DAY_OF_MONTH, 1)
+                    end = calendar.timeInMillis / 1000
+                }
+
+                return Pair(start, end)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -311,15 +331,9 @@ class ScheduleParserImpl(
         return Pair(0, 3600)
     }
 
-    private fun startTimeHours(time: java.util.Date): Int {
-        val cal = Calendar.getInstance()
-        cal.time = time
-        return cal.get(Calendar.HOUR_OF_DAY)
-    }
-
-    private fun startTimeMinutes(time: java.util.Date): Int {
-        val cal = Calendar.getInstance()
-        cal.time = time
-        return cal.get(Calendar.MINUTE)
+    companion object {
+        private val GYM_ZONE_ID: ZoneId = ZoneId.of("Europe/Amsterdam")
+        private val GYM_TIME_ZONE: java.util.TimeZone =
+            java.util.TimeZone.getTimeZone("Europe/Amsterdam")
     }
 }
