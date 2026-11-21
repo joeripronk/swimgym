@@ -21,7 +21,9 @@ data class ClubInfoUiState(
     val newsPage: Int = 1,
     val isLoadingMoreNews: Boolean = false,
     val newsLoadMoreError: String? = null,
-    val newsEndReached: Boolean = false
+    val newsEndReached: Boolean = false,
+    val selectedNews: ClubNews? = null,
+    val isLoadingNewsDetail: Boolean = false
 )
 
 class ClubInfoViewModel(
@@ -105,5 +107,33 @@ class ClubInfoViewModel(
                 }
             )
         }
+    }
+
+    fun openNews(item: ClubNews) {
+        if (item.id.isBlank()) return
+        val generation = ++loadGeneration
+        _uiState.update {
+            it.copy(selectedNews = item, isLoadingNewsDetail = true)
+        }
+        viewModelScope.launch {
+            getClubInfoUseCase.getNewsDetail(item.id)
+                .onSuccess { detail ->
+                    if (generation != loadGeneration) return@onSuccess
+                    if (detail != null && detail.message.length > item.message.length) {
+                        _uiState.update { it.copy(selectedNews = detail) }
+                    }
+                }
+                .onFailure { e ->
+                    android.util.Log.w("ClubInfoVM", "Could not load full news detail", e)
+                }
+            if (generation == loadGeneration) {
+                _uiState.update { it.copy(isLoadingNewsDetail = false) }
+            }
+        }
+    }
+
+    fun closeNews() {
+        loadGeneration++
+        _uiState.update { it.copy(selectedNews = null, isLoadingNewsDetail = false) }
     }
 }

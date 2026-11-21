@@ -74,4 +74,5 @@ class GetClubInfoUseCase(
 ) {
     suspend operator fun invoke(): Result<ClubInfo> = clubInfoRepository.getClubInfo()
     suspend fun getNewsPage(page: Int): Result<ClubNewsPage> = clubInfoRepository.getNewsPage(page)
+    suspend fun getNewsDetail(newsId: String): Result<ClubNews?> = clubInfoRepository.getNewsDetail(newsId)
 }

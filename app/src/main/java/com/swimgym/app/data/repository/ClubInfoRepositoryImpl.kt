@@ -83,6 +83,17 @@ class ClubInfoRepositoryImpl(
         }
     }
 
+    override suspend fun getNewsDetail(newsId: String): Result<ClubNews?> = withContext(Dispatchers.IO) {
+        try {
+            val url = "$GROUP_BASE_URL/ajax?action=get_groupmessages&selected_message=$newsId"
+            val detail = parser.parseNews(apiClient.fetchHtml(url)).firstOrNull { it.id == newsId }
+            Result.success(detail)
+        } catch (e: Exception) {
+            Log.w("ClubInfoRepo", "Failed to load news detail $newsId", e)
+            Result.failure(e)
+        }
+    }
+
     private fun resolveNewsUrl(home: Document): String {
         findLink(home) { link ->
             link.text().contains("SwimGym NEWS", ignoreCase = true) &&
@@ -119,8 +130,9 @@ class ClubInfoRepositoryImpl(
             ?.takeIf { it.isNotBlank() }
 
     private companion object {
+        const val GROUP_BASE_URL = "https://swimgym.virtuagym.com/group/swimgym-portal"
         const val ACTIVITY_STREAM_BASE_URL =
-            "https://swimgym.virtuagym.com/group/swimgym-portal/ajax?action=get_activitystream&page="
+            "$GROUP_BASE_URL/ajax?action=get_activitystream&page="
 
         fun activityStreamUrl(page: Int) = "$ACTIVITY_STREAM_BASE_URL$page"
         const val DEFAULT_GROUP_PATH = "https://swimgym.virtuagym.com/groupid/8794"

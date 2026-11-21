@@ -37,6 +37,24 @@ class ClubInfoRepositoryPaginationTest {
     }
 
     @Test
+    fun `getNewsDetail selects the message matching the requested id`() = runTest {
+        val url = "https://swimgym.virtuagym.com/group/swimgym-portal/ajax" +
+            "?action=get_groupmessages&selected_message=42"
+        val doc = mockk<Document>()
+        val detail = ClubNews(id = "42", author = "Gabriel", message = "Full untruncated message")
+        coEvery { api.fetchHtml(url) } returns doc
+        every { parser.parseNews(doc) } returns listOf(
+            ClubNews(id = "7", author = "Other", message = "Different"),
+            detail
+        )
+
+        val result = ClubInfoRepositoryImpl(api, parser).getNewsDetail("42")
+
+        assertEquals(detail, result.getOrNull())
+        coVerify(exactly = 1) { api.fetchHtml(url) }
+    }
+
+    @Test
     fun `getNewsPage reports failures instead of silently returning empty news`() = runTest {
         val url = "https://swimgym.virtuagym.com/group/swimgym-portal/ajax" +
             "?action=get_activitystream&page=3"
