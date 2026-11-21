@@ -1,0 +1,953 @@
+/* stylelint-disable  color-no-hex*/
+/* stylelint-disable  color-no-hex*/
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: 0;
+  text-align: left;
+  color: #212121;
+}
+
+h1 {
+  font-size: 36px;
+  font-weight: 900;
+  line-height: 40px;
+}
+
+h2 {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 32px;
+}
+
+h3 {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 28px;
+}
+
+h4 {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+h5 {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+h6 {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+body.page_classic_schedule_classes .ui-page-header.has-toggle {
+  margin-bottom: 0;
+}
+body.page_classic_schedule_classes .schedule-set-as-default-row {
+  margin-top: 8px;
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: end;
+}
+body.page_classic_schedule_classes .schedule-set-as-default-row label {
+  margin: 0;
+}
+body.page_classic_schedule_classes .schedule-set-as-default-row .ui-tooltip-icon {
+  margin-left: 8px;
+}
+body.page_classic_schedule_classes #filter {
+  margin-bottom: 32px;
+}
+body.page_classic_schedule_classes #filter #filters {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+body.page_classic_schedule_classes #filter #filters .filter-option-row {
+  width: 100%;
+  display: flex;
+}
+body.page_classic_schedule_classes #filter #filters .filter-option-row .display-options {
+  display: flex;
+  gap: 8px;
+}
+body.page_classic_schedule_classes #filter #filters .filter-option-row .filter-options {
+  display: flex;
+  justify-content: end;
+  flex: 1;
+  gap: 8px;
+}
+body.page_classic_schedule_classes #start_times {
+  display: block;
+  position: absolute;
+  width: 45px;
+  text-align: right;
+  color: #757575;
+  margin-top: 73px;
+  line-height: 70px;
+  font-size: 12px;
+  font-weight: 400;
+}
+body.page_classic_schedule_classes #start_times div {
+  padding-right: 8px;
+}
+body.page_classic_schedule_classes #start_times.wide {
+  width: 65px;
+}
+body.page_classic_schedule_classes #week_schedule {
+  display: inline-block;
+  padding-left: 45px;
+  width: 100%;
+}
+body.page_classic_schedule_classes #week_schedule.wide {
+  padding-left: 65px;
+}
+body.page_classic_schedule_classes #agenda #head {
+  text-align: center;
+  width: 100%;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+}
+body.page_classic_schedule_classes #agenda #head a {
+  color: #03A9F4;
+}
+body.page_classic_schedule_classes #agenda #head a:hover {
+  color: #039CE0;
+}
+body.page_classic_schedule_classes #agenda #head .title-holder {
+  flex: 1;
+}
+body.page_classic_schedule_classes #agenda #head .title-holder .title-items {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+body.page_classic_schedule_classes #agenda #head .title-holder .title-items .week-title {
+  font-size: 20px;
+  line-height: 24px;
+}
+body.page_classic_schedule_classes #agenda #head .title-holder .title-items #date_pick, body.page_classic_schedule_classes #agenda #head .title-holder .title-items #print_button {
+  cursor: pointer;
+  display: inline-block;
+  height: 20px;
+  width: 20px;
+  margin-left: 8px;
+}
+body.page_classic_schedule_classes #agenda #head .title-holder .title-items #date_pick {
+  width: 21px;
+}
+body.page_classic_schedule_classes #agenda #head .title-holder .title-items #date_pick input {
+  float: left;
+  width: 0px;
+  height: 30px;
+  padding: 0;
+}
+body.page_classic_schedule_classes #schedule_header {
+  border: 1px solid #E0E0E0;
+  border-bottom: none;
+  background-color: #FAFAFA;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  width: 100%;
+  display: table;
+  table-layout: fixed;
+}
+body.page_classic_schedule_classes #schedule_header .day_head {
+  font-size: 14px;
+  position: relative;
+  color: #757575;
+  text-align: center;
+  border-bottom: 1px solid #E0E0E0;
+  line-height: 20px;
+  overflow: hidden;
+  white-space: nowrap;
+  height: 40px;
+  padding-top: 10px;
+}
+body.page_classic_schedule_classes #schedule_header .day_head.border {
+  border-right: 1px solid #E0E0E0;
+}
+body.page_classic_schedule_classes #schedule_header .day_head .day_name_short {
+  display: none;
+}
+body.page_classic_schedule_classes #schedule_header .day_head .ui-tooltip-icon {
+  margin-top: 0;
+  border-radius: 50%;
+  background: #FAFAFA;
+}
+body.page_classic_schedule_classes #schedule_header .day_head .ui-tooltip-icon.add_circle {
+  position: absolute;
+  top: 10px;
+  left: 5px;
+}
+body.page_classic_schedule_classes #schedule_header .day_head .ui-tooltip-icon.more_horizontal {
+  position: absolute;
+  top: 10px;
+  right: 5px;
+}
+body.page_classic_schedule_classes .cal_column {
+  vertical-align: top;
+  display: table-cell;
+  text-overflow: ellipsis;
+  min-width: 130px;
+}
+body.page_classic_schedule_classes .cal_column.border {
+  border-right: 1px solid #E0E0E0;
+}
+body.page_classic_schedule_classes #schedule_content {
+  border: 1px solid #E0E0E0;
+  border-top: none;
+  background-color: #FAFAFA;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  width: 100%;
+  display: table;
+  table-layout: fixed;
+}
+body.page_classic_schedule_classes #modal-schedule .modal-dialog-large {
+  max-height: unset;
+}
+body.page_classic_schedule_classes #modal-schedule .modal-body {
+  overflow-y: auto;
+  max-height: 80vh;
+}
+body.page_classic_schedule_classes #modal-schedule .modal-body .event-modal-loader {
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+body.page_classic_schedule_classes .class {
+  position: relative;
+  cursor: pointer;
+  height: 70px;
+  border-bottom: 1px solid #E0E0E0;
+  background-color: #FFF;
+}
+body.page_classic_schedule_classes .class.no-classes-found {
+  background-color: transparent;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  border-bottom: 0;
+  font-size: 16px;
+  line-height: 20px;
+  height: 200px;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+body.page_classic_schedule_classes .class .c_holder {
+  height: 70px;
+}
+body.page_classic_schedule_classes .class .classname {
+  padding: 4px 8px 0 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  display: block;
+  font-size: 14px;
+  line-height: 20px;
+  color: #212121;
+  font-weight: 600;
+}
+body.page_classic_schedule_classes .class .time {
+  padding: 0 8px 0 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  display: block;
+  color: #424242;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 20px;
+}
+body.page_classic_schedule_classes .class .instructor {
+  padding: 0 8px 0 8px;
+  margin-right: 24px;
+  overflow: hidden;
+  white-space: nowrap;
+  display: block;
+  color: #757575;
+  position: absolute;
+  bottom: 4px;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 20px;
+}
+body.page_classic_schedule_classes .class .last_occurrence {
+  float: right;
+  font-size: 12px;
+  font-weight: normal;
+  overflow: hidden;
+  position: relative;
+  white-space: nowrap;
+  top: -40px;
+  right: 4px;
+  color: #424242;
+}
+body.page_classic_schedule_classes .class .availability {
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  padding-left: 4px;
+  background-color: #FFF;
+  cursor: pointer;
+  color: #757575;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 20px;
+}
+body.page_classic_schedule_classes .class .availability.saved {
+  color: #66BB6A;
+}
+body.page_classic_schedule_classes .class .availability:hover {
+  color: #212121;
+}
+body.page_classic_schedule_classes .class .joined {
+  width: 20px;
+  height: 20px;
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+}
+body.page_classic_schedule_classes .class .full {
+  width: 34px;
+  position: absolute;
+  right: 8px;
+  font-size: 12px;
+  line-height: 16px;
+  bottom: 4px;
+  color: #EF5350;
+  text-align: right;
+  font-weight: 600;
+  background-color: #FFEBEE;
+}
+body.page_classic_schedule_classes .class .full.green {
+  color: #66BB6A;
+}
+body.page_classic_schedule_classes .class .full.has-waitlist {
+  right: 28px;
+}
+body.page_classic_schedule_classes .class .joined_waiting_list {
+  width: 16px;
+  height: 16px;
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+}
+body.page_classic_schedule_classes .class_full {
+  background-color: #FFEBEE;
+}
+body.page_classic_schedule_classes .class_full .classname {
+  color: #212121;
+}
+body.page_classic_schedule_classes .class_full .time, body.page_classic_schedule_classes .class_full .instructor, body.page_classic_schedule_classes .class_full .last_occurrence {
+  color: #757575;
+}
+body.page_classic_schedule_classes .class_joined {
+  background-color: #E8F5E9;
+}
+body.page_classic_schedule_classes .class_joined .classname {
+  color: #212121;
+}
+body.page_classic_schedule_classes .class_joined .time, body.page_classic_schedule_classes .class_joined .instructor, body.page_classic_schedule_classes .class_joined .last_occurrence {
+  color: #757575;
+}
+body.page_classic_schedule_classes .class_past .classname, body.page_classic_schedule_classes .class_past .time {
+  color: #9E9E9E;
+}
+body.page_classic_schedule_classes .class_past .instructor, body.page_classic_schedule_classes .class_past .last_occurrence, body.page_classic_schedule_classes .class_past .availability {
+  color: #BDBDBD;
+}
+body.page_classic_schedule_classes #participants_top {
+  width: 188px;
+  height: 12px;
+  background-color: black;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+}
+body.page_classic_schedule_classes #participants_mid {
+  width: 188px;
+  padding: 0px 1px;
+  background-color: black;
+  color: white;
+}
+body.page_classic_schedule_classes #participants_mid .participant {
+  line-height: 32px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+body.page_classic_schedule_classes #participants_bot {
+  width: 188px;
+  height: 12px;
+  background-color: black;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+body.page_classic_schedule_classes form#edit_add_class #availability_loader, body.page_classic_schedule_classes form#edit_add_class #availability_loader_si {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  margin-left: 8px;
+}
+body.page_classic_schedule_classes form#edit_add_class .toggle {
+  margin-left: 16px;
+}
+body.page_classic_schedule_classes form#edit_add_class .toggle .ui-tooltip-icon {
+  margin-left: 8px;
+}
+body.page_classic_schedule_classes form#edit_add_class #display_service_input_holder {
+  display: none;
+}
+body.page_classic_schedule_classes form .form-group.multiple select:not(:last-child), body.page_classic_schedule_classes form .form-group.multiple input:not(:last-child) {
+  margin-right: 8px;
+}
+body.page_classic_schedule_classes form .recurring-error {
+  display: none;
+}
+body.page_classic_schedule_classes form #display_service_holder {
+  display: flex;
+  height: 44px;
+  align-items: center;
+}
+body.page_classic_schedule_classes form #daily input[type=radio], body.page_classic_schedule_classes form #daily input[type=select], body.page_classic_schedule_classes form #weekly input[type=radio], body.page_classic_schedule_classes form #weekly input[type=select], body.page_classic_schedule_classes form #monthly input[type=radio], body.page_classic_schedule_classes form #monthly input[type=select], body.page_classic_schedule_classes form #yearly input[type=radio], body.page_classic_schedule_classes form #yearly input[type=select], body.page_classic_schedule_classes form #recurtime input[type=radio], body.page_classic_schedule_classes form #recurtime input[type=select] {
+  margin-right: 8px;
+}
+body.page_classic_schedule_classes form .credit_cost_warning_box {
+  display: none;
+  text-align: left;
+  background-color: #FFCDD2;
+  padding: 16px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel {
+  min-height: 350px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel span.subtitle {
+  color: #BDBDBD;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-image-holder {
+  width: 250px;
+  height: 125px;
+  border-radius: 12px;
+  margin-bottom: 32px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-image-holder img {
+  width: 250px;
+  height: 125px;
+  border-radius: 12px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-description-holder {
+  display: flex;
+  flex: 1;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-details-icons {
+  align-self: stretch;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 24px;
+  display: inline-flex;
+  width: 100%;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-details-icons .event-details-icon {
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  display: flex;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-details-icons .event-details-icon .icon-text {
+  color: #424242;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  word-wrap: break-word;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions .ui-button {
+  margin-right: 16px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions .event_button_blocked {
+  cursor: not-allowed;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions .booking-text {
+  font-weight: bold;
+  padding: 8px;
+  width: 100%;
+  margin-bottom: 8px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions .booking-text.green {
+  color: #66BB6A;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions .booking-text.red {
+  color: #EF5350;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions #absent_reason {
+  height: 48px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions #rec {
+  margin-right: 8px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions .prebooking-section {
+  width: 100%;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions .prebooking-section .prebooking-questions {
+  margin-top: 16px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions .prebooking-section .prebooking-row {
+  display: flex;
+  line-height: 25px;
+  margin-bottom: 16px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions .prebooking-section .prebooking-row .prebooking-column-7 {
+  flex: 5%;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions .prebooking-section .prebooking-row .prebooking-column-10 {
+  flex: 10%;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions .prebooking-section .prebooking-row .prebooking-column-90 {
+  flex: 90%;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions .prebooking-section .prebooking-confirmation {
+  padding: 16px;
+  background-color: #F5F5F5;
+  margin-bottom: 16px;
+  border-radius: 12px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions .prebooking-section .prebooking-confirmation .prebooking-row {
+  margin-bottom: 0;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .event-actions .prebooking-section .prebooking-confirmation .prebooking-confirmation-check {
+  height: 20px;
+  width: 20px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .ui-schedule-event-panel .ui-message {
+  margin-top: 16px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #class-history_tab .support {
+  color: #BDBDBD;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: end;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #class-history_tab .support a {
+  color: #BDBDBD;
+  text-decoration: underline;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #class-history_tab .support a:hover {
+  color: #757575;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #class-history_tab .support .ui-tooltip-icon {
+  margin-left: 8px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #class-history_tab .history-container {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-top: 16px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #class-history_tab .history-container .event_history_mail {
+  color: #03A9F4;
+  cursor: pointer;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #class-history_tab .history-container .event_history_mail:hover {
+  color: #039CE0;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab #all_presence_dropdown {
+  margin-left: 8px;
+  margin-right: 8px;
+  height: 42px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .participants-table-holder {
+  margin-top: 16px;
+  min-height: 300px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .participants-table-holder .participants_table a.user-profile {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .participants-table-holder .participants_table a.user-profile img.avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .participants-table-holder .participants_table .participant_notes, body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .participants-table-holder .participants_table .reason {
+  color: #757575;
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .participants-table-holder .participants_table .participant_notes .ui-tooltip-icon, body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .participants-table-holder .participants_table .reason .ui-tooltip-icon {
+  margin-left: 8px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .participants-table-holder .participants_table .note_controls {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .participants-table-holder .participants_table .inline-icon {
+  width: 20px;
+  height: 20px;
+  display: inline-block;
+  float: right;
+  margin: 7px 16px 7px 7px;
+  cursor: pointer;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .list-actions {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .list-actions .ui-button, body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .list-actions input {
+  margin-right: 8px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .list-actions #member_list {
+  min-height: 200px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .list-actions .attendees_input {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  flex: 1;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab .list-actions .attendees_input .ui-button:last-child {
+  margin-right: 0;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab #add_participant {
+  margin-top: 16px;
+  background-color: #EEE;
+  border-radius: 6px;
+  padding: 16px;
+  display: none;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab #add_participant .add_participant_row {
+  display: flex;
+  align-items: center;
+  margin-top: 8px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab #add_participant .add_participant_row input {
+  margin-right: 8px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab #add_participant .add_participant_row .buttons {
+  display: flex;
+  justify-content: end;
+  flex: 1;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #participants_tab #add_participant .add_participant_row .buttons .ui-button:first-child {
+  margin-right: 8px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #waiting-list_tab .waitinglist-table-holder {
+  margin-top: 16px;
+  min-height: 300px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #waiting-list_tab .waitinglist-table-holder .participants_table a.user-profile {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #waiting-list_tab .waitinglist-table-holder .participants_table a.user-profile img.avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #waiting-list_tab .waitinglist-table-holder .participants_table .participant_notes, body.page_classic_schedule_classes .ui-schedule-event-overview #waiting-list_tab .waitinglist-table-holder .participants_table .reason {
+  color: #757575;
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #waiting-list_tab .waitinglist-table-holder .participants_table .participant_notes .ui-tooltip-icon, body.page_classic_schedule_classes .ui-schedule-event-overview #waiting-list_tab .waitinglist-table-holder .participants_table .reason .ui-tooltip-icon {
+  margin-left: 8px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #waiting-list_tab .waitinglist-table-holder .participants_table .note_controls {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #waiting-list_tab .waitinglist-table-holder .participants_table .inline-icon {
+  width: 20px;
+  height: 20px;
+  display: inline-block;
+  float: right;
+  margin: 7px 16px 7px 7px;
+  cursor: pointer;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #waiting-list_tab .list-actions {
+  margin-top: 16px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview #waiting-list_tab .list-actions #member_list {
+  min-height: 200px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .class-info .class-info-container {
+  position: relative;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .class-info .class-info-container .email-members, body.page_classic_schedule_classes .ui-schedule-event-overview .class-info .class-info-container .email-members-view {
+  position: absolute;
+  left: 546px;
+  display: none;
+  width: 360px;
+  height: 250px;
+  top: 0;
+  background: #FFF;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #EEE;
+  z-index: 1060;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .class-info .class-info-container .email-members .email-subject, body.page_classic_schedule_classes .ui-schedule-event-overview .class-info .class-info-container .email-members .email-subject-view, body.page_classic_schedule_classes .ui-schedule-event-overview .class-info .class-info-container .email-members-view .email-subject, body.page_classic_schedule_classes .ui-schedule-event-overview .class-info .class-info-container .email-members-view .email-subject-view {
+  margin-bottom: 8px;
+}
+body.page_classic_schedule_classes .ui-schedule-event-overview .class-info .class-info-container .email-members .email_buttons, body.page_classic_schedule_classes .ui-schedule-event-overview .class-info .class-info-container .email-members-view .email_buttons {
+  margin-top: 8px;
+}
+body.page_classic_schedule_classes .day-actions-container .lesson-detail {
+  border-radius: 5px;
+  padding: 16px;
+  color: #424242;
+  background-color: #FFF;
+}
+body.page_classic_schedule_classes .day-actions-container .lesson-detail .class-options {
+  width: 100%;
+}
+body.page_classic_schedule_classes .day-actions-container .lesson-detail .class-options .label-class-option {
+  float: left;
+  clear: none;
+  display: block;
+  padding: 2px 1em 0 0;
+}
+body.page_classic_schedule_classes .day-actions-container #replace_instructor {
+  margin-bottom: 32px;
+}
+body.page_classic_schedule_classes .day-actions-container #replace_instructor #instructor_replace_container {
+  display: flex;
+  width: 100%;
+}
+body.page_classic_schedule_classes .day-actions-container #replace_instructor #instructor_replace_container .instructor-list-container {
+  flex: 1;
+  border: 1px solid #EEE;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 500px;
+}
+body.page_classic_schedule_classes .day-actions-container #replace_instructor #instructor_replace_container .instructor-list-container .instructor-header {
+  margin-top: 8px;
+  margin-bottom: 8px;
+  margin-left: 16px;
+  color: #757575;
+  font-weight: bold;
+}
+body.page_classic_schedule_classes .day-actions-container #replace_instructor #instructor_replace_container .instructor-list-container .instructor-container {
+  height: 66px;
+  width: 100%;
+}
+body.page_classic_schedule_classes .day-actions-container #replace_instructor #instructor_replace_container .instructor-list-container .instructor-container .select-instructor-box {
+  width: 46px;
+  height: 46px;
+  float: left;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  margin-left: 16px;
+  margin-right: 16px;
+}
+body.page_classic_schedule_classes .day-actions-container #replace_instructor #instructor_replace_container .instructor-list-container .instructor-container .select-instructor-box .img-circle-client {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+}
+body.page_classic_schedule_classes .day-actions-container #replace_instructor #instructor_replace_container .instructor-list-container .instructor-container .full-name {
+  position: relative;
+  top: 22px;
+}
+body.page_classic_schedule_classes .day-actions-container #replace_instructor #instructor_replace_container .instructor-list-container .instructor-container.instructor-selected {
+  cursor: pointer;
+  background-color: #BBDEFB;
+}
+body.page_classic_schedule_classes .day-actions-container #replace_instructor #instructor_replace_container .instructor-list-container .instructor-container.instructor-not-selected {
+  background-color: #FFF;
+  cursor: pointer;
+}
+body.page_classic_schedule_classes .day-actions-container #replace_instructor #instructor_replace_container .instructor-list-container .instructor-container.instructor-not-selected:hover {
+  background-color: #EEE;
+}
+body.page_classic_schedule_classes .day-actions-container #remove_day .warning-icon {
+  position: absolute;
+  top: 44px;
+  right: 650px;
+  cursor: default;
+  height: 33%;
+  width: 43px;
+  vertical-align: middle;
+  background-repeat: no-repeat;
+}
+body.page_classic_schedule_classes .day-actions-container #remove_day #removal_message {
+  margin: 3px 58px 0 74px;
+}
+body.page_classic_schedule_classes .day-actions-container #remove_day #submit_result {
+  color: red;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view {
+  margin-bottom: 16px;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view #schedule_frame {
+  height: 700px;
+  overflow-y: scroll;
+  background: #FFF;
+  border-bottom: 1px solid #EEE;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view #column_ids {
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .columntable {
+  table-layout: fixed;
+  width: 100%;
+  overflow: hidden;
+  border-spacing: 0;
+  margin-bottom: 0;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .columntable tr {
+  background-color: transparent;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .columntable tr:hover {
+  background-color: transparent;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .columntable#column_ids tr {
+  display: table-row;
+  border: solid 1px #EEE;
+  height: 15px;
+  background-color: #EEE;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .columntable#column_ids tr th {
+  border-radius: 0;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .columntable .time_column {
+  width: 59px;
+  background-image: none;
+  position: relative;
+  display: table-cell;
+  overflow: hidden;
+  border-left: solid 1px #EEE;
+  padding: 0;
+  vertical-align: top;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .columntable th.day_column {
+  background-origin: border-box;
+  background-position: 0 8px;
+  position: relative;
+  display: table-cell;
+  overflow: hidden;
+  padding: 0;
+  vertical-align: top;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .hour_label {
+  text-align: center;
+  font-weight: normal;
+  font-size: 12px;
+  line-height: 16px;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .gutter_main {
+  margin-left: 0;
+  display: block;
+  height: 5px;
+  margin-right: 10px;
+  position: relative;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .gutter_main .gutter {
+  margin-left: 0;
+  display: block;
+  height: 0;
+  position: relative;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .gutter_main .gutter .appointment {
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  position: absolute;
+  display: block;
+  top: 50px;
+  left: 5px;
+  background-color: #9FC6E7;
+  text-align: left;
+  -webkit-margin-start: 0px;
+  -webkit-margin-end: 0px;
+  width: 100%;
+  overflow: hidden;
+  font-weight: normal;
+  border-radius: 4px;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .gutter_main .gutter .appointment.light {
+  color: #424242;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .gutter_main .gutter .appointment.dark {
+  color: white;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .gutter_main .gutter .appointment.joined {
+  background: #E8F5E9;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .gutter_main .gutter .appointment.joined .joined-icon {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  height: 16px;
+  width: 16px;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .gutter_main .gutter .appointment .participants {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 14px;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .gutter_main .gutter .appointment .app_time {
+  overflow: hidden;
+  white-space: nowrap;
+  margin-top: -1px;
+  font-size: 11px;
+  line-height: 12px;
+  font-weight: bold;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .gutter_main .gutter .appointment .app_descr {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 12px;
+}
+body.page_classic_schedule_classes .ui-employee-schedule-view .gutter_main .gutter .appointment .instructor_name, body.page_classic_schedule_classes .ui-employee-schedule-view .gutter_main .gutter .appointment .class_availability {
+  font-size: 11px;
+  line-height: 12px;
+  font-weight: normal;
+}
+body.page_classic_schedule_classes .personnel-schedule-coaches span {
+  color: #424242;
+  margin: 4px;
+  padding: 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 16px;
+  display: inline-block;
+}
+body.page_classic_schedule_classes .personnel-schedule-coaches span.light {
+  color: #424242;
+}
+body.page_classic_schedule_classes .personnel-schedule-coaches span.dark {
+  color: white;
+}
+
+/*# sourceMappingURL=main_light.css.map */
