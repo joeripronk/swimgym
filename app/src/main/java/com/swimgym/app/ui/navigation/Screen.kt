@@ -8,6 +8,7 @@ sealed class Screen(val route: String) {
         fun createRoute(id: String) = "trainingDetail/${id.replace("/", "__")}"
     }
     object Settings : Screen("settings")
+    object ClubInfo : Screen("clubInfo")
 
     companion object {
         fun decodeId(encodedId: String): String = encodedId.replace("__", "/")

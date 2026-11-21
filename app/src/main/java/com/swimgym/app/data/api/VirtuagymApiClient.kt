@@ -58,7 +58,9 @@ class VirtuagymApiClientImpl(
             triggerLoginRequired()
             throw Exception("need to login")
         }
-        return org.jsoup.Jsoup.parse(html)
+        // Keep the request URL as the document base so parsers can resolve
+        // relative avatar/detail links with absUrl() instead of guessing.
+        return org.jsoup.Jsoup.parse(html, url)
     }
 
     override suspend fun fetchPage(url: String): String = cookieLock.withLock {

@@ -5,9 +5,11 @@ import com.swimgym.app.SwimGymApp
 import com.swimgym.app.data.api.VirtuagymApiClientImpl
 import com.swimgym.app.data.local.SwimGymDao
 import com.swimgym.app.data.local.SwimGymDatabase
+import com.swimgym.app.data.parser.ClubInfoParserImpl
 import com.swimgym.app.data.parser.ScheduleParserImpl
 import com.swimgym.app.data.repository.*
 import com.swimgym.app.domain.repository.CalendarRepository
+import com.swimgym.app.domain.repository.ClubInfoRepository
 import com.swimgym.app.domain.repository.TrainingRepository
 import com.swimgym.app.domain.usecase.*
 import com.swimgym.app.util.AlarmScheduler
@@ -31,6 +33,12 @@ class SwimGymAppContainer private constructor() {
     
     val parser: ScheduleParserImpl by lazy {
         ScheduleParserImpl(dao = dao)
+    }
+
+    val clubInfoParser: ClubInfoParserImpl by lazy { ClubInfoParserImpl() }
+
+    val clubInfoRepository: ClubInfoRepository by lazy {
+        ClubInfoRepositoryImpl(apiClient = apiClient, parser = clubInfoParser)
     }
     
     val calendarService: CalendarServiceImpl by lazy {
@@ -77,6 +85,7 @@ class SwimGymAppContainer private constructor() {
     val getMyBookingsUseCase: GetMyBookingsUseCase by lazy { GetMyBookingsUseCase(trainingRepositoryInterface) }
     val refreshScheduleUseCase: RefreshScheduleUseCase by lazy { RefreshScheduleUseCase(trainingRepositoryInterface) }
     val getSyncStatusUseCase: GetSyncStatusUseCase by lazy { GetSyncStatusUseCase(trainingRepositoryInterface) }
+    val getClubInfoUseCase: GetClubInfoUseCase by lazy { GetClubInfoUseCase(clubInfoRepository) }
     
     companion object {
         @Volatile

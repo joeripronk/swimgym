@@ -3,6 +3,7 @@ package com.swimgym.app.domain.usecase
 import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.domain.model.*
 import com.swimgym.app.domain.repository.AuthRepository
+import com.swimgym.app.domain.repository.ClubInfoRepository
 import com.swimgym.app.domain.repository.SwodLevel
 import com.swimgym.app.domain.repository.SyncStatus
 import com.swimgym.app.domain.repository.TrainingRepository
@@ -66,4 +67,10 @@ class GetSyncStatusUseCase(
     private val trainingRepository: TrainingRepository
 ) {
     operator fun invoke(): Flow<SyncStatus> = trainingRepository.getSyncStatus()
+}
+
+class GetClubInfoUseCase(
+    private val clubInfoRepository: ClubInfoRepository
+) {
+    suspend operator fun invoke(): Result<ClubInfo> = clubInfoRepository.getClubInfo()
 }

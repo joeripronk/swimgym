@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -48,7 +49,8 @@ fun ScheduleScreen(
     onTrainingClick: (Training) -> Unit,
     onMyBookingsClick: () -> Unit,
     onLogout: () -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onClubInfoClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -109,6 +111,9 @@ fun ScheduleScreen(
                      }
                     IconButton(onClick = onMyBookingsClick) {
                         Icon(Icons.Default.List, contentDescription = "My Bookings")
+                    }
+                    IconButton(onClick = onClubInfoClick) {
+                        Icon(Icons.Default.Info, contentDescription = "SwimGym Info")
                     }
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")

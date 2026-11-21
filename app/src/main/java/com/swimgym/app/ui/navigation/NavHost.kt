@@ -14,11 +14,13 @@ import androidx.navigation.navArgument
 import com.swimgym.app.di.SwimGymAppContainer
 import com.swimgym.app.data.model.Mappers.toEntity
 import com.swimgym.app.domain.model.BookingStatus
+import com.swimgym.app.ui.screens.ClubInfoScreen
 import com.swimgym.app.ui.screens.LoginScreen
 import com.swimgym.app.ui.screens.MyBookingsScreen
 import com.swimgym.app.ui.screens.ScheduleScreen
 import com.swimgym.app.ui.screens.TrainingDetailScreen
 import com.swimgym.app.ui.screens.SettingsScreen
+import com.swimgym.app.ui.viewmodel.ClubInfoViewModel
 import com.swimgym.app.ui.viewmodel.ScheduleViewModel
 import com.swimgym.app.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
@@ -105,6 +107,15 @@ fun SwimGymNavigation(
         }
     )
 
+    val clubInfoViewModel: ClubInfoViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = ClubInfoViewModel(
+                getClubInfoUseCase = container.getClubInfoUseCase
+            ) as T
+        }
+    )
+
     NavHost(
         navController = navController,
         startDestination = if (hasCookies) Screen.Schedule.route else Screen.Login.route
@@ -143,6 +154,9 @@ fun SwimGymNavigation(
                 },
                 onSettingsClick = {
                     navController.navigate(Screen.Settings.route)
+                },
+                onClubInfoClick = {
+                    navController.navigate(Screen.ClubInfo.route)
                 },
                 onLogout = {
                     scope.launch {
@@ -271,6 +285,14 @@ fun SwimGymNavigation(
         composable(Screen.Settings.route) {
             SettingsScreen(
                 viewModel = settingsViewModel,
+                onBack = { navController.popBackStack() },
+                onClubInfoClick = { navController.navigate(Screen.ClubInfo.route) }
+            )
+        }
+
+        composable(Screen.ClubInfo.route) {
+            ClubInfoScreen(
+                viewModel = clubInfoViewModel,
                 onBack = { navController.popBackStack() }
             )
         }

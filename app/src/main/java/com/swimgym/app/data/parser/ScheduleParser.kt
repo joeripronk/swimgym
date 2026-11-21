@@ -13,6 +13,7 @@ import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 import java.util.Calendar
 import java.util.Locale
+import org.jsoup.nodes.Document
 
 interface ScheduleParser {
     suspend fun parseSchedule(
@@ -173,19 +174,30 @@ class ScheduleParserImpl(
             throw Exception("failed to fetch data")
         }
 
-        val instructorLink =
-            doc.selectFirst(".event-details-icon a[href^=/userid]")?.attr("href") ?: ""
-        val instructor =
-            doc.selectFirst(".event-details-icon a[href^=/userid]")?.text() ?: "TBA"
-        val location =
-            doc.selectFirst("div.event-details-icons:nth-child(3) > div.event-details-icon:nth-child(2) > div.icon-text:nth-child(2)")
-                ?.text() ?: "SwimGym"
-        val spotsText =
-            doc.selectFirst("div.event-details-icons:nth-child(2) > div.event-details-icon:nth-child(3) > div.icon-text:nth-child(2)")
+        // The portal renders each detail as an .event-details-icon with a
+        // semantic tooltip title ("Datum", "Bezet", "Instructeur", ...) and an
+        // icon class. Prefer those over nth-child chains: inserting a single
+        // icon shifts every positional selector and silently corrupts the data.
+        val instructorIcon = findDetailIcon(doc, "Instructeur", "staff")
+        val instructorLink = instructorIcon?.selectFirst("a[href^=/userid]")?.attr("href")
+            ?: doc.selectFirst(".event-details-icon a[href^=/userid]")?.attr("href")
+            ?: ""
+        val instructor = detailValue(doc, "Instructeur", "staff")
+            ?: instructorIcon?.selectFirst("a[href^=/userid]")?.text()
+            ?: doc.selectFirst(".event-details-icon a[href^=/userid]")?.text()
+            ?: "TBA"
+        val location = detailValue(doc, "Locatie", "location")
+            ?: doc.selectFirst("div.event-details-icons:nth-child(3) > div.event-details-icon:nth-child(2) > div.icon-text:nth-child(2)")
+                ?.text()
+            ?: "SwimGym"
+        val spotsText = detailValue(doc, "Bezet", "group")
+            ?: doc.selectFirst("div.event-details-icons:nth-child(2) > div.event-details-icon:nth-child(3) > div.icon-text:nth-child(2)")
                 ?.text()
         val imageUrl = doc.selectFirst(".event-image-holder img")?.attr("src") ?: ""
         val description = doc.selectFirst(".event-description-holder")?.text() ?: ""
-        val cost = doc.selectFirst(".event-details-icon:has(.ticket-star) .icon-text")?.text() ?: ""
+        val cost = detailValue(doc, "Kosten", "ticket-star")
+            ?: doc.selectFirst(".event-details-icon:has(.ticket-star) .icon-text")?.text()
+            ?: ""
         val isJoined = doc.selectFirst(".booking-text.green") != null
         val cancelPolicy =
             doc.selectFirst(".event-actions > div:not(.booking-text)")?.text() ?: ""
@@ -237,6 +249,26 @@ class ScheduleParserImpl(
             calendarId = baseTraining.calendarId
         )
     }
+
+    /** Finds a detail icon by tooltip title (Dutch/English) or icon class. */
+    private fun findDetailIcon(doc: Document, vararg keys: String): org.jsoup.nodes.Element? {
+        val icons = doc.select(".event-details-icon")
+        return keys.firstNotNullOfOrNull { key ->
+            icons.firstOrNull { icon ->
+                icon.selectFirst(".ui-tooltip-icon-overlay[title]")?.attr("title")
+                    ?.equals(key, ignoreCase = true) == true ||
+                    icon.selectFirst(".ui-tooltip-icon")?.hasClass(key) == true
+            }
+        }
+    }
+
+    /** Reads the text value of the first matching detail icon. */
+    private fun detailValue(doc: Document, vararg keys: String): String? =
+        findDetailIcon(doc, *keys)
+            ?.selectFirst(".icon-text")
+            ?.text()
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
 
     /**
      * Falls back to the "d MMM" portion of the day header when Virtuagym omits

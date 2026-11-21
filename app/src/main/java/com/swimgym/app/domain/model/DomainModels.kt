@@ -65,3 +65,28 @@ data class CalendarInfo(
     val ownerAccount: String,
     val isPrimary: Boolean
 )
+
+/** A single message from the SwimGym NEWS group activity stream. */
+data class ClubNews(
+    val id: String,
+    val author: String,
+    val authorImageUrl: String = "",
+    val message: String,
+    val dateLabel: String = "",
+    val timestamp: Long = 0L,
+    val url: String = ""
+)
+
+/** One row of the "Credits" table on the club account information page. */
+data class CreditItem(
+    val name: String,
+    val amount: String,
+    val detailUrl: String = "",
+    val count: Int? = null,
+    val isUnlimited: Boolean = false
+)
+
+data class ClubInfo(
+    val news: List<ClubNews> = emptyList(),
+    val credits: List<CreditItem> = emptyList()
+)
