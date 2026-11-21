@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.lazy.LazyColumn
@@ -92,12 +93,20 @@ fun ScheduleScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Icon(
-                        painter = painterResource(id = R.mipmap.ic_launcher),
-                        contentDescription = "SwimGym",
-                        modifier = Modifier.size(28.dp),
-                        tint = Color.Unspecified
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.mipmap.ic_launcher),
+                            contentDescription = "SwimGym",
+                            modifier = Modifier.size(30.dp).clip(CircleShape),
+                            tint = Color.Unspecified
+                        )
+                    }
                 },
                 actions = {
                     Box {
