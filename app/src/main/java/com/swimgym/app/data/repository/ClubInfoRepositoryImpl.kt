@@ -32,7 +32,9 @@ class ClubInfoRepositoryImpl(
             var creditsError: Throwable? = null
 
             var news: List<ClubNews> = emptyList()
-            for (url in listOf(resolveNewsUrl(home), DEFAULT_GROUP_SLUG_URL).distinct()) {
+            // The canonical group URL is /group/swimgym-portal; /groupid/<id>
+            // only redirects there, so try the canonical URL first.
+            for (url in listOf(DEFAULT_GROUP_SLUG_URL, resolveNewsUrl(home)).distinct()) {
                 try {
                     news = parser.parseNews(apiClient.fetchHtml(url))
                     if (news.isNotEmpty()) {
