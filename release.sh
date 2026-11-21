@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
-# release.sh — Sanity-check and prepare a release; bump/tag/push only with --now.
-# Usage: ./release.sh [--now] [major|minor|patch]
-#   Dry run by default. Pass --now to actually bump, tag and push.
+# release.sh — Sanity-check, bump, tag and push a release.
+# Usage: ./release.sh [--dry-run] [major|minor|patch]
+#   Live by default. Pass --dry-run to preview without changing anything.
 
 set -uo pipefail
 
-DRY_RUN=true
+DRY_RUN=false
 RELEASE_TYPE=""
 
 for arg in "$@"; do
   case "$arg" in
-    --now) DRY_RUN=false ;;
+    --dry-run) DRY_RUN=true ;;
     major|minor|patch) RELEASE_TYPE="$arg" ;;
     -h|--help)
-      echo "Usage: $0 [--now] [major|minor|patch]"
-      echo "  (default: dry run with a patch bump)"
+      echo "Usage: $0 [--dry-run] [major|minor|patch]"
+      echo "  (default: live run with a patch bump)"
       exit 0
       ;;
-    *) echo "error: unknown argument '$arg'" >&2; echo "Usage: $0 [--now] [major|minor|patch]" >&2; exit 1 ;;
+    *) echo "error: unknown argument '$arg'" >&2; echo "Usage: $0 [--dry-run] [major|minor|patch]" >&2; exit 1 ;;
   esac
 done
 RELEASE_TYPE="${RELEASE_TYPE:-patch}"
@@ -32,7 +32,7 @@ info() { echo "ℹ  $*"; }
 warn() { echo "⚠  $*" >&2; }
 
 # A failed sanity check is reported but non-fatal in a dry run so the plan is
-# still visible; with --now it stops the release.
+# still visible; in a live run it stops the release.
 fail() {
   if [[ "$DRY_RUN" == true ]]; then
     warn "would abort: $*"
@@ -45,10 +45,10 @@ push_failed() {
   warn "Push failed: $1"
   if [[ -n "${TAG:-}" ]]; then
     warn "The release commit and tag $TAG exist locally but were not fully pushed."
-    warn "Re-run '$0 --now' after fixing the remote, or push manually with:"
+    warn "Re-run '$0' after fixing the remote, or push manually with:"
     warn "  git push origin $BRANCH && git push origin $TAG"
   else
-    warn "Re-run '$0 --now' after fixing the remote, or push manually with:"
+    warn "Re-run '$0' after fixing the remote, or push manually with:"
     warn "  git push origin $BRANCH"
   fi
   die "$1"
@@ -151,7 +151,7 @@ case "$RELEASE_TYPE" in
   patch)
     ;;
   *)
-    die "usage: $0 [--now] [major|minor|patch]"
+    die "usage: $0 [--dry-run] [major|minor|patch]"
     ;;
 esac
 
@@ -198,7 +198,7 @@ if [[ "$DRY_RUN" == true ]]; then
   echo "  Tag:    $TAG (annotated — 'Release $new_version_name')"
   echo "  Push:   git push origin $BRANCH && git push origin $TAG"
   echo ""
-  echo "No changes were made. To perform it, run: $0 --now $RELEASE_TYPE"
+  echo "No changes were made. To perform it, run: $0 $RELEASE_TYPE"
   exit 0
 fi
 
