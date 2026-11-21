@@ -49,6 +49,66 @@ class ClubInfoParserTest {
     }
 
     @Test
+    fun `parses the activity stream ajax fragment and skips action rows`() {
+        val html = """
+            <script>is_last_result_queue["activitystream"] = 0;</script>
+            <div id="2188954759-activity" class="activity-stream-row">
+              <div class="activity-stream-avatar">
+                <div class="ui-profile-pic activity-stream" title="Gabriel">
+                  <a href="/user/gabriel"><img src="/img/avatar.png"></a>
+                </div>
+              </div>
+              <div class="activity-stream-content">
+                <div class="activity-stream-text">
+                  <a href="/user/gabriel">Gabriel</a> heeft een
+                  <a href="/msgid/18619720">groepsbericht</a> geplaatst in de groep
+                  <a href="/groupid/8794">SwimGym NEWS</a>
+                </div>
+                <div class="activity-stream-date">
+                  <span title="07-11-2026 12:58">1 weken geleden</span>
+                </div>
+                <div class="activity-stream-quote">&quot;Another project complete!&quot;</div>
+              </div>
+            </div>
+            <div id="2188954759-activity-actions" class="activity-stream-row activity-stream-actions">
+              <div class="ui-like"></div>
+            </div>
+        """.trimIndent()
+
+        val news = parser.parseNews(
+            Jsoup.parse(
+                html,
+                "https://swimgym.virtuagym.com/group/swimgym-portal/ajax?action=get_activitystream&page=1"
+            )
+        )
+
+        assertEquals(1, news.size)
+        assertEquals("18619720", news[0].id)
+        assertEquals("Another project complete!", news[0].message)
+        assertEquals("https://swimgym.virtuagym.com/msgid/18619720", news[0].url)
+    }
+
+    @Test
+    fun `reads the last-page flag from the activity stream response`() {
+        val more = Jsoup.parse(
+            """<script>is_last_result_queue["activitystream"] = 0;</script>""",
+            "https://swimgym.virtuagym.com/group/swimgym-portal/ajax"
+        )
+        val last = Jsoup.parse(
+            """<script>is_last_result_queue["activitystream"] = 1;</script>""",
+            "https://swimgym.virtuagym.com/group/swimgym-portal/ajax"
+        )
+        val unknown = Jsoup.parse(
+            "<div>no flag</div>",
+            "https://swimgym.virtuagym.com/group/swimgym-portal/ajax"
+        )
+
+        assertEquals(false, parser.isLastNewsPage(more))
+        assertEquals(true, parser.isLastNewsPage(last))
+        assertEquals(false, parser.isLastNewsPage(unknown))
+    }
+
+    @Test
     fun `parses full group messages with permalink and image`() {
         val html = """
             <div id="group_messages">

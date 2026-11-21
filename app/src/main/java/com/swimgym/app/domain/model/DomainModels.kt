@@ -91,3 +91,8 @@ data class ClubInfo(
     val news: List<ClubNews> = emptyList(),
     val credits: List<CreditItem> = emptyList()
 )
+
+data class ClubNewsPage(
+    val items: List<ClubNews> = emptyList(),
+    val isLast: Boolean = false
+)

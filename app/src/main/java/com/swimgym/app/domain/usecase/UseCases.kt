@@ -73,4 +73,5 @@ class GetClubInfoUseCase(
     private val clubInfoRepository: ClubInfoRepository
 ) {
     suspend operator fun invoke(): Result<ClubInfo> = clubInfoRepository.getClubInfo()
+    suspend fun getNewsPage(page: Int): Result<ClubNewsPage> = clubInfoRepository.getNewsPage(page)
 }

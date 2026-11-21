@@ -11,6 +11,7 @@ import java.util.Locale
 
 interface ClubInfoParser {
     fun parseNews(doc: Document): List<ClubNews>
+    fun isLastNewsPage(doc: Document): Boolean
     fun parseCredits(doc: Document): List<CreditItem>
 }
 
@@ -39,6 +40,17 @@ class ClubInfoParserImpl : ClubInfoParser {
             "Parsed news: ${messages.size} group messages, ${streamItems.size} activity rows"
         )
         return result
+    }
+
+    /**
+     * Virtuagym reports the end of the activity stream in the response itself:
+     * is_last_result_queue["activitystream"] is 0 while more pages exist and
+     * -1/1 on the last one. Absent flag means "unknown", never "last".
+     */
+    override fun isLastNewsPage(doc: Document): Boolean {
+        val value = LAST_RESULT_FLAG.find(doc.html())?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: return false
+        return value != 0
     }
 
     private fun parseGroupMessage(message: Element): ClubNews? {
@@ -154,5 +166,8 @@ class ClubInfoParserImpl : ClubInfoParser {
     private companion object {
         const val LINE_BREAK = "[[br]]"
         val CREDIT_COUNT = Regex("""(\d+)\s*Credits?""", RegexOption.IGNORE_CASE)
+        val LAST_RESULT_FLAG = Regex(
+            """is_last_result_queue\[\s*["']activitystream["']\s*\]\s*=\s*(-?\d+)"""
+        )
     }
 }

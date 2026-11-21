@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -36,10 +37,23 @@ fun ClubInfoScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
+    val newsListState = rememberLazyListState()
 
     LaunchedEffect(Unit) {
         if (uiState.news.isEmpty() && uiState.credits.isEmpty()) {
             viewModel.load()
+        }
+    }
+
+    val shouldLoadMoreNews by remember {
+        derivedStateOf {
+            val lastVisible = newsListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            lastVisible >= uiState.news.size - 3
+        }
+    }
+    LaunchedEffect(selectedTab, shouldLoadMoreNews, uiState.newsPage, uiState.news.size) {
+        if (selectedTab == 0 && shouldLoadMoreNews && uiState.news.isNotEmpty()) {
+            viewModel.loadMoreNews()
         }
     }
 
@@ -99,6 +113,7 @@ fun ClubInfoScreen(
                         EmptyMessage("No news available")
                     } else {
                         LazyColumn(
+                            state = newsListState,
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -114,6 +129,46 @@ fun ClubInfoScreen(
                                         }
                                     }
                                 )
+                            }
+                            item(key = "news-footer") {
+                                when {
+                                    uiState.isLoadingMoreNews -> Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Loading more news...")
+                                    }
+                                    uiState.newsLoadMoreError != null -> Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = uiState.newsLoadMoreError ?: "Error",
+                                            color = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        TextButton(onClick = { viewModel.loadMoreNews() }) {
+                                            Text("Retry")
+                                        }
+                                    }
+                                    uiState.newsEndReached -> Text(
+                                        text = "No more news",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
                             }
                         }
                     }

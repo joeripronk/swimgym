@@ -17,7 +17,11 @@ data class ClubInfoUiState(
     val credits: List<CreditItem> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val lastUpdated: Long = 0L
+    val lastUpdated: Long = 0L,
+    val newsPage: Int = 1,
+    val isLoadingMoreNews: Boolean = false,
+    val newsLoadMoreError: String? = null,
+    val newsEndReached: Boolean = false
 )
 
 class ClubInfoViewModel(
@@ -27,26 +31,75 @@ class ClubInfoViewModel(
     private val _uiState = MutableStateFlow(ClubInfoUiState())
     val uiState: StateFlow<ClubInfoUiState> = _uiState.asStateFlow()
 
+    // Invalidates in-flight page loads when a fresh load() starts, so a late
+    // page-N response cannot overwrite the refreshed feed.
+    private var loadGeneration = 0
+
     fun load() {
+        val generation = ++loadGeneration
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             getClubInfoUseCase().fold(
                 onSuccess = { info: ClubInfo ->
+                    if (generation != loadGeneration) return@fold
                     _uiState.update {
                         it.copy(
                             news = info.news,
                             credits = info.credits,
                             isLoading = false,
                             lastUpdated = System.currentTimeMillis(),
-                            error = null
+                            error = null,
+                            newsPage = 1,
+                            isLoadingMoreNews = false,
+                            newsLoadMoreError = null,
+                            newsEndReached = info.news.isEmpty()
                         )
                     }
                 },
                 onFailure = { e ->
+                    if (generation != loadGeneration) return@fold
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            error = e.message ?: "Failed to load SwimGym info"
+                            error = e.message ?: "Failed to load SwimGym info",
+                            isLoadingMoreNews = false
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun loadMoreNews() {
+        val state = _uiState.value
+        if (state.isLoadingMoreNews || state.newsEndReached || state.isLoading) return
+        val nextPage = state.newsPage + 1
+        val generation = loadGeneration
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(isLoadingMoreNews = true, newsLoadMoreError = null)
+            }
+            getClubInfoUseCase.getNewsPage(nextPage).fold(
+                onSuccess = { page ->
+                    if (generation != loadGeneration) return@fold
+                    _uiState.update { current ->
+                        val knownIds = current.news.map { it.id }.toSet()
+                        val fresh = page.items.filterNot { it.id in knownIds }
+                        current.copy(
+                            news = current.news + fresh,
+                            newsPage = nextPage,
+                            isLoadingMoreNews = false,
+                            newsEndReached = page.isLast || fresh.isEmpty(),
+                            newsLoadMoreError = null
+                        )
+                    }
+                },
+                onFailure = { e ->
+                    if (generation != loadGeneration) return@fold
+                    _uiState.update {
+                        it.copy(
+                            isLoadingMoreNews = false,
+                            newsLoadMoreError = e.message ?: "Failed to load more news"
                         )
                     }
                 }

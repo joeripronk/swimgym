@@ -5,6 +5,7 @@ import com.swimgym.app.data.api.VirtuagymApiClient
 import com.swimgym.app.data.parser.ClubInfoParser
 import com.swimgym.app.domain.model.ClubInfo
 import com.swimgym.app.domain.model.ClubNews
+import com.swimgym.app.domain.model.ClubNewsPage
 import com.swimgym.app.domain.repository.ClubInfoRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -32,9 +33,9 @@ class ClubInfoRepositoryImpl(
             var creditsError: Throwable? = null
 
             var news: List<ClubNews> = emptyList()
-            // The canonical group URL is /group/swimgym-portal; /groupid/<id>
-            // only redirects there, so try the canonical URL first.
-            for (url in listOf(DEFAULT_GROUP_SLUG_URL, resolveNewsUrl(home)).distinct()) {
+            // The group page loads its activity stream through this AJAX
+            // endpoint; the page HTML itself has no messages to parse.
+            for (url in listOf(activityStreamUrl(1), DEFAULT_GROUP_SLUG_URL, resolveNewsUrl(home)).distinct()) {
                 try {
                     news = parser.parseNews(apiClient.fetchHtml(url))
                     if (news.isNotEmpty()) {
@@ -63,6 +64,21 @@ class ClubInfoRepositoryImpl(
             }
         } catch (e: Exception) {
             Log.e("ClubInfoRepo", "Failed to load club info", e)
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getNewsPage(page: Int): Result<ClubNewsPage> = withContext(Dispatchers.IO) {
+        try {
+            val doc = apiClient.fetchHtml(activityStreamUrl(page))
+            Result.success(
+                ClubNewsPage(
+                    items = parser.parseNews(doc),
+                    isLast = parser.isLastNewsPage(doc)
+                )
+            )
+        } catch (e: Exception) {
+            Log.w("ClubInfoRepo", "Failed to load SwimGym NEWS page $page", e)
             Result.failure(e)
         }
     }
@@ -103,6 +119,10 @@ class ClubInfoRepositoryImpl(
             ?.takeIf { it.isNotBlank() }
 
     private companion object {
+        const val ACTIVITY_STREAM_BASE_URL =
+            "https://swimgym.virtuagym.com/group/swimgym-portal/ajax?action=get_activitystream&page="
+
+        fun activityStreamUrl(page: Int) = "$ACTIVITY_STREAM_BASE_URL$page"
         const val DEFAULT_GROUP_PATH = "https://swimgym.virtuagym.com/groupid/8794"
         // Slug used by the group page's own AJAX endpoints in the saved dump.
         const val DEFAULT_GROUP_SLUG_URL = "https://swimgym.virtuagym.com/group/swimgym-portal"
