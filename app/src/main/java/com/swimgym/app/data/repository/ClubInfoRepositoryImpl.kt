@@ -4,6 +4,7 @@ import android.util.Log
 import com.swimgym.app.data.api.VirtuagymApiClient
 import com.swimgym.app.data.parser.ClubInfoParser
 import com.swimgym.app.domain.model.ClubInfo
+import com.swimgym.app.domain.model.ClubNews
 import com.swimgym.app.domain.repository.ClubInfoRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -30,13 +31,20 @@ class ClubInfoRepositoryImpl(
             var newsError: Throwable? = null
             var creditsError: Throwable? = null
 
-            val news = runCatching {
-                parser.parseNews(apiClient.fetchHtml(resolveNewsUrl(home)))
-            }.getOrElse {
-                newsError = it
-                Log.w("ClubInfoRepo", "Failed to load SwimGym NEWS", it)
-                emptyList()
+            var news: List<ClubNews> = emptyList()
+            for (url in listOf(resolveNewsUrl(home), DEFAULT_GROUP_SLUG_URL).distinct()) {
+                try {
+                    news = parser.parseNews(apiClient.fetchHtml(url))
+                    if (news.isNotEmpty()) {
+                        newsError = null
+                        break
+                    }
+                } catch (e: Exception) {
+                    newsError = e
+                    Log.w("ClubInfoRepo", "Failed to load SwimGym NEWS from $url", e)
+                }
             }
+            Log.d("ClubInfoRepo", "Loaded ${news.size} SwimGym NEWS items")
 
             val credits = runCatching {
                 parser.parseCredits(apiClient.fetchHtml(resolveCreditsUrl(home)))
@@ -94,5 +102,7 @@ class ClubInfoRepositoryImpl(
 
     private companion object {
         const val DEFAULT_GROUP_PATH = "https://swimgym.virtuagym.com/groupid/8794"
+        // Slug used by the group page's own AJAX endpoints in the saved dump.
+        const val DEFAULT_GROUP_SLUG_URL = "https://swimgym.virtuagym.com/group/swimgym-portal"
     }
 }

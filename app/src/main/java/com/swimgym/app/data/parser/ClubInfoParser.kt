@@ -1,5 +1,6 @@
 package com.swimgym.app.data.parser
 
+import android.util.Log
 import com.swimgym.app.domain.model.ClubNews
 import com.swimgym.app.domain.model.CreditItem
 import org.jsoup.Jsoup
@@ -15,16 +16,68 @@ interface ClubInfoParser {
 
 /**
  * Parses the two Virtuagym pages captured in tools/pages/:
- *  - SwimGym NEWS is a group activity stream (`.activity-stream-row`)
- *  - Credits live in the club account "Credits" table (`table.credits`)
+ *  - SwimGym NEWS group messages (`#group_messages .ui-message`, with the
+ *    activity stream as a fallback), loaded from /groupid/<id>
+ *  - Credits in the club account "Credits" table (`table.credits`)
  *
  * Both parsers skip empty/placeholder rows and degrade gracefully when the
  * portal changes its markup, so one broken section does not hide the other.
  */
 class ClubInfoParserImpl : ClubInfoParser {
 
-    override fun parseNews(doc: Document): List<ClubNews> =
-        doc.select(".activity-stream-row").mapNotNull(::parseNewsRow)
+    override fun parseNews(doc: Document): List<ClubNews> {
+        val messages = doc.select("#group_messages .ui-message").mapNotNull(::parseGroupMessage)
+        val knownIds = messages.map { it.id }.toSet()
+        // The activity stream can still be the only source on some responses:
+        // it is loaded separately and sometimes contains rows the message list
+        // does not. Skip stubs we already have as full messages.
+        val streamItems = doc.select(".activity-stream-row").mapNotNull(::parseNewsRow)
+            .filterNot { it.id in knownIds }
+        val result = messages + streamItems
+        Log.d(
+            "ClubInfoParser",
+            "Parsed news: ${messages.size} group messages, ${streamItems.size} activity rows"
+        )
+        return result
+    }
+
+    private fun parseGroupMessage(message: Element): ClubNews? {
+        val content = message.selectFirst(".content") ?: return null
+        val body = content.clone()
+        body.select("script, style").remove()
+        val text = body.html()
+            .replace(Regex("(?i)<br\\s*/?>|</p>|</div>"), LINE_BREAK)
+            .let { Jsoup.parseBodyFragment(it).text() }
+            .replace(LINE_BREAK, "\n")
+            .replace(Regex("[ \\t]*\\n[ \\t]*"), "\n")
+            .replace(Regex("\\n{3,}"), "\n\n")
+            .trim()
+            .trim('"', '\u201C', '\u201D', '\u201E')
+        if (text.isBlank()) return null
+
+        val header = message.selectFirst(".message .header")
+        val author = header?.selectFirst(".user-name a")?.text()?.trim()
+            ?: header?.selectFirst(".ui-profile-pic[title]")?.attr("title")
+            ?: ""
+        val avatar = header?.selectFirst(".user-image img")
+        val dateLink = header?.selectFirst(".message-date a[title]")
+        val id = message.id().removePrefix("message_")
+            .takeIf { it.isNotBlank() }
+            ?: dateLink?.attr("href")?.substringAfterLast("/", "")
+            ?: ""
+
+        return ClubNews(
+            id = id,
+            author = author,
+            authorImageUrl = avatar?.absUrl("src")?.takeIf { it.isNotBlank() }
+                ?: avatar?.attr("src") ?: "",
+            message = text,
+            dateLabel = dateLink?.text()?.trim() ?: "",
+            timestamp = dateLink?.attr("title")?.let(::parseDate) ?: 0L,
+            url = dateLink?.absUrl("href") ?: "",
+            imageUrl = message.selectFirst(".media a[href]")?.absUrl("href") ?: ""
+        )
+    }
 
     private fun parseNewsRow(row: Element): ClubNews? {
         val quote = row.selectFirst(".activity-stream-quote") ?: return null

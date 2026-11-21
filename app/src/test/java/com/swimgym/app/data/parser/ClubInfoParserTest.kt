@@ -49,6 +49,48 @@ class ClubInfoParserTest {
     }
 
     @Test
+    fun `parses full group messages with permalink and image`() {
+        val html = """
+            <div id="group_messages">
+              <div class="ui-message" id="message_42">
+                <div class="message">
+                  <div class="header">
+                    <div class="user-image">
+                      <div class="ui-profile-pic group-message" title="Gabriel">
+                        <a href="/user/gabriel"><img src="/img/avatar.png"></a>
+                      </div>
+                    </div>
+                    <div class="user-details">
+                      <div class="user-name">
+                        <a href="/user/gabriel">Gabriel</a>
+                        <span class="staff-badge">Medewerker</span>
+                      </div>
+                      <div class="message-date">
+                        <a href="/group/swimgym-portal/some-news" title="07-11-2026 12:58">1 weken geleden</a>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="content"><p>First line</p><p>Second line</p></div>
+                  <div class="media"><a href="/img/news.jpg"><div class="grid_image"></div></a></div>
+                </div>
+              </div>
+            </div>
+        """.trimIndent()
+
+        val news = parser.parseNews(
+            Jsoup.parse(html, "https://swimgym.virtuagym.com/groupid/8794")
+        )
+
+        assertEquals(1, news.size)
+        assertEquals("42", news[0].id)
+        assertEquals("Gabriel", news[0].author)
+        assertEquals("First line\nSecond line", news[0].message)
+        assertEquals("https://swimgym.virtuagym.com/group/swimgym-portal/some-news", news[0].url)
+        assertEquals("https://swimgym.virtuagym.com/img/news.jpg", news[0].imageUrl)
+        assertTrue(news[0].timestamp > 0)
+    }
+
+    @Test
     fun `parses desktop and mobile credit cells`() {
         val html = """
             <table class="credits" data-cy="creditsContainer">
@@ -93,7 +135,14 @@ class ClubInfoParserTest {
         assertEquals(5, news.size)
         assertTrue(news.all { it.author.isNotBlank() && it.message.isNotBlank() })
         assertTrue(news.all { it.timestamp > 0 })
+        assertTrue(news.all { !it.message.endsWith("...") })
         assertEquals("18619720", news.first().id)
+        assertEquals("Gabriel", news.first().author)
+        assertEquals(
+            "https://swimgym.virtuagym.com/group/swimgym-portal/another-project-complete-f",
+            news.first().url
+        )
+        assertTrue(news.first().imageUrl.isNotBlank())
     }
 
     @Test

@@ -74,7 +74,8 @@ data class ClubNews(
     val message: String,
     val dateLabel: String = "",
     val timestamp: Long = 0L,
-    val url: String = ""
+    val url: String = "",
+    val imageUrl: String = ""
 )
 
 /** One row of the "Credits" table on the club account information page. */

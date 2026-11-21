@@ -191,6 +191,18 @@ private fun NewsCard(item: ClubNews, onClick: () -> Unit) {
                     text = item.message,
                     style = MaterialTheme.typography.bodyMedium
                 )
+                if (item.imageUrl.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    AsyncImage(
+                        model = item.imageUrl,
+                        contentDescription = "News image",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 180.dp)
+                            .clip(MaterialTheme.shapes.medium),
+                        contentScale = ContentScale.Crop
+                    )
+                }
             }
         }
     }
