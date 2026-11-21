@@ -47,6 +47,20 @@ class ClubInfoRepositoryImpl(
                     Log.w("ClubInfoRepo", "Failed to load SwimGym NEWS from $url", e)
                 }
             }
+            // The activity stream has no images and truncates long posts. The
+            // group message endpoint returns the same posts in full, including
+            // media, so prefer those and keep any activity-only entries.
+            runCatching {
+                val full = parser.parseNews(
+                    apiClient.fetchHtml("$GROUP_BASE_URL/ajax?action=get_groupmessages")
+                )
+                if (full.isNotEmpty()) {
+                    val fullIds = full.map { it.id }.toSet()
+                    news = full + news.filterNot { it.id in fullIds }
+                }
+            }.onFailure { e ->
+                Log.w("ClubInfoRepo", "Failed to load full group messages", e)
+            }
             Log.d("ClubInfoRepo", "Loaded ${news.size} SwimGym NEWS items")
 
             val credits = runCatching {

@@ -27,7 +27,9 @@ interface ClubInfoParser {
 class ClubInfoParserImpl : ClubInfoParser {
 
     override fun parseNews(doc: Document): List<ClubNews> {
-        val messages = doc.select("#group_messages .ui-message").mapNotNull(::parseGroupMessage)
+        // Both the group page and the get_groupmessages AJAX fragment contain
+        // bare .ui-message nodes; the fragment has no #group_messages wrapper.
+        val messages = doc.select(".ui-message").mapNotNull(::parseGroupMessage)
         val knownIds = messages.map { it.id }.toSet()
         // The activity stream can still be the only source on some responses:
         // it is loaded separately and sometimes contains rows the message list
@@ -127,7 +129,8 @@ class ClubInfoParserImpl : ClubInfoParser {
             message = message,
             dateLabel = dateLabel,
             timestamp = timestamp,
-            url = messageLink?.absUrl("href") ?: ""
+            url = messageLink?.absUrl("href") ?: "",
+            imageUrl = quote.selectFirst("img[src]")?.absUrl("src") ?: ""
         )
     }
 

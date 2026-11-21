@@ -109,6 +109,40 @@ class ClubInfoParserTest {
     }
 
     @Test
+    fun `parses bare group message ajax fragment without a wrapper`() {
+        val html = """
+            <script>is_last_result_queue["groupmessages"] = 0;</script>
+            <div class="ui-message" id="message_42">
+              <div class="message">
+                <div class="header">
+                  <div class="user-image"><img src="/img/avatar.png"></div>
+                  <div class="user-details">
+                    <div class="user-name"><a href="/user/gabriel">Gabriel</a></div>
+                    <div class="message-date">
+                      <a href="/group/swimgym-portal/some-news" title="07-11-2026 12:58">1 weken geleden</a>
+                    </div>
+                  </div>
+                </div>
+                <div class="content">Full message with no truncation</div>
+                <div class="media"><a href="/img/news.jpg"><div class="grid_image"></div></a></div>
+              </div>
+            </div>
+        """.trimIndent()
+
+        val news = parser.parseNews(
+            Jsoup.parse(
+                html,
+                "https://swimgym.virtuagym.com/group/swimgym-portal/ajax?action=get_groupmessages"
+            )
+        )
+
+        assertEquals(1, news.size)
+        assertEquals("42", news[0].id)
+        assertEquals("Full message with no truncation", news[0].message)
+        assertEquals("https://swimgym.virtuagym.com/img/news.jpg", news[0].imageUrl)
+    }
+
+    @Test
     fun `parses full group messages with permalink and image`() {
         val html = """
             <div id="group_messages">
