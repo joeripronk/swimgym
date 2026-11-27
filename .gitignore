@@ -2,6 +2,7 @@ build
 app/build
 local.properties
 .gradle
+.kotlin
 .idea
 keystore.properties
 tools/*.env
