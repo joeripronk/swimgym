@@ -12,7 +12,7 @@ interface AuthRepository {
 }
 
 enum class SwodLevel {
-    ALL, STARTERS, MID, PRO
+    ALL, STARTERS, MID, PRO, LAPS
 }
 
 interface TrainingRepository {

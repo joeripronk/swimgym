@@ -96,14 +96,14 @@ class TrainingRepositoryImpl(
                 .map { it.toDomain() }
                 .filter { startSeconds == null || it.startTime >= startSeconds }
                 .filter {
-                    // Laps classes have no SWOD level; keep them visible for every
-                    // level filter instead of hiding them in non-ALL modes.
-                    if (it.eventType == ScheduleFeeds.LAPS) return@filter true
+                    val isLaps = it.eventType == ScheduleFeeds.LAPS
                     when (level) {
-                        SwodLevel.ALL -> true
-                        SwodLevel.STARTERS -> it.title.contains("Starters", ignoreCase = true)
-                        SwodLevel.MID -> it.title.contains("Mid", ignoreCase = true)
-                        SwodLevel.PRO -> it.title.contains("Pro", ignoreCase = true)
+                        // "All" means all SWOD levels, not the separate Laps feed.
+                        SwodLevel.ALL -> !isLaps
+                        SwodLevel.LAPS -> isLaps
+                        SwodLevel.STARTERS -> !isLaps && it.title.contains("Starters", ignoreCase = true)
+                        SwodLevel.MID -> !isLaps && it.title.contains("Mid", ignoreCase = true)
+                        SwodLevel.PRO -> !isLaps && it.title.contains("Pro", ignoreCase = true)
                     }
                 }
                 .filter { if (hideFullyBooked) !it.isFull || it.isJoined else true }

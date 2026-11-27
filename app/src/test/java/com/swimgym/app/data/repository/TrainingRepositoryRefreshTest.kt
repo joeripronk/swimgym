@@ -101,6 +101,29 @@ class TrainingRepositoryRefreshTest {
     }
 
     @Test
+    fun `level menu separates Laps from all SWOD levels`() = runTest {
+        coEvery { dao.getAllTrainingsList() } returns listOf(
+            training("swod-starters").copy(title = "SWOD starters level").toEntity(),
+            training("swod-pro").copy(title = "SWOD pro level").toEntity(),
+            training("laps-1", ScheduleFeeds.LAPS).copy(title = "Laps").toEntity()
+        )
+
+        val repo = repository()
+        val all = repo.getSchedule(SwodLevel.ALL, false, null).getOrThrow()
+        assertEquals(2, all.size)
+        assertTrue(all.all { it.eventType == ScheduleFeeds.SWOD })
+
+        val laps = repo.getSchedule(SwodLevel.LAPS, false, null).getOrThrow()
+        assertEquals(1, laps.size)
+        assertEquals(ScheduleFeeds.LAPS, laps.first().eventType)
+        assertEquals("Laps", laps.first().title)
+
+        val starters = repo.getSchedule(SwodLevel.STARTERS, false, null).getOrThrow()
+        assertEquals(1, starters.size)
+        assertEquals("SWOD starters level", starters.first().title)
+    }
+
+    @Test
     fun `schedule fetch requests both SWOD and Laps feeds for every week`() = runTest {
         val urls = slot<List<String>>()
         val eventTypes = mutableListOf<Int>()
