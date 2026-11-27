@@ -64,12 +64,10 @@ class SwimGymAppContainer private constructor() {
 
     val trainingRepository: TrainingRepository by lazy {
         TrainingRepositoryImpl(
-            context = context,
             apiClient = apiClient,
             dao = dao,
             parser = parser,
-            calendarService = calendarService,
-            notificationManager = bookingNotificationManager
+            calendarService = calendarService
         )
     }
     val calendarRepository: CalendarRepository by lazy { CalendarRepositoryImpl(context) }

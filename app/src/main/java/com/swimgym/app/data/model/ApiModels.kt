@@ -11,6 +11,7 @@ data class UserDto(
 
 data class TrainingDto(
     @SerializedName("id") val id: String,
+    var eventType: Int = 8,
     @SerializedName("title") val title: String,
     @SerializedName("instructor") val instructor: String,
     @SerializedName("start_time") val startTime: Long,

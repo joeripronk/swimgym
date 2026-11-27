@@ -4,6 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -19,13 +20,21 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 private object SessionCrypto {
+    private const val TAG = "SessionCrypto"
     private const val PREFIX = "enc:v1:"
     private const val ALIAS = "swimgym_session_key"
     private const val KEYSTORE = "AndroidKeyStore"
 
+    private var cachedKey: SecretKey? = null
+
+    @Synchronized
     private fun key(): SecretKey {
+        cachedKey?.let { return it }
         val keyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
-        (keyStore.getKey(ALIAS, null) as? SecretKey)?.let { return it }
+        (keyStore.getKey(ALIAS, null) as? SecretKey)?.let {
+            cachedKey = it
+            return it
+        }
         val spec = KeyGenParameterSpec.Builder(
             ALIAS,
             KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
@@ -35,9 +44,11 @@ private object SessionCrypto {
             .setUserAuthenticationRequired(false)
             .setKeySize(256)
             .build()
-        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
+        val generated = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
             .apply { init(spec) }
             .generateKey()
+        cachedKey = generated
+        return generated
     }
 
     fun encrypt(plain: String): String {
@@ -59,7 +70,8 @@ private object SessionCrypto {
                 GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP))
             )
             String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), Charsets.UTF_8)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to decrypt session value; returning empty string", e)
             ""
         }
     }
@@ -102,7 +114,21 @@ class SessionRepository(
         private val EXACT_ALARM_ENABLED = stringPreferencesKey("exact_alarm_enabled")
         private val CALENDAR_CONFLICT_CHECK_ENABLED = stringPreferencesKey("calendar_conflict_check_enabled")
         private val CALENDAR_CONFLICT_NOTIFIED_IDS = stringPreferencesKey("calendar_conflict_notified_ids")
+        private val RENAMED_NOTIFIED_IDS = stringPreferencesKey("renamed_notified_ids")
         private val CONFLICT_CALENDAR_IDS = stringPreferencesKey("conflict_calendar_ids")
+
+        private val WORK_TIME_KEYS = listOf(
+            WORK_TIME_MONDAY, WORK_TIME_TUESDAY, WORK_TIME_WEDNESDAY,
+            WORK_TIME_THURSDAY, WORK_TIME_FRIDAY, WORK_TIME_SATURDAY, WORK_TIME_SUNDAY
+        )
+        private val WORK_TIME_ENABLED_KEYS = listOf(
+            WORK_TIME_MONDAY_ENABLED, WORK_TIME_TUESDAY_ENABLED, WORK_TIME_WEDNESDAY_ENABLED,
+            WORK_TIME_THURSDAY_ENABLED, WORK_TIME_FRIDAY_ENABLED, WORK_TIME_SATURDAY_ENABLED,
+            WORK_TIME_SUNDAY_ENABLED
+        )
+        private fun workTimeKey(day: Int) = WORK_TIME_KEYS.getOrElse(day) { WORK_TIME_MONDAY }
+        private fun workTimeEnabledKey(day: Int) =
+            WORK_TIME_ENABLED_KEYS.getOrElse(day) { WORK_TIME_MONDAY_ENABLED }
     }
 
     val authToken: Flow<String?> = context.dataStore.data.map {
@@ -205,7 +231,7 @@ class SessionRepository(
         return context.dataStore.data
             .map { it[REMINDER_TIMES] }
             .first()?.let { timesStr ->
-                if (timesStr.isNullOrBlank()) emptyList()
+                if (timesStr.isBlank()) emptyList()
                 else timesStr.split(",")
                     .mapNotNull { it.trim().toIntOrNull() }
                     .filter { it > 0 }
@@ -237,32 +263,14 @@ class SessionRepository(
     }
 
     suspend fun saveWorkTimeForDay(day: Int, startTime: String, endTime: String) {
-        val key = when (day) {
-            0 -> WORK_TIME_MONDAY
-            1 -> WORK_TIME_TUESDAY
-            2 -> WORK_TIME_WEDNESDAY
-            3 -> WORK_TIME_THURSDAY
-            4 -> WORK_TIME_FRIDAY
-            5 -> WORK_TIME_SATURDAY
-            6 -> WORK_TIME_SUNDAY
-            else -> WORK_TIME_MONDAY
-        }
+        val key = workTimeKey(day)
         context.dataStore.edit { prefs ->
             prefs[key] = "$startTime|$endTime"
         }
     }
 
     suspend fun getWorkTimeForDay(day: Int): Pair<String, String> {
-        val key = when (day) {
-            0 -> WORK_TIME_MONDAY
-            1 -> WORK_TIME_TUESDAY
-            2 -> WORK_TIME_WEDNESDAY
-            3 -> WORK_TIME_THURSDAY
-            4 -> WORK_TIME_FRIDAY
-            5 -> WORK_TIME_SATURDAY
-            6 -> WORK_TIME_SUNDAY
-            else -> WORK_TIME_MONDAY
-        }
+        val key = workTimeKey(day)
         return context.dataStore.data
             .map { it[key] }
             .first()?.let { timeStr ->
@@ -272,32 +280,14 @@ class SessionRepository(
     }
 
     suspend fun saveWorkTimeEnabledForDay(day: Int, enabled: Boolean) {
-        val key = when (day) {
-            0 -> WORK_TIME_MONDAY_ENABLED
-            1 -> WORK_TIME_TUESDAY_ENABLED
-            2 -> WORK_TIME_WEDNESDAY_ENABLED
-            3 -> WORK_TIME_THURSDAY_ENABLED
-            4 -> WORK_TIME_FRIDAY_ENABLED
-            5 -> WORK_TIME_SATURDAY_ENABLED
-            6 -> WORK_TIME_SUNDAY_ENABLED
-            else -> WORK_TIME_MONDAY_ENABLED
-        }
+        val key = workTimeEnabledKey(day)
         context.dataStore.edit { prefs ->
             prefs[key] = enabled.toString()
         }
     }
 
     suspend fun getWorkTimeEnabledForDay(day: Int): Boolean {
-        val key = when (day) {
-            0 -> WORK_TIME_MONDAY_ENABLED
-            1 -> WORK_TIME_TUESDAY_ENABLED
-            2 -> WORK_TIME_WEDNESDAY_ENABLED
-            3 -> WORK_TIME_THURSDAY_ENABLED
-            4 -> WORK_TIME_FRIDAY_ENABLED
-            5 -> WORK_TIME_SATURDAY_ENABLED
-            6 -> WORK_TIME_SUNDAY_ENABLED
-            else -> WORK_TIME_MONDAY_ENABLED
-        }
+        val key = workTimeEnabledKey(day)
         return context.dataStore.data
             .map { it[key]?.toBoolean() ?: (day < 5) } // Monday-Friday enabled by default
             .first()
@@ -351,6 +341,21 @@ class SessionRepository(
     suspend fun saveConflictNotifiedIds(ids: Set<String>) {
         context.dataStore.edit { prefs ->
             prefs[CALENDAR_CONFLICT_NOTIFIED_IDS] = ids.joinToString(",")
+        }
+    }
+
+    suspend fun getRenamedNotifiedIds(): Set<String> {
+        return context.dataStore.data
+            .map { it[RENAMED_NOTIFIED_IDS] }
+            .first()?.let { idsStr ->
+                if (idsStr.isBlank()) emptySet()
+                else idsStr.split(",").filter { it.isNotBlank() }.toSet()
+            } ?: emptySet()
+    }
+
+    suspend fun saveRenamedNotifiedIds(ids: Set<String>) {
+        context.dataStore.edit { prefs ->
+            prefs[RENAMED_NOTIFIED_IDS] = ids.joinToString(",")
         }
     }
 

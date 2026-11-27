@@ -45,7 +45,7 @@ object UpdateChecker {
 
     fun isSafeGitHubUrl(value: String): Boolean = isAllowedUrl(value, PAGE_HOSTS)
 
-    suspend fun checkForUpdates(context: android.content.Context): Result<ReleaseInfo> =
+    suspend fun checkForUpdates(): Result<ReleaseInfo> =
         withContext(Dispatchers.IO) {
             val client = OkHttpClient.Builder()
                 .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)

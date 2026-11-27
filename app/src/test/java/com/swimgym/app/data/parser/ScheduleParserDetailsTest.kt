@@ -104,4 +104,35 @@ class ScheduleParserDetailsTest {
         assertEquals("1 SwimGym Credits", result.cost)
         assertTrue(result.isJoined)
     }
+
+    @Test
+    fun `parseSchedule stamps the laps feed on each class`() = runTest {
+        val html = """
+            <div id="schedule_header"><div class="day_head"><span class="day_name_long">zaterdag 28 november</span></div></div>
+            <div id="schedule_content"><div class="cal_column">
+              <div id="laps-1" class="class internal-event-day-28-11-2026" onclick="openScheduleModal('/classes/class/laps-1?embedded=0')">
+                <div class="c_holder">
+                  <span class="classname">Laps</span>
+                  <span class="time">07:00 - 08:00</span>
+                  <span class="instructor"><i>John</i></span>
+                </div>
+              </div>
+            </div></div>
+        """.trimIndent()
+        coEvery { dao.getTrainingById("laps-1") } returns null
+        coEvery { dao.getInstructor(any()) } returns null
+        coEvery { api.fetchHtml(any()) } returns Jsoup.parse("<div></div>")
+
+        val parsed = ScheduleParserImpl(dao).parseSchedule(
+            doc = Jsoup.parse(html),
+            weeksOffset = 1,
+            now = 0L,
+            apiClient = api,
+            eventType = com.swimgym.app.data.repository.ScheduleFeeds.LAPS
+        )
+
+        assertEquals(1, parsed.size)
+        assertEquals(com.swimgym.app.data.repository.ScheduleFeeds.LAPS, parsed.first().eventType)
+        assertEquals("Laps", parsed.first().title)
+    }
 }

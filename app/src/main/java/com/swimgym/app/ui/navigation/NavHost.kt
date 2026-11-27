@@ -45,7 +45,7 @@ fun SwimGymNavigation(
         var lid: Long = 0
         if (cookies.contains("virtuagym_u")) {
             val uid = cookies.get("virtuagym_u")
-            lid = uid?.toLongOrDefault(1L)!!
+            lid = uid?.toLongOrDefault(1L) ?: 1L
         }
         hasCookies = lid > 1
         if (!hasCookies) {

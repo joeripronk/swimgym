@@ -3,15 +3,15 @@ package com.swimgym.app.data.model
 import com.swimgym.app.data.local.entity.BookingEntity
 import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.domain.model.*
+import java.util.Locale
 
 object Mappers {
-    //fun UserDto.toDomain() = User(id, name, email)
-   // fun User.toEntity() = UserEntity(id, name, email)
-    //fun UserEntity.toDomain() = User(id, name, email)
+
 
     fun TrainingEntity.toDto(): TrainingDto {
         return TrainingDto(
             id = id,
+            eventType = eventType,
             title = title,
             instructor = instructor,
             startTime = startTime,
@@ -36,6 +36,7 @@ object Mappers {
 
     fun TrainingDto.toEntity() = TrainingEntity(
         id = id,
+        eventType = eventType,
         title = title,
         instructor = instructor,
         instructorLink = instructorLink,
@@ -59,6 +60,7 @@ object Mappers {
 
     fun Training.toEntity() = TrainingEntity(
         id = id,
+        eventType = eventType,
         title = title,
         instructor = instructor,
         instructorLink = instructorLink,
@@ -81,6 +83,7 @@ object Mappers {
 
     fun TrainingEntity.toDomain() = Training(
         id = id,
+        eventType = eventType,
         title = title,
         instructor = instructor,
         instructorLink = instructorLink,
@@ -105,7 +108,7 @@ object Mappers {
         return Booking(
             id = id,
             trainingId = trainingId,
-            status = when (status?.lowercase()) {
+            status = when (status?.lowercase(Locale.ROOT)) {
                 "confirmed" -> BookingStatus.CONFIRMED
                 "cancelled" -> BookingStatus.CANCELLED
                 else -> BookingStatus.PENDING
@@ -134,13 +137,4 @@ object Mappers {
         startTime = startTime,
         endTime = endTime
     )
-
-    private fun parseIsoDate(isoDate: String): Long {
-        return try {
-            java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
-                .parse(isoDate)?.time ?: 0L
-        } catch (e: Exception) {
-            0L
-        }
-    }
 }

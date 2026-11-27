@@ -11,7 +11,6 @@ import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import okhttp3.internal.toLongOrDefault
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
@@ -19,6 +18,14 @@ import kotlin.coroutines.resumeWithException
 
 interface VirtuagymApiClient {
     suspend fun fetchHtml(url: String): org.jsoup.nodes.Document
+
+    /**
+     * Fetches several pages with one cookie load/lock. Results are positional
+     * so a single failed URL does not discard the others.
+     */
+    suspend fun fetchHtmlBatch(urls: List<String>): List<Result<org.jsoup.nodes.Document>> =
+        urls.map { url -> runCatching { fetchHtml(url) } }
+
     suspend fun fetchPage(url: String): String
     suspend fun postBooking(url: String, body: FormBody): Response
     suspend fun postCancel(url: String, body: FormBody): Response
@@ -83,6 +90,32 @@ class VirtuagymApiClientImpl(
         return org.jsoup.Jsoup.parse(html, url)
     }
 
+    override suspend fun fetchHtmlBatch(urls: List<String>): List<Result<org.jsoup.nodes.Document>> =
+        cookieLock.withLock {
+            if (urls.isEmpty()) return@withLock emptyList()
+            loadCookiesFromCache()
+            if (!isLoggedIn()) {
+                return@withLock urls.map { Result.failure(Exception("not logged in")) }
+            }
+            val results = urls.map { url ->
+                runCatching {
+                    val request = buildRequest(url).method("GET", null).build()
+                    val response = executeRequest(request)
+                    // Update the in-memory jar per response, persist once at the end.
+                    extractCookiesFromResponse(response, persist = false)
+                    val html = response.body?.string().orEmpty()
+                    if (isLoginPage(html)) {
+                        response.close()
+                        triggerLoginRequired()
+                        throw Exception("need to login")
+                    }
+                    org.jsoup.Jsoup.parse(html, url)
+                }
+            }
+            saveCookiesToCache(cookies)
+            results
+        }
+
     override suspend fun fetchPage(url: String): String = cookieLock.withLock {
         loadCookiesFromCache()
         if (!isLoggedIn()) {
@@ -118,33 +151,39 @@ class VirtuagymApiClientImpl(
         return response
     }
 
+    private fun buildBookingForm(
+        training: com.swimgym.app.data.local.entity.TrainingEntity,
+        action: String,
+        absentReason: String
+    ): FormBody = FormBody.Builder()
+        .add("action", action)
+        .add("absent_reason", absentReason)
+        .add("participant_name", "")
+        .add("participant_email", "")
+        .add("participant_notes", "")
+        .add("participant_id", "")
+        .add("present", "")
+        .add("participant_member_id", "")
+        .add("book_recurring", "")
+        .add("additional_note", "")
+        .add("class_name", training.title)
+        .add("class_time", training.classTime)
+        .add("class_date", training.classDate)
+        .add("send_email", "1")
+        .add("instance_of", "")
+        .add("cancel_recurring", "")
+        .add("email_participants_subject", "")
+        .add("email_participants_content", "")
+        .add("waiting_member_id", "")
+        .add("activity_id_filter", "")
+        .add("club_coach_id_filter", "")
+        .add("attendees", "0")
+        .build()
+
     override suspend fun bookTraining(training: com.swimgym.app.data.local.entity.TrainingEntity): Result<Unit> = cookieLock.withLock {
         loadCookiesFromCache()
-        val url = "https://swimgym.virtuagym.com/classes/class/${training.id}?event_type=8"
-        val formBody = FormBody.Builder()
-            .add("action", "reserve_class")
-            .add("absent_reason", "")
-            .add("participant_name", "")
-            .add("participant_email", "")
-            .add("participant_notes", "")
-            .add("participant_id", "")
-            .add("present", "")
-            .add("participant_member_id", "")
-            .add("book_recurring", "")
-            .add("additional_note", "")
-            .add("class_name", training.title)
-            .add("class_time", training.classTime)
-            .add("class_date", training.classDate)
-            .add("send_email", "1")
-            .add("instance_of", "")
-            .add("cancel_recurring", "")
-            .add("email_participants_subject", "")
-            .add("email_participants_content", "")
-            .add("waiting_member_id", "")
-            .add("activity_id_filter", "")
-            .add("club_coach_id_filter", "")
-            .add("attendees", "0")
-            .build()
+        val url = "$baseUrl/classes/class/${training.id}?event_type=${training.eventType}"
+        val formBody = buildBookingForm(training, "reserve_class", "")
         val request = buildRequest(url).post(formBody).build()
         val response = executeRequest(request)
         val html = response.body?.string().orEmpty()
@@ -165,31 +204,8 @@ class VirtuagymApiClientImpl(
 
     override suspend fun cancelTraining(training: com.swimgym.app.data.local.entity.TrainingEntity): Result<Unit> = cookieLock.withLock {
         loadCookiesFromCache()
-        val url = "https://swimgym.virtuagym.com/classes/class/${training.id}?event_type=8"
-        val formBody = FormBody.Builder()
-            .add("action", "cancel_reserve_class")
-            .add("absent_reason", "unknown")
-            .add("participant_name", "")
-            .add("participant_email", "")
-            .add("participant_notes", "")
-            .add("participant_id", "")
-            .add("present", "")
-            .add("participant_member_id", "")
-            .add("book_recurring", "")
-            .add("additional_note", "")
-            .add("class_name", training.title)
-            .add("class_time", training.classTime)
-            .add("class_date", training.classDate)
-            .add("send_email", "1")
-            .add("instance_of", "")
-            .add("cancel_recurring", "")
-            .add("email_participants_subject", "")
-            .add("email_participants_content", "")
-            .add("waiting_member_id", "")
-            .add("activity_id_filter", "")
-            .add("club_coach_id_filter", "")
-            .add("attendees", "0")
-            .build()
+        val url = "$baseUrl/classes/class/${training.id}?event_type=${training.eventType}"
+        val formBody = buildBookingForm(training, "cancel_reserve_class", "unknown")
         val request = buildRequest(url).post(formBody).build()
         val response = executeRequest(request)
         val html = response.body?.string().orEmpty()
@@ -264,19 +280,11 @@ class VirtuagymApiClientImpl(
     }
 
     private fun cookiesLoggedIn(cookieMap: Map<String, String>): Boolean {
-        try {
-            var lid: Long = 0
-            if (cookieMap.contains("virtuagym_u")) {
-                val uid = cookieMap["virtuagym_u"]
-                lid = uid?.toLongOrDefault(1L)!!
-            }
-            return lid > 1
-        } catch (e: Exception) {
-        }
-        return false
+        val uid = cookieMap["virtuagym_u"]?.toLongOrNull() ?: 0L
+        return uid > 1
     }
 
-    private suspend fun extractCookiesFromResponse(response: Response) {
+    private suspend fun extractCookiesFromResponse(response: Response, persist: Boolean = true) {
         val cookieMap = cookies.toMutableMap()
         // Walk the redirect chain oldest -> newest so fresh cookies win over
         // cookies set by an earlier hop.
@@ -303,7 +311,8 @@ class VirtuagymApiClientImpl(
             triggerLoginRequired()
             throw Exception("you are logged out")
         }
-        saveCookiesToCache(cookieMap)
+        cookies = cookieMap
+        if (persist) saveCookiesToCache(cookieMap)
     }
 
     /** Returns (name, value), or (name, null) for an expired cookie. */
@@ -339,6 +348,8 @@ class VirtuagymApiClientImpl(
                 val expires = format.parse(value)?.time ?: continue
                 return expires <= System.currentTimeMillis()
             } catch (_: Exception) {
+                // Try the next supported date pattern.
+                continue
             }
         }
         return false

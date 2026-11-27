@@ -44,6 +44,7 @@ import androidx.core.content.ContextCompat
 import com.swimgym.app.ui.viewmodel.SettingsViewModel
 import com.swimgym.app.domain.model.CalendarInfo
 import com.swimgym.app.util.PermissionHelper
+import java.util.Locale
 
 @ExperimentalComposeUiApi
 @OptIn(ExperimentalMaterial3Api::class)
@@ -847,6 +848,25 @@ fun SettingsScreen(
                             "Sunday" to 6
                         )
 
+                        val timesForDay = listOf(
+                            uiState.workTimeConfig.monday,
+                            uiState.workTimeConfig.tuesday,
+                            uiState.workTimeConfig.wednesday,
+                            uiState.workTimeConfig.thursday,
+                            uiState.workTimeConfig.friday,
+                            uiState.workTimeConfig.saturday,
+                            uiState.workTimeConfig.sunday
+                        )
+                        val enabledForDay = listOf(
+                            uiState.workTimeConfig.mondayEnabled,
+                            uiState.workTimeConfig.tuesdayEnabled,
+                            uiState.workTimeConfig.wednesdayEnabled,
+                            uiState.workTimeConfig.thursdayEnabled,
+                            uiState.workTimeConfig.fridayEnabled,
+                            uiState.workTimeConfig.saturdayEnabled,
+                            uiState.workTimeConfig.sundayEnabled
+                        )
+
                         var showTimePicker by remember { mutableStateOf(false) }
                         var selectedDayIndex by remember { mutableStateOf(-1) }
                         var selectedTimeType by remember { mutableStateOf("start") }
@@ -856,24 +876,8 @@ fun SettingsScreen(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             items(days) { (dayName, dayIndex) ->
-                                val times = when (dayIndex) {
-                                    0 -> uiState.workTimeConfig.monday
-                                    1 -> uiState.workTimeConfig.tuesday
-                                    2 -> uiState.workTimeConfig.wednesday
-                                    3 -> uiState.workTimeConfig.thursday
-                                    4 -> uiState.workTimeConfig.friday
-                                    5 -> uiState.workTimeConfig.saturday
-                                    else -> uiState.workTimeConfig.sunday
-                                }
-                                val isEnabled = when (dayIndex) {
-                                    0 -> uiState.workTimeConfig.mondayEnabled
-                                    1 -> uiState.workTimeConfig.tuesdayEnabled
-                                    2 -> uiState.workTimeConfig.wednesdayEnabled
-                                    3 -> uiState.workTimeConfig.thursdayEnabled
-                                    4 -> uiState.workTimeConfig.fridayEnabled
-                                    5 -> uiState.workTimeConfig.saturdayEnabled
-                                    else -> uiState.workTimeConfig.sundayEnabled
-                                }
+                                val times = timesForDay.getOrElse(dayIndex) { uiState.workTimeConfig.monday }
+                                val isEnabled = enabledForDay.getOrElse(dayIndex) { uiState.workTimeConfig.mondayEnabled }
                                 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -935,15 +939,7 @@ fun SettingsScreen(
                         }
                         
                         if (showTimePicker && selectedDayIndex >= 0) {
-                            val currentTimes = when (selectedDayIndex) {
-                                0 -> uiState.workTimeConfig.monday
-                                1 -> uiState.workTimeConfig.tuesday
-                                2 -> uiState.workTimeConfig.wednesday
-                                3 -> uiState.workTimeConfig.thursday
-                                4 -> uiState.workTimeConfig.friday
-                                5 -> uiState.workTimeConfig.saturday
-                                else -> uiState.workTimeConfig.sunday
-                            }
+                            val currentTimes = timesForDay.getOrElse(selectedDayIndex) { uiState.workTimeConfig.monday }
                             val timeToUse = if (selectedTimeType == "end") currentTimes.second else currentTimes.first
                             val initialHour = timeToUse.split(":").getOrNull(0)?.toIntOrNull() ?: 9
                             val initialMinute = timeToUse.split(":").getOrNull(1)?.toIntOrNull() ?: 0
@@ -951,7 +947,7 @@ fun SettingsScreen(
                             TimePickerDialog(
                                 onDismissRequest = { showTimePicker = false },
                                 onTimeSelected = { hours, minutes ->
-                                    val timeStr = String.format("%02d:%02d", hours, minutes)
+                                    val timeStr = String.format(Locale.US, "%02d:%02d", hours, minutes)
                                     if (selectedTimeType == "start") {
                                         viewModel.setWorkTimeForDay(selectedDayIndex, timeStr, currentTimes.second)
                                     } else {
@@ -1016,7 +1012,7 @@ fun SettingsScreen(
                             )
                         } else {
                             Button(
-                                onClick = { viewModel.checkForUpdates(context) },
+                                onClick = { viewModel.checkForUpdates() },
                                 enabled = !uiState.isCheckingUpdate
                             ) {
                                 Text("Check")
@@ -1257,7 +1253,7 @@ fun TimePickerDialog(
             ) {
                 // Large time display at top
                 Text(
-                    text = String.format("%02d:%02d", hour, minute),
+                    text = String.format(Locale.US, "%02d:%02d", hour, minute),
                     style = MaterialTheme.typography.displayMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -1293,7 +1289,7 @@ fun TimePickerDialog(
                             items(hoursList) { h ->
                                 val isSelected = h == hour
                                 Text(
-                                    text = String.format("%02d", h),
+                                    text = String.format(Locale.US, "%02d", h),
                                     style = if (isSelected) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.bodyLarge,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
@@ -1332,7 +1328,7 @@ fun TimePickerDialog(
                             items(minutesList) { m ->
                                 val isSelected = m == minute
                                 Text(
-                                    text = String.format("%02d", m),
+                                    text = String.format(Locale.US, "%02d", m),
                                     style = if (isSelected) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.bodyLarge,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,

@@ -8,6 +8,7 @@ data class User(
 
 data class Training(
     val id: String,
+    val eventType: Int = 8,
     val title: String,
     val instructor: String,
     val instructorLink: String = "",

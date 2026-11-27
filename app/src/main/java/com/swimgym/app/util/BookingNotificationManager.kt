@@ -59,6 +59,56 @@ class BookingNotificationManager(
         }
     }
 
+    private fun notificationManagerOrNull(): NotificationManager? {
+        if (!hasNotificationPermission(context)) return null
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        createNotificationChannels(context)
+        return notificationManager
+    }
+
+    private fun mainPendingIntent(
+        requestCode: Int = 0,
+        flags: Int = Intent.FLAG_ACTIVITY_SINGLE_TOP,
+        action: String? = null
+    ): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            this.flags = flags
+            if (action != null) setAction(action)
+        }
+        return PendingIntent.getActivity(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    private fun showNotification(
+        notificationManager: NotificationManager,
+        notificationId: Int,
+        channelId: String,
+        title: String,
+        content: String,
+        priority: Int,
+        pendingIntent: PendingIntent,
+        category: String? = null,
+        actions: List<Pair<String, PendingIntent>> = emptyList()
+    ) {
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setPriority(priority)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+        if (category != null) builder.setCategory(category)
+        actions.forEach { (label, actionIntent) ->
+            builder.addAction(0, label, actionIntent)
+        }
+        notificationManager.notify(notificationId, builder.build())
+    }
+
     fun showBookingConfirmation(
         trainingName: String,
         classTime: String,
@@ -70,10 +120,7 @@ class BookingNotificationManager(
         bookingCount: Int = 0,
         maxRepeatCount: Int? = null
     ) {
-        if (!hasNotificationPermission(context)) return
-
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannels(context)
+        val notificationManager = notificationManagerOrNull() ?: return
 
         val title = if (isScheduledBooking) {
             "$trainingName $instructor $classTime Booked (recurring) ✓"
@@ -82,7 +129,7 @@ class BookingNotificationManager(
         }
 
         val bookingProgress = if (isScheduledBooking && maxRepeatCount != null) {
-            "Booking ${bookingCount + 1} of $maxRepeatCount"
+            "Booking $bookingCount of $maxRepeatCount"
         } else {
             ""
         }
@@ -94,26 +141,15 @@ class BookingNotificationManager(
             trainingDetails
         }
 
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        showNotification(
+            notificationManager,
+            NOTIFICATION_ID_BASE,
+            BOOKING_CHANNEL_ID,
+            title,
+            content,
+            NotificationCompat.PRIORITY_HIGH,
+            mainPendingIntent()
         )
-
-        val builder = NotificationCompat.Builder(context, BOOKING_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(title)
-            .setContentText(content)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-
-        notificationManager.notify(NOTIFICATION_ID_BASE, builder.build())
     }
 
     fun showBookingRetry(
@@ -126,26 +162,12 @@ class BookingNotificationManager(
         retryCount: Int,
         maxRetries: Int
     ) {
-        if (!hasNotificationPermission(context)) return
-
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannels(context)
+        val notificationManager = notificationManagerOrNull() ?: return
 
         val title = "Booking Failed - Retry Available"
         val trainingDetails = formatTrainingDetails(trainingName, classTime, classDate, instructor)
         val content = "Retrying \"$trainingName\" (${reason.displayName}, attempt $retryCount of $maxRetries). " +
             "Tap to retry now or wait for the automatic retry in 15 minutes.\n\n$trainingDetails"
-
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
 
         val retryIntent = Intent(context, ScheduledBookingReceiver::class.java).apply {
             action = ScheduledBookingReceiver.ACTION_RETRY_BOOKING
@@ -171,17 +193,19 @@ class BookingNotificationManager(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val builder = NotificationCompat.Builder(context, BOOKING_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(title)
-            .setContentText(content)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .addAction(0, "Retry Now", retryPendingIntent)
-            .addAction(0, "Stop retrying", stopPendingIntent)
-
-        notificationManager.notify(retryNotificationId(bookingId), builder.build())
+        showNotification(
+            notificationManager,
+            retryNotificationId(bookingId),
+            BOOKING_CHANNEL_ID,
+            title,
+            content,
+            NotificationCompat.PRIORITY_HIGH,
+            mainPendingIntent(),
+            actions = listOf(
+                "Retry Now" to retryPendingIntent,
+                "Stop retrying" to stopPendingIntent
+            )
+        )
     }
 
     fun showRetriesStopped(
@@ -190,33 +214,20 @@ class BookingNotificationManager(
         reason: RetryFailureReason,
         retryCount: Int
     ) {
-        if (!hasNotificationPermission(context)) return
-
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannels(context)
-
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            bookingId.toInt(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val notificationManager = notificationManagerOrNull() ?: return
 
         val content = "Automatic retries for \"$trainingName\" stopped after $retryCount failed " +
             "attempts (last reason: ${reason.displayName}). Open My Bookings to resume."
 
-        val builder = NotificationCompat.Builder(context, BOOKING_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Booking retries stopped")
-            .setContentText(content)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-
-        notificationManager.notify(retryNotificationId(bookingId), builder.build())
+        showNotification(
+            notificationManager,
+            retryNotificationId(bookingId),
+            BOOKING_CHANNEL_ID,
+            "Booking retries stopped",
+            content,
+            NotificationCompat.PRIORITY_HIGH,
+            mainPendingIntent(bookingId.toInt())
+        )
     }
 
     fun dismissRetryNotification(bookingId: Long) {
@@ -230,34 +241,20 @@ class BookingNotificationManager(
         BOOKING_RETRY_ID + (bookingId % 16384).toInt()
 
     fun showTrainingRenamed(oldName: String, newName: String) {
-        if (!hasNotificationPermission(context)) return
-
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannels(context)
+        val notificationManager = notificationManagerOrNull() ?: return
 
         val title = "Training Renamed"
         val content = "Your scheduled training was renamed:\n\n$oldName → $newName"
 
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        showNotification(
+            notificationManager,
+            3000,
+            BOOKING_CHANNEL_ID,
+            title,
+            content,
+            NotificationCompat.PRIORITY_HIGH,
+            mainPendingIntent()
         )
-
-        val builder = NotificationCompat.Builder(context, BOOKING_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(title)
-            .setContentText(content)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-
-        notificationManager.notify(3000, builder.build())
     }
 
     fun showScheduledBookingConflictWarning(
@@ -268,12 +265,9 @@ class BookingNotificationManager(
         instructor: String,
         conflictTitle: String
     ) {
-        if (!hasNotificationPermission(context)) return
+        val notificationManager = notificationManagerOrNull() ?: return
 
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannels(context)
-
-         // Deterministic per-booking id; hashCode() only hashed the low bits of
+        // Deterministic per-booking id; hashCode() only hashed the low bits of
         // sequential ids and let different bookings overwrite each other.
         val notificationId = CALENDAR_CONFLICT_ID + (bookingId % 200).toInt()
 
@@ -281,26 +275,15 @@ class BookingNotificationManager(
         val trainingDetails = formatTrainingDetails(trainingName, classTime, classDate, instructor)
         val content = "Your recurring booking more than a week ahead conflicts with \"$conflictTitle\" on your calendar. Review your calendar, the booking will be made automatically.\n\n$trainingDetails"
 
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            context,
+        showNotification(
+            notificationManager,
             notificationId,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            BOOKING_CHANNEL_ID,
+            title,
+            content,
+            NotificationCompat.PRIORITY_HIGH,
+            mainPendingIntent(notificationId)
         )
-
-        val builder = NotificationCompat.Builder(context, BOOKING_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(title)
-            .setContentText(content)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-
-        notificationManager.notify(notificationId, builder.build())
     }
 
     fun showScheduledBookingNotAvailable(
@@ -308,74 +291,45 @@ class BookingNotificationManager(
         trainingName: String,
         reason: String
     ) {
-        if (!hasNotificationPermission(context)) return
-
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannels(context)
+        val notificationManager = notificationManagerOrNull() ?: return
 
         val notificationId = BOOKING_NOT_AVAILABLE_ID + (bookingId % 200).toInt()
 
         val title = "Recurring Booking Not Available"
         val content = "Your recurring booking \"$trainingName\" more than a week ahead cannot be booked: $reason"
 
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            context,
+        showNotification(
+            notificationManager,
             notificationId,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            BOOKING_CHANNEL_ID,
+            title,
+            content,
+            NotificationCompat.PRIORITY_HIGH,
+            mainPendingIntent(notificationId)
         )
-
-        val builder = NotificationCompat.Builder(context, BOOKING_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(title)
-            .setContentText(content)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-
-        notificationManager.notify(notificationId, builder.build())
     }
 
     fun showSyncNotification(success: Boolean) {
-        if (!hasNotificationPermission(context)) return
-
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannels(context)
-
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val notificationManager = notificationManagerOrNull() ?: return
 
         val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(System.currentTimeMillis())
-        val builder = NotificationCompat.Builder(context, SYNC_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(
-                if (success) "Schedule synced ✓" else "Schedule sync failed"
-            )
-            .setContentText(
-                if (success) {
-                    "Your schedule has been updated ($time)"
-                } else {
-                    "SwimGym could not sync your schedule ($time). It will retry in 12 hours."
-                }
-            )
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .setCategory(NotificationCompat.CATEGORY_STATUS)
+        val title = if (success) "Schedule synced ✓" else "Schedule sync failed"
+        val content = if (success) {
+            "Your schedule has been updated ($time)"
+        } else {
+            "SwimGym could not sync your schedule ($time). It will retry in 12 hours."
+        }
 
-        notificationManager.notify(SYNC_ID, builder.build())
+        showNotification(
+            notificationManager,
+            SYNC_ID,
+            SYNC_CHANNEL_ID,
+            title,
+            content,
+            NotificationCompat.PRIORITY_LOW,
+            mainPendingIntent(),
+            category = NotificationCompat.CATEGORY_STATUS
+        )
     }
 
     private fun formatTrainingDetails(
@@ -404,7 +358,7 @@ class BookingNotificationManager(
         }
 
         val startTime = if (classTime.isNotEmpty()) {
-            val timeParts = classTime.split("-").map { it.trim() }
+            val timeParts = classTime.split(Regex("[-–—]")).map { it.trim() }
             if (timeParts.size >= 2) timeParts[0] else ""
         } else {
             ""
@@ -424,33 +378,22 @@ class BookingNotificationManager(
     }
 
     fun showLoginRequired() {
-        if (!hasNotificationPermission(context)) return
+        val notificationManager = notificationManagerOrNull() ?: return
 
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        createNotificationChannels(context)
-
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            setAction(com.swimgym.app.receiver.LoginActivity.ACTION_LOGIN_REQUIRED)
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val pendingIntent = mainPendingIntent(
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK,
+            action = com.swimgym.app.receiver.LoginActivity.ACTION_LOGIN_REQUIRED
         )
 
-        val builder = NotificationCompat.Builder(context, BOOKING_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Login Required")
-            .setContentText("Please log in to continue using SwimGym")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
-
-        notificationManager.notify(LOGIN_REQUIRED_ID, builder.build())
+        showNotification(
+            notificationManager,
+            LOGIN_REQUIRED_ID,
+            BOOKING_CHANNEL_ID,
+            "Login Required",
+            "Please log in to continue using SwimGym",
+            NotificationCompat.PRIORITY_HIGH,
+            pendingIntent,
+            category = NotificationCompat.CATEGORY_REMINDER
+        )
     }
 }

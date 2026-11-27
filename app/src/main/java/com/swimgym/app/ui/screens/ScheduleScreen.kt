@@ -211,16 +211,7 @@ fun ScheduleScreen(
                     items(uiState.trainings) { training ->
                         TrainingCard(
                             training = training,
-                            onClick = { onTrainingClick(training) },
-                            onAddToCalendar = {
-                                trainingToAddToCalendar = training
-                                permissionLauncher.launch(
-                                    arrayOf(
-                                        Manifest.permission.WRITE_CALENDAR,
-                                        Manifest.permission.READ_CALENDAR
-                                    )
-                                )
-                            }
+                            onClick = { onTrainingClick(training) }
                         )
                     }
                     item {
@@ -263,7 +254,7 @@ fun ScheduleScreen(
         AlertDialog(
             onDismissRequest = { calendarAddError = null },
             title = { Text("Calendar Error") },
-            text = { Text(calendarAddError!!) },
+            text = { Text(calendarAddError ?: "") },
             confirmButton = {
                 Button(onClick = {
                     calendarAddError = null
@@ -293,8 +284,7 @@ fun ScheduleScreen(
 @Composable
 private fun TrainingCard(
     training: Training,
-    onClick: () -> Unit,
-    onAddToCalendar: () -> Unit
+    onClick: () -> Unit
 ) {
     val now = System.currentTimeMillis() / 1000
     val dateFormat = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }

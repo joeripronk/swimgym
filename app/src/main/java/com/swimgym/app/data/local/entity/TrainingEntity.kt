@@ -7,6 +7,7 @@ import androidx.room.PrimaryKey
 data class TrainingEntity(
     @PrimaryKey
     val id: String,
+    val eventType: Int = 8,
     val title: String,
     val instructor: String,
     val instructorLink: String="",

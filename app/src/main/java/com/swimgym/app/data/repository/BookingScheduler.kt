@@ -2,7 +2,9 @@ package com.swimgym.app.data.repository
 
 import android.content.Context
 import com.swimgym.app.data.local.SwimGymDao
+import com.swimgym.app.data.local.entity.InstructorEntity
 import com.swimgym.app.data.local.entity.TrainingEntity
+import com.swimgym.app.data.parser.TrainingDetailsParser
 import com.swimgym.app.util.AlarmScheduler
 import com.swimgym.app.util.BookingNotificationManager
 import com.swimgym.app.util.PermissionHelper
@@ -53,7 +55,12 @@ class BookingSchedulerImpl(
     override suspend fun checkBookings() = withContext(Dispatchers.IO) {
         val now = nowSeconds()
         val bookings = scheduledBookingRepo.getAllBookings()
-        if (bookings.isNullOrEmpty()) return@withContext
+        if (bookings.isEmpty()) return@withContext
+
+        // Renames use their own ledger: checkCalendarConflicts replaces the
+        // shared conflict ledger on every run, which would drop these keys and
+        // re-post the rename notification twice a day.
+        var notifiedKeys: MutableSet<String>? = null
 
         // A booking that is already retrying belongs to its own 15-minute alarm.
         // Letting the twice-daily sync attempt it too would burn the retry budget
@@ -78,10 +85,29 @@ class BookingSchedulerImpl(
             when (val dryRun = simulateBooking(adjustedBooking)) {
             is DryRunResult.Ok -> if (dryRun.bookable) attemptBooking(adjustedBooking, dryRun.training, scheduleNextAlarm = true)
             is DryRunResult.Conflict -> if (dryRun.bookable) attemptBooking(adjustedBooking, dryRun.training, scheduleNextAlarm = true)
-                is DryRunResult.Renamed -> notificationManager.showTrainingRenamed(booking.className, dryRun.newName)
+                is DryRunResult.Renamed -> {
+                    // booking.className is never rewritten after a rename, so without
+                    // a per-occurrence key every 09:00/21:00 sync re-posts the same
+                    // high-priority notification.
+                    val keys = notifiedKeys ?: sessionRepository.getRenamedNotifiedIds().toMutableSet()
+                        .also { notifiedKeys = it }
+                    val weekKey = adjustedStartTime / WEEK_SECONDS
+                    val key = "r-${booking.id}-$weekKey"
+                    if (key !in keys) {
+                        notificationManager.showTrainingRenamed(booking.className, dryRun.newName)
+                    }
+                    keys.add(key)
+                }
                 is DryRunResult.NotAvailable -> Unit
             }
         }
+        notifiedKeys?.let { keys ->
+            val activeIds = activeBookings.map { "r-${it.id}-" }.toSet()
+            sessionRepository.saveRenamedNotifiedIds(
+                keys.filter { key -> activeIds.any(key::startsWith) }.toSet()
+            )
+        }
+        Unit
     }
 
     override suspend fun processSingleBooking(bookingId: Long): Boolean = withContext(Dispatchers.IO) {
@@ -111,7 +137,7 @@ class BookingSchedulerImpl(
         val occurrence = nextOccurrence(booking.startTime, now)
 
         val trainings = dao.getAllTrainingsList()
-        if (trainings.isNullOrEmpty()) {
+        if (trainings.isEmpty()) {
             return@withContext DryRunResult.NotAvailable("no cached trainings")
         }
         val candidates = trainings.filter { it.startTime == occurrence }
@@ -410,71 +436,17 @@ class BookingSchedulerImpl(
         try {
             val trainingId = training.id
             val doc = apiClient.fetchHtml("https://swimgym.virtuagym.com/classes/class/$trainingId?embedded=0")
+            val tupdate = TrainingDetailsParser.parse(doc, trainingId, training)
 
-            val title =
-                doc.selectFirst(".modal-title-replacement, .class-info .class-name")?.text() ?: ""
-            if (title.isNullOrEmpty()) {
-                throw Exception("failed to fetch data")
-            }
-            val instructorLink =
-                doc.selectFirst(".event-details-icon a[href^=/userid]")?.attr("href") ?: ""
-            val instructor =
-                doc.selectFirst(".event-details-icon a[href^=/userid]")?.text() ?: "TBA"
-            val location =
-                doc.selectFirst("div.event-details-icons:nth-child(3) > div.event-details-icon:nth-child(2) > div.icon-text:nth-child(2)")
-                    ?.text() ?: "SwimGym"
-            val spotsText =
-                doc.selectFirst("div.event-details-icons:nth-child(2) > div.event-details-icon:nth-child(3) > div.icon-text:nth-child(2)")
-                    ?.text()
-            val imageUrl = doc.selectFirst(".event-image-holder img")?.attr("src") ?: ""
-            val description = doc.selectFirst(".event-description-holder")?.text() ?: ""
-            val cost = doc.selectFirst(".event-details-icon:has(.ticket-star) .icon-text")?.text() ?: ""
-            val isJoined = doc.selectFirst(".booking-text.green") != null
-            val cancelPolicy =
-                doc.selectFirst(".event-actions > div:not(.booking-text)")?.text() ?: ""
-
-            val spotsParts = spotsText?.split("/")?.map { it.trim() }
-            val spotsTaken = spotsParts?.getOrNull(0)?.toIntOrNull()
-            val totalSpotsParsed = spotsParts?.getOrNull(1)?.toIntOrNull()
-            val spotsKnown = spotsTaken != null && totalSpotsParsed != null
-            val totalSpots = if (spotsKnown) totalSpotsParsed!! else 0
-            // Only treat a class as full when spots were actually parsed. An
-            // unparseable value must not be mistaken for "0 spots left" and burn
-            // the whole retry budget as CLASS_FULL after a markup change.
-            val spotsAvailable = if (spotsKnown) maxOf(0, totalSpots - spotsTaken!!) else 0
-            val explicitFull = doc.selectFirst(".full")?.text()?.trim()?.equals("VOL", ignoreCase = true) == true
-            val isFull = !isJoined && (explicitFull || (spotsKnown && spotsAvailable == 0))
-
-            if (imageUrl.isNotEmpty()) {
+            if (tupdate.imageUrl.isNotEmpty()) {
                 dao.insertInstructor(
-                    com.swimgym.app.data.local.entity.InstructorEntity(
-                        instructorName = instructor,
-                        instructorLink = instructorLink,
-                        instructorImage = imageUrl
+                    InstructorEntity(
+                        instructorName = tupdate.instructor,
+                        instructorLink = tupdate.instructorLink,
+                        instructorImage = tupdate.imageUrl
                     )
                 )
             }
-
-            val tupdate = TrainingEntity(
-                id = trainingId,
-                instructor = instructor,
-                startTime = training.startTime,
-                endTime = training.endTime,
-                classDate = training.classDate,
-                classTime = training.classTime,
-                title = title,
-                location = location,
-                spotsAvailable = spotsAvailable,
-                totalSpots = totalSpots,
-                description = description,
-                isFull = isFull,
-                cost = cost,
-                isJoined = isJoined,
-                imageUrl = imageUrl,
-                cancelPolicy = cancelPolicy,
-                eventId = training.eventId,
-                calendarId = training.calendarId
-            )
 
             dao.insertTraining(tupdate)
             Result.success(tupdate)

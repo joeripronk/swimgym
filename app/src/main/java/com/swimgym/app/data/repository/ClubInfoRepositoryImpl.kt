@@ -72,7 +72,7 @@ class ClubInfoRepositoryImpl(
             }
 
             if (news.isEmpty() && credits.isEmpty() && (newsError != null || creditsError != null)) {
-                Result.failure(newsError ?: creditsError!!)
+                Result.failure(newsError ?: creditsError ?: Exception("Failed to load club info"))
             } else {
                 Result.success(ClubInfo(news = news, credits = credits))
             }

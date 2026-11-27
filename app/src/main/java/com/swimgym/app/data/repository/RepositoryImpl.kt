@@ -1,6 +1,5 @@
 package com.swimgym.app.data.repository
 
-import android.content.Context
 import com.swimgym.app.data.api.VirtuagymApiClient
 import com.swimgym.app.data.local.SwimGymDao
 import com.swimgym.app.data.local.entity.TrainingEntity
@@ -10,10 +9,10 @@ import com.swimgym.app.domain.model.*
 import com.swimgym.app.domain.repository.SwodLevel
 import com.swimgym.app.domain.repository.TrainingRepository
 import com.swimgym.app.domain.repository.SyncStatus
+import com.swimgym.app.data.repository.ScheduleFeeds
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import com.swimgym.app.util.BookingNotificationManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -21,20 +20,16 @@ import java.text.SimpleDateFormat
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
-import java.util.Date
 import java.util.Locale
 
 
 class TrainingRepositoryImpl(
-    private val context: Context,
     private val apiClient: VirtuagymApiClient,
     private val dao: SwimGymDao,
     private val parser: com.swimgym.app.data.parser.ScheduleParser,
-    private val calendarService: CalendarService,
-    private val notificationManager: BookingNotificationManager,
+    private val calendarService: CalendarService
 ) : TrainingRepository {
 
-    private val bookingsFlow = MutableStateFlow<List<Booking>>(emptyList())
     private val syncStatusFlow = MutableStateFlow(SyncStatus())
 
    override fun getMyBookings(): Flow<List<Booking>> {
@@ -101,6 +96,9 @@ class TrainingRepositoryImpl(
                 .map { it.toDomain() }
                 .filter { startSeconds == null || it.startTime >= startSeconds }
                 .filter {
+                    // Laps classes have no SWOD level; keep them visible for every
+                    // level filter instead of hiding them in non-ALL modes.
+                    if (it.eventType == ScheduleFeeds.LAPS) return@filter true
                     when (level) {
                         SwodLevel.ALL -> true
                         SwodLevel.STARTERS -> it.title.contains("Starters", ignoreCase = true)
@@ -185,11 +183,7 @@ class TrainingRepositoryImpl(
                             status = "confirmed",
                             className = training.title
                         )
-                        val booking = bookingDto.toDomain()
-                        val current = bookingsFlow.value.toMutableList()
-                        current.add(booking)
-                        bookingsFlow.value = current
-                        Result.success(booking)
+                        Result.success(bookingDto.toDomain())
                     },
                     onFailure = { e ->
                         android.util.Log.e("BookTraining", "Booking failed for ${training.id}", e)
@@ -222,9 +216,6 @@ class TrainingRepositoryImpl(
                         android.util.Log.d("CancelBooking", "Cancellation succeeded for: ${training.id}")
                         calendarService.removeTrainingByTimeAndTitle(training.startTime, training.title)
                         dao.deleteBookingByTrainingId(training.id)
-                        val current = bookingsFlow.value.toMutableList()
-                        current.removeAll { it.trainingId == training.id }
-                        bookingsFlow.value = current
                         Result.success(booking)
                     },
                     onFailure = { e ->
@@ -286,39 +277,65 @@ class TrainingRepositoryImpl(
     private data class ScheduleFetch(
         val trainings: List<com.swimgym.app.data.model.TrainingDto>,
         val allWeeksSucceeded: Boolean,
-        val error: Exception?
+        val error: Throwable?
     )
 
     override fun getSyncStatus(): Flow<SyncStatus> = syncStatusFlow
 
     private suspend fun fetchAndSaveSchedule(): ScheduleFetch {
-        val trainings = mutableListOf<com.swimgym.app.data.model.TrainingDto>()
-        var allWeeksSucceeded = true
-        var firstError: Exception? = null
-
-        for (weekOffset in 0 until INITIAL_WEEKS) {
+        val requests = (0 until INITIAL_WEEKS).map { weekOffset ->
             // Anchor on this week's Monday first, then step by whole weeks. Applying
             // nextOrSame after minusWeeks made the range depend on today's weekday.
-            val formattedDate = LocalDate.now(ZoneId.systemDefault())
+            val date = LocalDate.now(ZoneId.systemDefault())
                 .with(DayOfWeek.MONDAY)
                 .minusWeeks((1 - weekOffset).toLong())
-
-            try {
-                trainings.addAll(fetchWeek(formattedDate.toString(), weekOffset))
-            } catch (e: Exception) {
-                allWeeksSucceeded = false
-                if (firstError == null) firstError = e
-                Log.e("TrainingRepo", "Failed to fetch schedule week $formattedDate", e)
-            }
+                .toString()
+            date to weekOffset
         }
-
-        return ScheduleFetch(trainings, allWeeksSucceeded, firstError)
+        // One batched call loads/decrypts cookies once for every week and both feeds.
+        return fetchFeeds(requests)
     }
 
-    private suspend fun fetchWeek(date: String, weekOffset: Int = 0): List<com.swimgym.app.data.model.TrainingDto> {
+    private suspend fun fetchWeek(
+        date: String,
+        weekOffset: Int = 0
+    ): List<com.swimgym.app.data.model.TrainingDto> = fetchFeeds(listOf(date to weekOffset)).trainings
+
+    private suspend fun fetchFeeds(requests: List<Pair<String, Int>>): ScheduleFetch {
         val now = System.currentTimeMillis() / 1000
-        val doc = apiClient.fetchHtml("https://swimgym.virtuagym.com/classes/week/$date?event_type=8")
-        return parser.parseSchedule(doc, weekOffset, now, apiClient)
+        val urls = requests.flatMap { (date, _) ->
+            ScheduleFeeds.ALL.map { eventType ->
+                "https://swimgym.virtuagym.com/classes/week/$date?event_type=$eventType"
+            }
+        }
+        val results = apiClient.fetchHtmlBatch(urls)
+        val trainings = mutableListOf<com.swimgym.app.data.model.TrainingDto>()
+        var allSucceeded = true
+        var firstError: Throwable? = null
+
+        results.forEachIndexed { index, result ->
+            val (date, weekOffset) = requests[index / ScheduleFeeds.ALL.size]
+            val eventType = ScheduleFeeds.ALL[index % ScheduleFeeds.ALL.size]
+            result
+                .onSuccess { doc ->
+                    try {
+                        trainings.addAll(
+                            parser.parseSchedule(doc, weekOffset, now, apiClient, eventType)
+                        )
+                    } catch (e: Exception) {
+                        allSucceeded = false
+                        if (firstError == null) firstError = e
+                        Log.e("TrainingRepo", "Failed to parse $date feed $eventType", e)
+                    }
+                }
+                .onFailure { e ->
+                    allSucceeded = false
+                    if (firstError == null) firstError = e
+                    Log.e("TrainingRepo", "Failed to fetch $date feed $eventType", e)
+                }
+        }
+
+        return ScheduleFetch(trainings, allSucceeded, firstError)
     }
 
     private suspend fun getTrainingDetailsFromApi(training: TrainingEntity): Result<com.swimgym.app.data.local.entity.TrainingEntity> {
@@ -338,14 +355,5 @@ class TrainingRepositoryImpl(
     companion object {
         // Must match INITIAL_WEEKS in ScheduleViewModel.
         private const val INITIAL_WEEKS = 4
-
-        private fun formatDate(timestamp: Long): String {
-            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            return sdf.format(Date(timestamp))
-        }
-        private fun formatTimestamp(timestamp: Long): String {
-            val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-            return sdf.format(Date(timestamp))
-        }
     }
 }

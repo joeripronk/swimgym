@@ -11,10 +11,6 @@ class TrainerImageCache(
     private val context: Context,
     private val dao: SwimGymDao
 ) {
-    // No bundled drawables are shipped. An empty sentinel previously matched
-    // every name ("".contains("")) and made hasLocalImage() always true.
-    private val localTrainerImages: Map<String, String> = emptyMap()
-
     val imageLoader: ImageLoader by lazy {
         ImageLoader.Builder(context)
             .memoryCache {
@@ -34,32 +30,9 @@ class TrainerImageCache(
             .build()
     }
 
-    fun resolveTrainerImageUrl(instructorName: String, fallbackUrl: String): String {
-        val normalizedName = instructorName.trim()
-        val localDrawable = localTrainerImages[normalizedName]
-            ?: localTrainerImages.entries
-                .filter { it.key.isNotBlank() }
-                .firstOrNull { normalizedName.contains(it.key, ignoreCase = true) }?.value
-
-        return if (localDrawable?.isNotBlank() == true) {
-            "android.resource://com.swimgym.app:$localDrawable"
-        } else {
-            fallbackUrl
-        }
-    }
-
-    fun hasLocalImage(instructorName: String): Boolean {
-        val normalizedName = instructorName.trim()
-        return localTrainerImages.containsKey(normalizedName) ||
-                localTrainerImages.keys.any { it.isNotBlank() && normalizedName.contains(it, ignoreCase = true) }
-    }
+    fun resolveTrainerImageUrl(instructorName: String, fallbackUrl: String): String = fallbackUrl
 
     suspend fun getInstructorImage(instructorName: String): String? {
         return dao.getInstructor(instructorName)?.instructorImage
-    }
-
-    suspend fun resolveTrainerImageUrlWithCache(instructorName: String, fallbackUrl: String): String {
-        val cachedImage = getInstructorImage(instructorName)
-        return cachedImage ?: fallbackUrl
     }
 }

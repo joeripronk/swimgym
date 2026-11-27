@@ -308,7 +308,6 @@ import java.util.*
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 conflictEvents.forEach { event ->
-                                    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
                                     val conflictTime = if (event.startMillis > 0) {
                                         "${timeFormat.format(Date(event.startMillis))} - ${timeFormat.format(Date(event.endMillis))}"
                                     } else {
@@ -365,7 +364,7 @@ import java.util.*
                               .fillMaxWidth()
                               .height(50.dp),
                           colors = ButtonDefaults.buttonColors(
-                              containerColor = if (isCancellingInProgress) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error,
+                               containerColor = MaterialTheme.colorScheme.error,
                               disabledContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
                           )
                       ) {
@@ -399,7 +398,7 @@ import java.util.*
                              .fillMaxWidth()
                              .height(50.dp),
                          colors = ButtonDefaults.buttonColors(
-                             containerColor = if (isBookingInProgress) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary,
+                              containerColor = MaterialTheme.colorScheme.primary,
                              disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                          )
                      ) {
@@ -498,7 +497,7 @@ import java.util.*
                 onClearCalendarError()
             },
             title = { Text("Calendar Error") },
-            text = { Text(calendarAddError!!) },
+            text = { Text(calendarAddError ?: "") },
             confirmButton = {
                 Button(onClick = {
                     calendarAddError = null

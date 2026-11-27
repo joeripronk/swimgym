@@ -30,17 +30,6 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.Calendar
 
-private fun getFeedbackStatus(status: BookingStatus): String {
-    return when (status) {
-        BookingStatus.IN_PROGRESS -> "In Progress"
-        BookingStatus.BOOKED -> "Booked"
-        BookingStatus.FAILED -> "Failed"
-        BookingStatus.PENDING -> "Pending"
-        BookingStatus.CANCELLED -> "Cancelled"
-        BookingStatus.CONFIRMED -> "Confirmed"
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyBookingsScreen(
@@ -195,18 +184,6 @@ private fun BookingCard(
                 )
             }
         }
-        /*
-        if (booking.status == BookingStatus.CONFIRMED) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-
-            ) {
-                TextButton(onClick = onCancel) {
-                    Text("Cancel Booking")
-                }
-            }
-        }
-       */
     }
 }
 
@@ -368,7 +345,6 @@ private fun ScheduledBookingCard(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 conflictEvents.forEach { event ->
-                                    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
                                     val conflictTime = if (event.startMillis > 0) {
                                         "${timeFormat.format(Date(event.startMillis))} - ${timeFormat.format(Date(event.endMillis))}"
                                     } else {
@@ -455,8 +431,8 @@ private fun formatTimeUntilNext(nextTime: Long): String {
     val minutes = (diff % (60 * 60 )) / (60)
 
     return when {
-        days > 0 -> "in ${days}d ${String.format("%02d:%02d", hours, minutes)}"
-        hours > 0 -> "in ${hours}h ${String.format("%02d", minutes)}m"
+        days > 0 -> "in ${days}d ${String.format(Locale.getDefault(), "%02d:%02d", hours, minutes)}"
+        hours > 0 -> "in ${hours}h ${String.format(Locale.getDefault(), "%02d", minutes)}m"
         else -> "in ${minutes}m"
     }
 }

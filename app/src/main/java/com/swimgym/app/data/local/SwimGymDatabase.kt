@@ -4,18 +4,26 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.swimgym.app.data.local.entity.BookingEntity
 import com.swimgym.app.data.local.entity.InstructorEntity
 import com.swimgym.app.data.local.entity.TrainingEntity
 @Database(
     entities = [TrainingEntity::class, BookingEntity::class, InstructorEntity::class],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class SwimGymDatabase : RoomDatabase() {
     abstract fun dao(): SwimGymDao
 
     companion object {
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE trainings ADD COLUMN eventType INTEGER NOT NULL DEFAULT 8")
+            }
+        }
+
         @Volatile
         private var INSTANCE: SwimGymDatabase? = null
 
@@ -29,6 +37,7 @@ abstract class SwimGymDatabase : RoomDatabase() {
                     SwimGymDatabase::class.java,
                     "swimgym_database"
                 )
+                    .addMigrations(MIGRATION_11_12)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

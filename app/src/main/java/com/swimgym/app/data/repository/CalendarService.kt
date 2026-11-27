@@ -25,7 +25,6 @@ interface CalendarService {
     suspend fun addTrainingToCalendar(training: Training): String?
     suspend fun addTrainingToCalendar(training: TrainingEntity): String?
     suspend fun removeTrainingFromCalendar(training: TrainingEntity)
-    suspend fun findExistingCalendarEntry(startTime: Long, title: String): TrainingEntity?
     suspend fun removeTrainingByTimeAndTitle(startTime: Long, title: String)
     suspend fun isTrainingInCalendar(trainingId: String, startTime: Long, title: String): Boolean
     suspend fun findConflictingEvents(
@@ -167,21 +166,6 @@ class CalendarServiceImpl(
             Log.d(TAG, "Calendar event removed: $eventId")
         } catch (e: Exception) {
             Log.e(TAG, "Error removing training from calendar", e)
-        }
-    }
-
-    override suspend fun findExistingCalendarEntry(startTime: Long, title: String): TrainingEntity? = withContext(Dispatchers.IO) {
-        Log.d(TAG, "Searching for existing calendar entry: title=$title, startTime=$startTime")
-        try {
-            val trainings = dao.getAllTrainingsList() ?: return@withContext null
-            val found = trainings.find { t ->
-                t.startTime == startTime && t.title.equals(title, ignoreCase = true) && t.eventId.isNotBlank()
-            }
-            Log.d(TAG, "Found existing entry: ${found != null}")
-            found
-        } catch (e: Exception) {
-            Log.e(TAG, "Error searching for existing calendar entry", e)
-            return@withContext null
         }
     }
 

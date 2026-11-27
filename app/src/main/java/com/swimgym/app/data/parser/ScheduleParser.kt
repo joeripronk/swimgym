@@ -6,6 +6,7 @@ import com.swimgym.app.data.local.entity.InstructorEntity
 import com.swimgym.app.data.local.entity.TrainingEntity
 import com.swimgym.app.data.model.Mappers.toDto
 import com.swimgym.app.data.model.TrainingDto
+import com.swimgym.app.data.repository.ScheduleFeeds
 import java.text.SimpleDateFormat
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -13,6 +14,10 @@ import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 import java.util.Calendar
 import java.util.Locale
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.jsoup.nodes.Document
 
 interface ScheduleParser {
@@ -20,7 +25,8 @@ interface ScheduleParser {
         doc: org.jsoup.nodes.Document,
         weeksOffset: Int,
         now: Long,
-        apiClient: com.swimgym.app.data.api.VirtuagymApiClient
+        apiClient: com.swimgym.app.data.api.VirtuagymApiClient,
+        eventType: Int = ScheduleFeeds.SWOD
     ): List<com.swimgym.app.data.model.TrainingDto>
 
     suspend fun parseTrainingDetails(
@@ -35,13 +41,30 @@ class ScheduleParserImpl(
     private val baseUrl: String = "https://swimgym.virtuagym.com"
 ) : ScheduleParser {
 
+    private data class ClassDetails(
+        val className: String,
+        val classId: String,
+        val instructor: String,
+        val startTime: Long,
+        val endTime: Long,
+        val isFull: Boolean,
+        val isJoined: Boolean,
+        val eventDate: String,
+        val timeText: String,
+        val trainingEntity: TrainingEntity,
+        val cachedTraining: TrainingDto?,
+        val imageUrl: String?,
+        val detailsStale: Boolean
+    )
+
     override suspend fun parseSchedule(
         doc: org.jsoup.nodes.Document,
         weeksOffset: Int,
         now: Long,
-        apiClient: com.swimgym.app.data.api.VirtuagymApiClient
+        apiClient: com.swimgym.app.data.api.VirtuagymApiClient,
+        eventType: Int
     ): List<com.swimgym.app.data.model.TrainingDto> {
-        val trainings = mutableListOf<TrainingDto>()
+        val classes = mutableListOf<ClassDetails>()
 
         val days = doc.select("#schedule_content .cal_column")
         // Day headers live in the sibling #schedule_header, not inside the
@@ -56,13 +79,13 @@ class ScheduleParserImpl(
                 ?: dayHeader?.selectFirst(".day_name_short")?.text()
                 ?: ""
 
-                    dayColumn.select(".class").forEach classElement@{ classElement ->
-                        val className =
-                            classElement.selectFirst(".classname")?.text() ?: return@classElement
-                        if (className.isBlank()) return@classElement
+            dayColumn.select(".class").forEach classElement@{ classElement ->
+                val className =
+                    classElement.selectFirst(".classname")?.text() ?: return@classElement
+                if (className.isBlank()) return@classElement
 
-                        val classId = classElement.id()
-                        Log.d("ScheduleParser", "Parsing class: $classId - $className")
+                val classId = classElement.id()
+                Log.d("ScheduleParser", "Parsing class: $classId - $className")
                 val timeText = classElement.selectFirst(".time")?.text() ?: ""
                 val instructor = classElement.selectFirst(".instructor i")?.text() ?: "TBA"
                 val isFull = classElement.selectFirst(".full")?.text()?.trim()?.let {
@@ -80,6 +103,7 @@ class ScheduleParserImpl(
                     // is reported as no longer being in the calendar.
                     val trainingEntity = TrainingEntity(
                         id = classId,
+                        eventType = eventType,
                         title = className,
                         instructor = instructor,
                         instructorLink = cachedEntity?.instructorLink ?: "",
@@ -100,58 +124,92 @@ class ScheduleParserImpl(
                         lastFetched = cachedEntity?.lastFetched ?: System.currentTimeMillis()
                     )
 
-                    var cachedTraining = cachedEntity?.toDto()
-                    var imageUrl = dao.getInstructor(instructor)?.instructorImage
                     // Refresh detail fields (spots, description, cancel policy, ...)
                     // periodically too, not just when the instructor image is missing;
                     // otherwise a cached image leaves those fields stale indefinitely.
                     val detailsStale = cachedEntity == null ||
                         System.currentTimeMillis() - cachedEntity.lastFetched > 12 * 60 * 60 * 1000L
-                    if (detailsStale) {
-                        try {
-                            val detailsResult = parseTrainingDetails(classId, trainingEntity, apiClient)
-                            cachedTraining = detailsResult.toDto()
-                            imageUrl = cachedTraining?.imageUrl
-                        } catch (e: Exception) {
-                            android.util.Log.w("ScheduleParser", "Failed to fetch details for $classId: ${e.message}")
+                    classes.add(
+                        ClassDetails(
+                            className = className,
+                            classId = classId,
+                            instructor = instructor,
+                            startTime = startTime,
+                            endTime = endTime,
+                            isFull = isFull,
+                            isJoined = isJoined,
+                            eventDate = eventDate,
+                            timeText = timeText,
+                            trainingEntity = trainingEntity,
+                            cachedTraining = cachedEntity?.toDto(),
+                            imageUrl = dao.getInstructor(instructor)?.instructorImage,
+                            detailsStale = detailsStale
+                        )
+                    )
+                }
+            }
+        }
+
+        // A week can contain dozens of stale classes. Fetch their details with
+        // bounded concurrency; the semaphore keeps the portal from being flooded
+        // while async still overlaps the network waits. Order is preserved.
+        val refreshed = coroutineScope {
+            val semaphore = Semaphore(DETAIL_FETCH_CONCURRENCY)
+            classes.map { entry ->
+                async {
+                    if (!entry.detailsStale) {
+                        entry
+                    } else {
+                        semaphore.withPermit {
+                            try {
+                                val details = parseTrainingDetails(entry.classId, entry.trainingEntity, apiClient)
+                                val dto = details.toDto()
+                                entry.copy(cachedTraining = dto, imageUrl = dto.imageUrl)
+                            } catch (e: Exception) {
+                                Log.w("ScheduleParser", "Failed to fetch details for ${entry.classId}: ${e.message}")
+                                entry
+                            }
                         }
                     }
-                    if (imageUrl == null) {
-                        imageUrl = ""
-                    }
-
-                    if (cachedTraining != null) {
-                        trainings.add(
-                            cachedTraining.copy(
-                                id = classId,
-                                title = className,
-                                instructor = instructor,
-                                startTime = startTime,
-                                endTime = endTime,
-                                isFull = isFull,
-                                isJoined = isJoined,
-                                classTime = timeText,
-                                classDate = eventDate,
-                                imageUrl = imageUrl
-                            )
-                        )
-                    } else {
-                        trainings.add(
-                            TrainingDto(
-                                id = classId,
-                                title = className,
-                                instructor = instructor,
-                                startTime = startTime,
-                                endTime = endTime,
-                                isFull = isFull,
-                                isJoined = isJoined,
-                                classTime = timeText,
-                                classDate = eventDate,
-                                imageUrl = imageUrl
-                            )
-                        )
-                    }
                 }
+            }.map { it.await() }
+        }
+
+        val trainings = mutableListOf<TrainingDto>()
+        refreshed.forEach { entry ->
+            val imageUrl = entry.imageUrl ?: ""
+            if (entry.cachedTraining != null) {
+                trainings.add(
+                    entry.cachedTraining.copy(
+                        id = entry.classId,
+                        eventType = eventType,
+                        title = entry.className,
+                        instructor = entry.instructor,
+                        startTime = entry.startTime,
+                        endTime = entry.endTime,
+                        isFull = entry.isFull,
+                        isJoined = entry.isJoined,
+                        classTime = entry.timeText,
+                        classDate = entry.eventDate,
+                        imageUrl = imageUrl
+                    )
+                )
+            } else {
+                trainings.add(
+                    TrainingDto(
+                        id = entry.classId,
+                        eventType = eventType,
+                        title = entry.className,
+                        instructor = entry.instructor,
+                        startTime = entry.startTime,
+                        endTime = entry.endTime,
+                        isFull = entry.isFull,
+                        isJoined = entry.isJoined,
+                        classTime = entry.timeText,
+                        classDate = entry.eventDate,
+                        imageUrl = imageUrl
+                    )
+                )
             }
         }
 
@@ -166,109 +224,21 @@ class ScheduleParserImpl(
         val url = "$baseUrl/classes/class/$trainingId?embedded=0"
         Log.d("ScheduleParser", "Fetching training details from URL: $url")
         val doc = apiClient.fetchHtml(url)
+        val result = TrainingDetailsParser.parse(doc, trainingId, baseTraining)
+        Log.d("ScheduleParser", "Parsed training details: id=$trainingId, title=${result.title}, instructor=${result.instructor}, location=${result.location}, spots=${result.spotsAvailable}/${result.totalSpots}, joined=${result.isJoined}")
 
-        val title =
-            doc.selectFirst(".modal-title-replacement, .class-info .class-name")?.text() ?: ""
-        if (title.isNullOrEmpty()) {
-            Log.e("ScheduleParser", "Failed to parse title for trainingId: $trainingId")
-            throw Exception("failed to fetch data")
-        }
-
-        // The portal renders each detail as an .event-details-icon with a
-        // semantic tooltip title ("Datum", "Bezet", "Instructeur", ...) and an
-        // icon class. Prefer those over nth-child chains: inserting a single
-        // icon shifts every positional selector and silently corrupts the data.
-        val instructorIcon = findDetailIcon(doc, "Instructeur", "staff")
-        val instructorLink = instructorIcon?.selectFirst("a[href^=/userid]")?.attr("href")
-            ?: doc.selectFirst(".event-details-icon a[href^=/userid]")?.attr("href")
-            ?: ""
-        val instructor = detailValue(doc, "Instructeur", "staff")
-            ?: instructorIcon?.selectFirst("a[href^=/userid]")?.text()
-            ?: doc.selectFirst(".event-details-icon a[href^=/userid]")?.text()
-            ?: "TBA"
-        val location = detailValue(doc, "Locatie", "location")
-            ?: doc.selectFirst("div.event-details-icons:nth-child(3) > div.event-details-icon:nth-child(2) > div.icon-text:nth-child(2)")
-                ?.text()
-            ?: "SwimGym"
-        val spotsText = detailValue(doc, "Bezet", "group")
-            ?: doc.selectFirst("div.event-details-icons:nth-child(2) > div.event-details-icon:nth-child(3) > div.icon-text:nth-child(2)")
-                ?.text()
-        val imageUrl = doc.selectFirst(".event-image-holder img")?.attr("src") ?: ""
-        val description = doc.selectFirst(".event-description-holder")?.text() ?: ""
-        val cost = detailValue(doc, "Kosten", "ticket-star")
-            ?: doc.selectFirst(".event-details-icon:has(.ticket-star) .icon-text")?.text()
-            ?: ""
-        val isJoined = doc.selectFirst(".booking-text.green") != null
-        val cancelPolicy =
-            doc.selectFirst(".event-actions > div:not(.booking-text)")?.text() ?: ""
-
-        val spotsParts = spotsText?.split("/")?.map { it.trim() }
-        val spotsTaken = spotsParts?.getOrNull(0)?.toIntOrNull()
-        val totalSpotsParsed = spotsParts?.getOrNull(1)?.toIntOrNull()
-        val spotsKnown = spotsTaken != null && totalSpotsParsed != null
-        val totalSpots = if (spotsKnown) totalSpotsParsed!! else 0
-        // Unknown spots must not be reported as "full": a markup change would
-        // otherwise hide every class and trigger needless retry failures.
-        val spotsAvailable = if (spotsKnown) maxOf(0, totalSpots - spotsTaken!!) else 0
-        val explicitFull = doc.selectFirst(".full")?.text()?.trim()?.let {
-            it.equals("VOL", ignoreCase = true) || it.equals("FULL", ignoreCase = true)
-        } == true
-        val isFull = !isJoined && (explicitFull || (spotsKnown && spotsAvailable == 0))
-
-        Log.d("ScheduleParser", "Parsed training details: id=$trainingId, title=$title, instructor=$instructor, location=$location, spots=$spotsAvailable/$totalSpots, joined=$isJoined")
-
-        if (imageUrl.isNotEmpty()) {
+        if (result.imageUrl.isNotEmpty()) {
             dao.insertInstructor(
                 InstructorEntity(
-                    instructorName = instructor,
-                    instructorLink = instructorLink,
-                    instructorImage = imageUrl
+                    instructorName = result.instructor,
+                    instructorLink = result.instructorLink,
+                    instructorImage = result.imageUrl
                 )
             )
         }
 
-        return TrainingEntity(
-            id = trainingId,
-            instructor = instructor,
-            instructorLink = instructorLink.ifEmpty { baseTraining.instructorLink },
-            startTime = baseTraining.startTime,
-            endTime = baseTraining.endTime,
-            classDate = baseTraining.classDate,
-            classTime = baseTraining.classTime,
-            title = title,
-            location = location,
-            spotsAvailable = spotsAvailable,
-            totalSpots = totalSpots,
-            description = description,
-            isFull = isFull,
-            cost = cost,
-            isJoined = isJoined,
-            imageUrl = imageUrl,
-            cancelPolicy = cancelPolicy,
-            eventId = baseTraining.eventId,
-            calendarId = baseTraining.calendarId
-        )
+        return result
     }
-
-    /** Finds a detail icon by tooltip title (Dutch/English) or icon class. */
-    private fun findDetailIcon(doc: Document, vararg keys: String): org.jsoup.nodes.Element? {
-        val icons = doc.select(".event-details-icon")
-        return keys.firstNotNullOfOrNull { key ->
-            icons.firstOrNull { icon ->
-                icon.selectFirst(".ui-tooltip-icon-overlay[title]")?.attr("title")
-                    ?.equals(key, ignoreCase = true) == true ||
-                    icon.selectFirst(".ui-tooltip-icon")?.hasClass(key) == true
-            }
-        }
-    }
-
-    /** Reads the text value of the first matching detail icon. */
-    private fun detailValue(doc: Document, vararg keys: String): String? =
-        findDetailIcon(doc, *keys)
-            ?.selectFirst(".icon-text")
-            ?.text()
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
 
     /**
      * Falls back to the "d MMM" portion of the day header when Virtuagym omits
@@ -358,12 +328,13 @@ class ScheduleParserImpl(
                 return Pair(start, end)
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w("ScheduleParser", "Failed to parse class time; using fallback", e)
         }
         return Pair(0, 3600)
     }
 
     companion object {
+        private const val DETAIL_FETCH_CONCURRENCY = 4
         private val GYM_ZONE_ID: ZoneId = ZoneId.of("Europe/Amsterdam")
         private val GYM_TIME_ZONE: java.util.TimeZone =
             java.util.TimeZone.getTimeZone("Europe/Amsterdam")

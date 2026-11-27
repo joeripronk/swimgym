@@ -67,6 +67,26 @@ class SettingsViewModel(
     private val calendarRepository: CalendarRepository
 ) : ViewModel() {
 
+    private val workTimeSetters: List<(WorkTimeConfig, Pair<String, String>) -> WorkTimeConfig> = listOf(
+        { c, t -> c.copy(monday = t) },
+        { c, t -> c.copy(tuesday = t) },
+        { c, t -> c.copy(wednesday = t) },
+        { c, t -> c.copy(thursday = t) },
+        { c, t -> c.copy(friday = t) },
+        { c, t -> c.copy(saturday = t) },
+        { c, t -> c.copy(sunday = t) }
+    )
+
+    private val workTimeEnabledSetters: List<(WorkTimeConfig, Boolean) -> WorkTimeConfig> = listOf(
+        { c, e -> c.copy(mondayEnabled = e) },
+        { c, e -> c.copy(tuesdayEnabled = e) },
+        { c, e -> c.copy(wednesdayEnabled = e) },
+        { c, e -> c.copy(thursdayEnabled = e) },
+        { c, e -> c.copy(fridayEnabled = e) },
+        { c, e -> c.copy(saturdayEnabled = e) },
+        { c, e -> c.copy(sundayEnabled = e) }
+    )
+
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
@@ -241,16 +261,8 @@ class SettingsViewModel(
         viewModelScope.launch {
             sessionRepository.saveWorkTimeForDay(day, startTime, endTime)
             val currentConfig = _uiState.value.workTimeConfig
-            val newConfig = when (day) {
-                0 -> currentConfig.copy(monday = Pair(startTime, endTime))
-                1 -> currentConfig.copy(tuesday = Pair(startTime, endTime))
-                2 -> currentConfig.copy(wednesday = Pair(startTime, endTime))
-                3 -> currentConfig.copy(thursday = Pair(startTime, endTime))
-                4 -> currentConfig.copy(friday = Pair(startTime, endTime))
-                5 -> currentConfig.copy(saturday = Pair(startTime, endTime))
-                6 -> currentConfig.copy(sunday = Pair(startTime, endTime))
-                else -> currentConfig
-            }
+            val newConfig = workTimeSetters.getOrNull(day)
+                ?.invoke(currentConfig, Pair(startTime, endTime)) ?: currentConfig
             _uiState.update { it.copy(workTimeConfig = newConfig) }
         }
     }
@@ -259,16 +271,8 @@ class SettingsViewModel(
         viewModelScope.launch {
             sessionRepository.saveWorkTimeEnabledForDay(day, enabled)
             val currentConfig = _uiState.value.workTimeConfig
-            val newConfig = when (day) {
-                0 -> currentConfig.copy(mondayEnabled = enabled)
-                1 -> currentConfig.copy(tuesdayEnabled = enabled)
-                2 -> currentConfig.copy(wednesdayEnabled = enabled)
-                3 -> currentConfig.copy(thursdayEnabled = enabled)
-                4 -> currentConfig.copy(fridayEnabled = enabled)
-                5 -> currentConfig.copy(saturdayEnabled = enabled)
-                6 -> currentConfig.copy(sundayEnabled = enabled)
-                else -> currentConfig
-            }
+            val newConfig = workTimeEnabledSetters.getOrNull(day)
+                ?.invoke(currentConfig, enabled) ?: currentConfig
             _uiState.update { it.copy(workTimeConfig = newConfig) }
         }
     }
@@ -291,12 +295,11 @@ class SettingsViewModel(
         loadCalendars()
     }
 
-    fun checkForUpdates(context: android.content.Context) {
-        val appContext = context.applicationContext
+    fun checkForUpdates() {
         viewModelScope.launch {
             _uiState.update { it.copy(isCheckingUpdate = true, updateCheckError = null) }
             try {
-                val result = com.swimgym.app.util.UpdateChecker.checkForUpdates(appContext)
+                val result = com.swimgym.app.util.UpdateChecker.checkForUpdates()
                 result.onSuccess { release ->
                     val currentVersion = BuildConfig.VERSION_NAME
                     val isNewer = com.swimgym.app.util.UpdateChecker.isNewerVersion(currentVersion, release.tagName)

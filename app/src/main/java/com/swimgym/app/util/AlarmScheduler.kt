@@ -142,9 +142,10 @@ class AlarmScheduler(
                 // it is in the future; if it has already passed (alarm dropped by
                 // Doze/OEM, or a cold start), start a fresh backoff instead of firing
                 // immediately, which would burn the retry budget in seconds.
-                val alarmTimeMillis = if (booking.retryCount > 0 && booking.nextRetryAt != null) {
-                    val deadline = booking.nextRetryAt!! * 1000
-                    if (deadline > nowMillisProvider()) deadline
+                val deadline = booking.nextRetryAt
+                val alarmTimeMillis = if (booking.retryCount > 0 && deadline != null) {
+                    val deadlineMillis = deadline * 1000
+                    if (deadlineMillis > nowMillisProvider()) deadlineMillis
                     else nowMillisProvider() + 15 * 60 * 1000L
                 } else {
                     bookingAlarmTimeMillis(booking)

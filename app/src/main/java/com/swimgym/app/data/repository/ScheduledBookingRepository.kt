@@ -1,8 +1,14 @@
 package com.swimgym.app.data.repository
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import com.google.gson.reflect.TypeToken
 import com.swimgym.app.data.local.entity.TrainingEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -15,6 +21,8 @@ class ScheduledBookingRepository(
     private val context: Context
 ) {
     private val bookingsKey = stringPreferencesKey("scheduled_bookings_list")
+
+    private val bookingsType = object : TypeToken<List<ScheduledBooking>>() {}.type
 
     suspend fun saveBooking(booking: ScheduledBooking) {
         context.scheduledBookingDataStore.edit { prefs ->
@@ -52,7 +60,6 @@ class ScheduledBookingRepository(
         return try {
             val prefs = context.scheduledBookingDataStore.data.first()
             val json = prefs[bookingsKey] ?: "[]"
-            // Simple JSON parsing without Gson
             parseBookingsFromJson(json)
         } catch (e: Exception) {
             emptyList()
@@ -141,83 +148,65 @@ class ScheduledBookingRepository(
         updateBooking(bookingId) { it.copy(trainingId = newTrainingId) }
     }
 
-    private fun serializeAll(bookings: List<ScheduledBooking>): String =
-        bookings.joinToString(",", "[", "]") { serializeBooking(it) }
+    internal fun serializeAll(bookings: List<ScheduledBooking>): String =
+        gson.toJson(bookings, bookingsType)
 
-    private fun serializeBooking(booking: ScheduledBooking): String = buildString {
-        append("{\"id\":\"").append(escapeJson(booking.id.toString())).append("\"")
-        append(",\"trainingId\":\"").append(escapeJson(booking.trainingId)).append("\"")
-        append(",\"className\":\"").append(escapeJson(booking.className)).append("\"")
-        append(",\"startTime\":").append(booking.startTime)
-        append(",\"instructor\":\"").append(escapeJson(booking.instructor)).append("\"")
-        append(",\"status\":\"").append(escapeJson(booking.status.name)).append("\"")
-        append(",\"bookedCount\":").append(booking.bookedCount)
-        append(",\"maxRepeatCount\":")
-        append(booking.maxRepeatCount?.let { "\"$it\"" } ?: "null")
-        append(",\"retryCount\":").append(booking.retryCount)
-        append(",\"lastFailureReason\":")
-        append(booking.lastFailureReason?.let { "\"${escapeJson(it.name)}\"" } ?: "null")
-        append(",\"nextRetryAt\":").append(booking.nextRetryAt ?: "null")
-        append(",\"createdAt\":").append(booking.createdAt)
-        append("}")
-    }
-
-    private fun escapeJson(value: String): String {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"")
-    }
-
-    private fun parseBookingsFromJson(json: String): List<ScheduledBooking> {
+    internal fun parseBookingsFromJson(json: String): List<ScheduledBooking> {
         val result = mutableListOf<ScheduledBooking>()
-        try {
-            val array = com.google.gson.JsonParser.parseString(json).asJsonArray
-            for (element in array) {
-                if (!element.isJsonObject) continue
-                try {
-                    val obj = element.asJsonObject
-                    val id = obj.longOrNull("id") ?: 0L
-                    val trainingId = obj.stringOrNull("trainingId")
-                    val className = obj.stringOrNull("className")
-                    val startTime = obj.longOrNull("startTime")
-                    if (id == 0L || trainingId == null || className == null || startTime == null) {
-                        android.util.Log.w("ScheduledBookingRepo", "dropping corrupt booking entry: $element")
-                        continue
-                    }
-                    val instructor = obj.stringOrNull("instructor") ?: ""
-                    val status = runCatching {
-                        ScheduledBookingStatus.valueOf(obj.stringOrNull("status") ?: "ACTIVE")
-                    }.getOrDefault(ScheduledBookingStatus.ACTIVE)
-                    result.add(
-                        ScheduledBooking(
-                            id = id,
-                            trainingId = trainingId,
-                            className = className,
-                            startTime = startTime,
-                            instructor = instructor,
-                            status = status,
-                            bookedCount = obj.intOrNull("bookedCount") ?: 0,
-                            maxRepeatCount = obj.intOrNull("maxRepeatCount"),
-                            retryCount = obj.intOrNull("retryCount") ?: 0,
-                            lastFailureReason = RetryFailureReason.fromName(obj.stringOrNull("lastFailureReason")),
-                            nextRetryAt = obj.longOrNull("nextRetryAt"),
-                            createdAt = obj.longOrNull("createdAt") ?: System.currentTimeMillis()
-                        )
-                    )
-                } catch (e: Exception) {
-                    // Skip a single malformed entry without losing the rest.
-                }
-            }
+        val array = try {
+            JsonParser.parseString(json).asJsonArray
         } catch (e: Exception) {
-            android.util.Log.w("ScheduledBookingRepo", "Failed to parse bookings JSON: ${e.message}")
+            Log.w(TAG, "Failed to parse bookings JSON: ${e.message}")
+            return result
+        }
+
+        for (element in array) {
+            if (!element.isJsonObject) {
+                Log.w(TAG, "Skipping non-object booking entry: $element")
+                continue
+            }
+            val obj = element.asJsonObject
+            val id = obj.longOrNull("id") ?: 0L
+            val trainingId = obj.stringOrNull("trainingId")
+            val className = obj.stringOrNull("className")
+            val startTime = obj.longOrNull("startTime")
+            if (id == 0L || trainingId == null || className == null || startTime == null) {
+                Log.w(TAG, "Skipping corrupt booking entry: $element")
+                continue
+            }
+            result.add(
+                ScheduledBooking(
+                    id = id,
+                    trainingId = trainingId,
+                    className = className,
+                    startTime = startTime,
+                    instructor = obj.stringOrNull("instructor") ?: "",
+                    status = obj.stringOrNull("status")
+                        ?.let { runCatching { ScheduledBookingStatus.valueOf(it) }.getOrNull() }
+                        ?: ScheduledBookingStatus.ACTIVE,
+                    bookedCount = obj.intOrNull("bookedCount") ?: 0,
+                    maxRepeatCount = obj.intOrNull("maxRepeatCount"),
+                    retryCount = obj.intOrNull("retryCount") ?: 0,
+                    lastFailureReason = RetryFailureReason.fromName(obj.stringOrNull("lastFailureReason")),
+                    nextRetryAt = obj.longOrNull("nextRetryAt"),
+                    createdAt = obj.longOrNull("createdAt") ?: System.currentTimeMillis()
+                )
+            )
         }
         return result
     }
 
-    private fun com.google.gson.JsonObject.stringOrNull(key: String): String? =
+    private fun JsonObject.stringOrNull(key: String): String? =
         get(key)?.takeIf { it.isJsonPrimitive }?.asString
 
-    private fun com.google.gson.JsonObject.longOrNull(key: String): Long? =
+    private fun JsonObject.longOrNull(key: String): Long? =
         stringOrNull(key)?.toLongOrNull()
 
-    private fun com.google.gson.JsonObject.intOrNull(key: String): Int? =
+    private fun JsonObject.intOrNull(key: String): Int? =
         stringOrNull(key)?.toIntOrNull()
+
+    private companion object {
+        const val TAG = "ScheduledBookingRepo"
+        val gson: Gson = GsonBuilder().serializeNulls().create()
+    }
 }

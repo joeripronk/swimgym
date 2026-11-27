@@ -282,28 +282,29 @@ class ScheduleViewModel(
                 else -> 0
             }
             
-            // Check if the day is enabled
-            val isEnabled = when (dayIndex) {
-                0 -> _uiState.value.workTimeMondayEnabled
-                1 -> _uiState.value.workTimeTuesdayEnabled
-                2 -> _uiState.value.workTimeWednesdayEnabled
-                3 -> _uiState.value.workTimeThursdayEnabled
-                4 -> _uiState.value.workTimeFridayEnabled
-                5 -> _uiState.value.workTimeSaturdayEnabled
-                else -> _uiState.value.workTimeSundayEnabled
-            }
-            
+            val enabledDays = listOf(
+                _uiState.value.workTimeMondayEnabled,
+                _uiState.value.workTimeTuesdayEnabled,
+                _uiState.value.workTimeWednesdayEnabled,
+                _uiState.value.workTimeThursdayEnabled,
+                _uiState.value.workTimeFridayEnabled,
+                _uiState.value.workTimeSaturdayEnabled,
+                _uiState.value.workTimeSundayEnabled
+            )
+            val isEnabled = enabledDays.getOrElse(dayIndex) { _uiState.value.workTimeMondayEnabled }
+
             if (!isEnabled) return@filter true
-            
-            val workTimes = when (dayIndex) {
-                0 -> _uiState.value.workTimeMonday
-                1 -> _uiState.value.workTimeTuesday
-                2 -> _uiState.value.workTimeWednesday
-                3 -> _uiState.value.workTimeThursday
-                4 -> _uiState.value.workTimeFriday
-                5 -> _uiState.value.workTimeSaturday
-                else -> _uiState.value.workTimeSunday
-            }
+
+            val workTimesList = listOf(
+                _uiState.value.workTimeMonday,
+                _uiState.value.workTimeTuesday,
+                _uiState.value.workTimeWednesday,
+                _uiState.value.workTimeThursday,
+                _uiState.value.workTimeFriday,
+                _uiState.value.workTimeSaturday,
+                _uiState.value.workTimeSunday
+            )
+            val workTimes = workTimesList.getOrElse(dayIndex) { _uiState.value.workTimeMonday }
 
             val startHour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
             val startMinute = calendar.get(java.util.Calendar.MINUTE)
@@ -509,7 +510,7 @@ class ScheduleViewModel(
             var loctrainingId=training.id
             val bookingId = UUID.randomUUID().mostSignificantBits and Long.MAX_VALUE
 
-            if (training !=null && training!!.isJoined) {
+            if (training.isJoined) {
                 // if the training is already joined skip this one
                 var nexttraining = dao.getTrainingByStartTime(addDaysToSeconds(locstartTime, 7))
                 if (nexttraining != null) {
