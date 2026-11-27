@@ -1072,7 +1072,7 @@ fun SettingsScreen(
                                     OutlinedButton(
                                         onClick = {
                                             viewModel.uiState.value.releaseUrl.let { url ->
-                                                if (url.isNotEmpty()) {
+                                                if (com.swimgym.app.util.UpdateChecker.isSafeGitHubUrl(url)) {
                                                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                                                     context.startActivity(intent)
                                                 }

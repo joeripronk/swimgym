@@ -2,14 +2,20 @@ package com.swimgym.app.data.api
 
 import android.content.Context
 import com.swimgym.app.data.repository.SessionRepository
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.internal.toLongOrDefault
+import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 interface VirtuagymApiClient {
     suspend fun fetchHtml(url: String): org.jsoup.nodes.Document
@@ -38,7 +44,21 @@ class VirtuagymApiClientImpl(
     private var cookies: Map<String, String> = emptyMap()
     private var logintime: Long = 0
     private val baseUrl = "https://swimgym.virtuagym.com"
-    private var userAgent: String = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    private val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+    private suspend fun executeRequest(request: Request): Response = suspendCancellableCoroutine { continuation ->
+        val call = client.newCall(request)
+        continuation.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                if (continuation.isActive) continuation.resumeWithException(e)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (continuation.isActive) continuation.resume(response) else response.close()
+            }
+        })
+    }
 
     override suspend fun fetchHtml(url: String): org.jsoup.nodes.Document = cookieLock.withLock {
         loadCookiesFromCache()
@@ -49,7 +69,7 @@ class VirtuagymApiClientImpl(
             .method("GET", null)
             .build()
 
-        val response = client.newCall(request).execute()
+        val response = executeRequest(request)
         extractCookiesFromResponse(response)
 
         val html = response.body?.string() ?: ""
@@ -72,7 +92,7 @@ class VirtuagymApiClientImpl(
             .method("GET", null)
             .build()
 
-        val response = client.newCall(request).execute()
+        val response = executeRequest(request)
         extractCookiesFromResponse(response)
         return response.body?.string() ?: ""
     }
@@ -82,7 +102,7 @@ class VirtuagymApiClientImpl(
         val request = buildRequest(url)
             .post(body)
             .build()
-        val response = client.newCall(request).execute()
+        val response = executeRequest(request)
         // Do not close the response here: callers own the returned body.
         extractCookiesFromResponse(response)
         return response
@@ -93,7 +113,7 @@ class VirtuagymApiClientImpl(
         val request = buildRequest(url)
             .post(body)
             .build()
-        val response = client.newCall(request).execute()
+        val response = executeRequest(request)
         extractCookiesFromResponse(response)
         return response
     }
@@ -126,7 +146,7 @@ class VirtuagymApiClientImpl(
             .add("attendees", "0")
             .build()
         val request = buildRequest(url).post(formBody).build()
-        val response = client.newCall(request).execute()
+        val response = executeRequest(request)
         val html = response.body?.string().orEmpty()
         extractCookiesFromResponse(response)
         if (!response.isSuccessful) {
@@ -171,7 +191,7 @@ class VirtuagymApiClientImpl(
             .add("attendees", "0")
             .build()
         val request = buildRequest(url).post(formBody).build()
-        val response = client.newCall(request).execute()
+        val response = executeRequest(request)
         val html = response.body?.string().orEmpty()
         extractCookiesFromResponse(response)
         if (!response.isSuccessful) {
@@ -196,7 +216,7 @@ class VirtuagymApiClientImpl(
         val request = buildRequest("$baseUrl/classes/class/$trainingId?embedded=0")
             .method("GET", null)
             .build()
-        val response = client.newCall(request).execute()
+        val response = executeRequest(request)
         val html = response.body?.string().orEmpty()
         if (!response.isSuccessful || isLoginPage(html)) return null
         val doc = org.jsoup.Jsoup.parse(html)

@@ -3,8 +3,7 @@ package com.swimgym.app.util
 import com.swimgym.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.Call
-import okhttp3.Callback
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -13,17 +12,38 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.net.URI
+import java.security.MessageDigest
+import java.util.Locale
 
 data class ReleaseInfo(
     val tagName: String,
     val htmlUrl: String,
     val body: String,
-    val apkDownloadUrl: String? = null
+    val apkDownloadUrl: String? = null,
+    val apkSha256: String? = null
 )
 
 object UpdateChecker {
     private const val GITHUB_API_URL = "https://api.github.com/repos/joeripronk/swimgym/releases/latest"
     private const val APK_ASSET_PATTERN = "swimgym-.*\\.apk"
+    private val DOWNLOAD_HOSTS = setOf("github.com", "objects.githubusercontent.com")
+    private val PAGE_HOSTS = setOf("github.com")
+
+    private val hostAllowlist = Interceptor { chain ->
+        val url = chain.request().url
+        if (url.scheme != "https" || url.host !in DOWNLOAD_HOSTS) {
+            throw IOException("Blocked download host: ${url.host}")
+        }
+        chain.proceed(chain.request())
+    }
+
+    private fun isAllowedUrl(value: String, hosts: Set<String>): Boolean {
+        val uri = runCatching { URI(value) }.getOrNull() ?: return false
+        return uri.scheme == "https" && uri.host in hosts
+    }
+
+    fun isSafeGitHubUrl(value: String): Boolean = isAllowedUrl(value, PAGE_HOSTS)
 
     suspend fun checkForUpdates(context: android.content.Context): Result<ReleaseInfo> =
         withContext(Dispatchers.IO) {
@@ -46,13 +66,14 @@ object UpdateChecker {
 
                 return@withContext try {
                     val json = JSONObject(body)
-                    val apkDownloadUrl = json.optJSONArray("assets")?.let { findApkAsset(it) }
+                    val apkAsset = json.optJSONArray("assets")?.let { findApkAsset(it) }
                     Result.success(
                         ReleaseInfo(
                             tagName = json.getString("tag_name"),
                             htmlUrl = json.getString("html_url"),
                             body = json.optString("body", ""),
-                            apkDownloadUrl = apkDownloadUrl
+                            apkDownloadUrl = apkAsset?.first,
+                            apkSha256 = apkAsset?.second
                         )
                     )
                 } catch (e: Exception) {
@@ -61,22 +82,33 @@ object UpdateChecker {
             }
         }
 
-    private fun findApkAsset(assets: JSONArray): String? {
+    private fun findApkAsset(assets: JSONArray): Pair<String, String?>? {
         for (i in 0 until assets.length()) {
             val asset = assets.getJSONObject(i)
             val name = asset.optString("name", "")
             if (name.matches(Regex(APK_ASSET_PATTERN))) {
-                return asset.getString("browser_download_url")
+                val digest = asset.optString("digest", "")
+                    .removePrefix("sha256:")
+                    .takeIf { it.isNotBlank() }
+                return asset.getString("browser_download_url") to digest
             }
         }
         return null
     }
 
-    suspend fun downloadApk(context: android.content.Context, downloadUrl: String): Result<File> =
-        withContext(Dispatchers.IO) {
+    suspend fun downloadApk(
+        context: android.content.Context,
+        downloadUrl: String,
+        sha256: String?
+    ): Result<File> = withContext(Dispatchers.IO) {
+            if (!isAllowedUrl(downloadUrl, DOWNLOAD_HOSTS)) {
+                return@withContext Result.failure(IOException("Download host is not allowed"))
+            }
+
             val client = OkHttpClient.Builder()
                 .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                 .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .addInterceptor(hostAllowlist)
                 .build()
 
             val request = Request.Builder()
@@ -107,9 +139,32 @@ object UpdateChecker {
                     return@withContext Result.failure(e)
                 }
 
+                if (sha256.isNullOrBlank()) {
+                    apkFile.delete()
+                    return@withContext Result.failure(IOException("Release has no APK checksum"))
+                }
+                val actual = apkFile.sha256()
+                if (!actual.equals(sha256, ignoreCase = true)) {
+                    apkFile.delete()
+                    return@withContext Result.failure(IOException("APK checksum mismatch"))
+                }
+
                 Result.success(apkFile)
             }
         }
+
+    private fun File.sha256(): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        inputStream().use { input ->
+            val buffer = ByteArray(8192)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(Locale.US, it) }
+    }
 
     fun isNewerVersion(current: String, latest: String): Boolean {
         val c = parseVersion(current)

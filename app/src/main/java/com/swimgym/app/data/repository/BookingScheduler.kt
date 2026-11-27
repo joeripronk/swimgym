@@ -114,7 +114,10 @@ class BookingSchedulerImpl(
         if (trainings.isNullOrEmpty()) {
             return@withContext DryRunResult.NotAvailable("no cached trainings")
         }
-        val training = trainings.find { it.startTime == occurrence }
+        val candidates = trainings.filter { it.startTime == occurrence }
+        val training = candidates.firstOrNull { it.id == booking.trainingId }
+            ?: candidates.firstOrNull { it.title.equals(booking.className, ignoreCase = true) }
+            ?: candidates.firstOrNull()
             ?: return@withContext DryRunResult.NotAvailable("class not in schedule")
         if (!training.title.equals(booking.className, ignoreCase = true)) {
             return@withContext DryRunResult.Renamed(training.title)

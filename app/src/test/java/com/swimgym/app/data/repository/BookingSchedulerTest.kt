@@ -266,6 +266,25 @@ class BookingSchedulerTest {
     }
 
     @Test
+    fun `simulateBooking matches class id when two classes share a start time`() = testScope.runTest {
+        val now = System.currentTimeMillis() / 1000
+        val startTime = now + 10 * 86400
+        val booking = ScheduledBooking(id = 1L, trainingId = "t2", className = "Second Class", startTime = startTime)
+
+        coEvery { dao.getAllTrainingsList() } returns listOf(
+            createTraining("t1", "First Class", startTime),
+            createTraining("t2", "Second Class", startTime)
+        )
+        coEvery { sessionRepository.getCalendarConflictCheckEnabled() } returns true
+        coEvery { calendarService.findConflictingEvents(any(), any(), any(), any()) } returns emptyList()
+
+        val result = scheduler.simulateBooking(booking)
+
+        assertTrue(result is DryRunResult.Ok)
+        assertEquals("t2", (result as DryRunResult.Ok).training.id)
+    }
+
+    @Test
     fun `simulateBooking returns NotAvailable when class not in schedule`() = testScope.runTest {
         val now = System.currentTimeMillis() / 1000
         val startTime = now + 10 * 86400

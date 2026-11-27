@@ -1,6 +1,9 @@
 package com.swimgym.app.data.repository
 
 import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -9,6 +12,58 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+
+private object SessionCrypto {
+    private const val PREFIX = "enc:v1:"
+    private const val ALIAS = "swimgym_session_key"
+    private const val KEYSTORE = "AndroidKeyStore"
+
+    private fun key(): SecretKey {
+        val keyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
+        (keyStore.getKey(ALIAS, null) as? SecretKey)?.let { return it }
+        val spec = KeyGenParameterSpec.Builder(
+            ALIAS,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        )
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setUserAuthenticationRequired(false)
+            .setKeySize(256)
+            .build()
+        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
+            .apply { init(spec) }
+            .generateKey()
+    }
+
+    fun encrypt(plain: String): String {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, key())
+        return PREFIX +
+            Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" +
+            Base64.encodeToString(cipher.doFinal(plain.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
+    }
+
+    fun decrypt(stored: String): String {
+        if (!stored.startsWith(PREFIX)) return stored
+        return try {
+            val parts = stored.removePrefix(PREFIX).split(":", limit = 2)
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(
+                Cipher.DECRYPT_MODE,
+                key(),
+                GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP))
+            )
+            String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), Charsets.UTF_8)
+        } catch (_: Exception) {
+            ""
+        }
+    }
+}
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "session")
 
@@ -50,10 +105,13 @@ class SessionRepository(
         private val CONFLICT_CALENDAR_IDS = stringPreferencesKey("conflict_calendar_ids")
     }
 
-    val authToken: Flow<String?> = context.dataStore.data.map { it[AUTH_TOKEN] }
+    val authToken: Flow<String?> = context.dataStore.data.map {
+        it[AUTH_TOKEN]?.let(SessionCrypto::decrypt)
+    }
 
     val isLoggedIn: Flow<Boolean> = context.dataStore.data.map { prefs ->
         val uid = prefs[COOKIES]
+            ?.let(SessionCrypto::decrypt)
             ?.split("; ")
             ?.firstOrNull { it.startsWith("virtuagym_u=") }
             ?.substringAfter("=", "")
@@ -106,7 +164,7 @@ class SessionRepository(
 
     suspend fun saveSession(token: String, name: String, email: String) {
         context.dataStore.edit { prefs ->
-            prefs[AUTH_TOKEN] = token
+            prefs[AUTH_TOKEN] = SessionCrypto.encrypt(token)
             prefs[USER_NAME] = name
             prefs[USER_EMAIL] = email
         }
@@ -324,14 +382,15 @@ class SessionRepository(
     suspend fun saveCookies(cookies: Map<String, String>) {
         val cookieString = cookies.map { "${it.key}=${it.value}" }.joinToString("; ")
         context.dataStore.edit { prefs ->
-            prefs[COOKIES] = cookieString
+            prefs[COOKIES] = SessionCrypto.encrypt(cookieString)
         }
     }
 
     suspend fun loadCookies(): Map<String, String> {
-        val cookieString = context.dataStore.data
+        val stored = context.dataStore.data
             .map { it[COOKIES] }
             .first() ?: return emptyMap()
+        val cookieString = SessionCrypto.decrypt(stored)
 
         return cookieString.split("; ")
             .filter { it.contains("=") }

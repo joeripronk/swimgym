@@ -56,8 +56,8 @@ class TrainingRepositoryImpl(
     }
 
 
-    override suspend fun getSchedule(level: SwodLevel, hideFullyBooked: Boolean, startDate: String?): Result<List<Training>> {
-        return try {
+    override suspend fun getSchedule(level: SwodLevel, hideFullyBooked: Boolean, startDate: String?): Result<List<Training>> = withContext(Dispatchers.IO) {
+        try {
             val startSeconds = startDate?.let {
                 SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(it)?.time?.div(1000)
             }
@@ -91,7 +91,7 @@ class TrainingRepositoryImpl(
                 // usable was stored.
                 cachedTrainings = dao.getAllTrainingsList()
                 if (refreshResult.isFailure && cachedTrainings.isEmpty()) {
-                    return Result.failure(
+                    return@withContext Result.failure(
                         refreshResult.exceptionOrNull() ?: Exception("Schedule refresh failed")
                     )
                 }

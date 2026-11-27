@@ -54,6 +54,7 @@ data class SettingsUiState(
     val releaseNotes: String = "",
     val releaseUrl: String = "",
     val apkDownloadUrl: String? = null,
+    val apkSha256: String? = null,
     val isCheckingUpdate: Boolean = false,
     val updateCheckError: String? = null,
     val isDownloading: Boolean = false,
@@ -307,6 +308,7 @@ class SettingsViewModel(
                             releaseNotes = release.body,
                             releaseUrl = release.htmlUrl,
                             apkDownloadUrl = release.apkDownloadUrl,
+                            apkSha256 = release.apkSha256,
                             isCheckingUpdate = false
                         )
                     }
@@ -340,7 +342,9 @@ class SettingsViewModel(
             }
 
             try {
-                val result = com.swimgym.app.util.UpdateChecker.downloadApk(appContext, downloadUrl)
+                val result = com.swimgym.app.util.UpdateChecker.downloadApk(
+                    appContext, downloadUrl, _uiState.value.apkSha256
+                )
                 result.onSuccess { apkFile ->
                     _uiState.update { it.copy(isDownloading = false, isInstalling = true) }
                     val installIntent = android.content.Intent(android.content.Intent.ACTION_VIEW)
