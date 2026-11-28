@@ -8,7 +8,6 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.google.gson.reflect.TypeToken
 import com.swimgym.app.data.local.entity.TrainingEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -22,7 +21,6 @@ class ScheduledBookingRepository(
 ) {
     private val bookingsKey = stringPreferencesKey("scheduled_bookings_list")
 
-    private val bookingsType = object : TypeToken<List<ScheduledBooking>>() {}.type
 
     suspend fun saveBooking(booking: ScheduledBooking) {
         context.scheduledBookingDataStore.edit { prefs ->
@@ -149,7 +147,7 @@ class ScheduledBookingRepository(
     }
 
     internal fun serializeAll(bookings: List<ScheduledBooking>): String =
-        gson.toJson(bookings, bookingsType)
+        gson.toJson(bookings)
 
     internal fun parseBookingsFromJson(json: String): List<ScheduledBooking> {
         val result = mutableListOf<ScheduledBooking>()

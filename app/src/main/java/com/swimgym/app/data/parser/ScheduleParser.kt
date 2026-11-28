@@ -14,10 +14,6 @@ import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 import java.util.Calendar
 import java.util.Locale
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import org.jsoup.nodes.Document
 
 interface ScheduleParser {
@@ -53,8 +49,7 @@ class ScheduleParserImpl(
         val timeText: String,
         val trainingEntity: TrainingEntity,
         val cachedTraining: TrainingDto?,
-        val imageUrl: String?,
-        val detailsStale: Boolean
+        val imageUrl: String?
     )
 
     override suspend fun parseSchedule(
@@ -124,11 +119,6 @@ class ScheduleParserImpl(
                         lastFetched = cachedEntity?.lastFetched ?: System.currentTimeMillis()
                     )
 
-                    // Refresh detail fields (spots, description, cancel policy, ...)
-                    // periodically too, not just when the instructor image is missing;
-                    // otherwise a cached image leaves those fields stale indefinitely.
-                    val detailsStale = cachedEntity == null ||
-                        System.currentTimeMillis() - cachedEntity.lastFetched > 12 * 60 * 60 * 1000L
                     classes.add(
                         ClassDetails(
                             className = className,
@@ -142,41 +132,15 @@ class ScheduleParserImpl(
                             timeText = timeText,
                             trainingEntity = trainingEntity,
                             cachedTraining = cachedEntity?.toDto(),
-                            imageUrl = dao.getInstructor(instructor)?.instructorImage,
-                            detailsStale = detailsStale
+                            imageUrl = dao.getInstructor(instructor)?.instructorImage
                         )
                     )
                 }
             }
         }
 
-        // A week can contain dozens of stale classes. Fetch their details with
-        // bounded concurrency; the semaphore keeps the portal from being flooded
-        // while async still overlaps the network waits. Order is preserved.
-        val refreshed = coroutineScope {
-            val semaphore = Semaphore(DETAIL_FETCH_CONCURRENCY)
-            classes.map { entry ->
-                async {
-                    if (!entry.detailsStale) {
-                        entry
-                    } else {
-                        semaphore.withPermit {
-                            try {
-                                val details = parseTrainingDetails(entry.classId, entry.trainingEntity, apiClient)
-                                val dto = details.toDto()
-                                entry.copy(cachedTraining = dto, imageUrl = dto.imageUrl)
-                            } catch (e: Exception) {
-                                Log.w("ScheduleParser", "Failed to fetch details for ${entry.classId}: ${e.message}")
-                                entry
-                            }
-                        }
-                    }
-                }
-            }.map { it.await() }
-        }
-
         val trainings = mutableListOf<TrainingDto>()
-        refreshed.forEach { entry ->
+        classes.forEach { entry ->
             val imageUrl = entry.imageUrl ?: ""
             if (entry.cachedTraining != null) {
                 trainings.add(
@@ -334,7 +298,6 @@ class ScheduleParserImpl(
     }
 
     companion object {
-        private const val DETAIL_FETCH_CONCURRENCY = 4
         private val GYM_ZONE_ID: ZoneId = ZoneId.of("Europe/Amsterdam")
         private val GYM_TIME_ZONE: java.util.TimeZone =
             java.util.TimeZone.getTimeZone("Europe/Amsterdam")

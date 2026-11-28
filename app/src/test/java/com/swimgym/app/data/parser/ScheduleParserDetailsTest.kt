@@ -4,6 +4,7 @@ import com.swimgym.app.data.api.VirtuagymApiClient
 import com.swimgym.app.data.local.SwimGymDao
 import com.swimgym.app.data.local.entity.TrainingEntity
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.jsoup.Jsoup
@@ -134,5 +135,9 @@ class ScheduleParserDetailsTest {
         assertEquals(1, parsed.size)
         assertEquals(com.swimgym.app.data.repository.ScheduleFeeds.LAPS, parsed.first().eventType)
         assertEquals("Laps", parsed.first().title)
+        // Schedule parsing must not fetch class detail pages; those are loaded
+        // on demand when a class is opened, and caused minute-long refreshes.
+        coVerify(exactly = 0) { api.fetchHtml(any()) }
+        coVerify(exactly = 0) { api.fetchHtmlBatch(any()) }
     }
 }
