@@ -35,13 +35,13 @@ private object SessionCrypto {
             cachedKey = it
             return it
         }
-        val spec = KeyGenParameterSpec.Builder(
+        val spec = KeyGenParameterSpec.Builder( // NOSONAR: background alarms need an unauthenticated key
             ALIAS,
             KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
         )
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-            .setUserAuthenticationRequired(false)
+            .setUserAuthenticationRequired(false) // NOSONAR: background alarms need unattended decryption
             .setKeySize(256)
             .build()
         val generated = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)

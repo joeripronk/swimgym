@@ -247,8 +247,9 @@ class VirtuagymApiClientImpl(
         notificationManager.showLoginRequired()
         val intent = android.content.Intent(context, com.swimgym.app.receiver.LoginRequiredReceiver::class.java).apply {
             action = com.swimgym.app.receiver.LoginActivity.ACTION_LOGIN_REQUIRED
+            setPackage(context.packageName)
         }
-        context.sendBroadcast(intent)
+        context.sendBroadcast(intent) // NOSONAR: explicit component + package scoped broadcast
     }
 
     private suspend fun loadCookiesFromCache() {

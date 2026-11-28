@@ -178,11 +178,7 @@ class AlarmScheduler(
 
     private fun createSyncPendingIntent(): PendingIntent {
         val intent = Intent(context, ScheduleSyncReceiver::class.java)
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         return PendingIntent.getBroadcast(context, SYNC_REQUEST_CODE, intent, flags)
     }
 
@@ -190,11 +186,7 @@ class AlarmScheduler(
         val intent = Intent(context, ScheduledBookingReceiver::class.java).apply {
             putExtra("booking_id", bookingId)
         }
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         return PendingIntent.getBroadcast(
             context,
             bookingId.toInt(),
@@ -209,7 +201,8 @@ class AlarmScheduler(
         alarmManager.cancel(createPendingIntent(bookingId))
         val intent = Intent(context, ScheduledBookingReceiver::class.java).apply {
             putExtra("booking_id", bookingId)
+            setPackage(context.packageName)
         }
-        context.sendBroadcast(intent)
+        context.sendBroadcast(intent) // NOSONAR: explicit component + package scoped broadcast
     }
 }

@@ -431,8 +431,8 @@ private fun formatTimeUntilNext(nextTime: Long): String {
     val minutes = (diff % (60 * 60 )) / (60)
 
     return when {
-        days > 0 -> "in ${days}d ${String.format(Locale.getDefault(), "%02d:%02d", hours, minutes)}"
-        hours > 0 -> "in ${hours}h ${String.format(Locale.getDefault(), "%02d", minutes)}m"
+        days > 0 -> "in ${days}d ${String.format(Locale.US, "%02d:%02d", hours, minutes)}"
+        hours > 0 -> "in ${hours}h ${String.format(Locale.US, "%02d", minutes)}m"
         else -> "in ${minutes}m"
     }
 }

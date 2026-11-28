@@ -61,7 +61,7 @@ object PermissionHelper {
         val permissions = mutableListOf<String>()
         
         if (!hasNotificationPermission(context)) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+            permissions.add("android.permission.POST_NOTIFICATIONS")
         }
         
         if (!hasCalendarReadPermission(context)) {

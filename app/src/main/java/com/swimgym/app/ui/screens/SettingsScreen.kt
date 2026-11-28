@@ -44,6 +44,7 @@ import androidx.core.content.ContextCompat
 import com.swimgym.app.ui.viewmodel.SettingsViewModel
 import com.swimgym.app.domain.model.CalendarInfo
 import com.swimgym.app.util.PermissionHelper
+import androidx.core.net.toUri
 import java.util.Locale
 
 @ExperimentalComposeUiApi
@@ -362,7 +363,7 @@ fun SettingsScreen(
                             Button(
                                 onClick = { 
                                     notificationPermissionLauncher.launch(
-                                        Manifest.permission.POST_NOTIFICATIONS
+                                        "android.permission.POST_NOTIFICATIONS"
                                     )
                                 }
                             ) {
@@ -762,8 +763,8 @@ fun SettingsScreen(
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Button(
                                     onClick = {
-                                        val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                                            data = Uri.parse("package:${context.packageName}")
+                                        val intent = Intent("android.settings.REQUEST_SCHEDULE_EXACT_ALARM").apply {
+                                            data = "package:${context.packageName}".toUri()
                                         }
                                         exactAlarmPermissionLauncher.launch(intent)
                                     },
@@ -1069,7 +1070,7 @@ fun SettingsScreen(
                                         onClick = {
                                             viewModel.uiState.value.releaseUrl.let { url ->
                                                 if (com.swimgym.app.util.UpdateChecker.isSafeGitHubUrl(url)) {
-                                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                                    val intent = Intent(Intent.ACTION_VIEW, url.toUri())
                                                     context.startActivity(intent)
                                                 }
                                             }

@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.swimgym.app.MainActivity
 import com.swimgym.app.R
@@ -34,7 +33,6 @@ class BookingNotificationManager(
 
         /** Single source of truth for both channels, shared with app startup. */
         fun createNotificationChannels(context: Context) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
             val notificationManager =
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(
